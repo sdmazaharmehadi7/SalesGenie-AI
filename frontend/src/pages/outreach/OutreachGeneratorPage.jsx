@@ -1,7 +1,7 @@
-import PagePlaceholder from '@/pages/shared/PagePlaceholder'
+import { OutreachLayout } from '@/features/outreach/components/OutreachLayout'
 
 function OutreachGeneratorPage() {
-  return <PagePlaceholder description="Personalized outreach generation will appear here soon." title="Outreach Generator" />
+  return <OutreachLayout />
 }
 
 export default OutreachGeneratorPage

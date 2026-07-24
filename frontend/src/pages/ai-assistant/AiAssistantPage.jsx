@@ -1,7 +1,7 @@
-import PagePlaceholder from '@/pages/shared/PagePlaceholder'
+import { ChatInterface } from '@/features/conversations/components/ChatInterface'
 
 function AiAssistantPage() {
-  return <PagePlaceholder description="Your AI sales assistant will be available here soon." title="AI Assistant" />
+  return <ChatInterface />
 }
 
 export default AiAssistantPage
