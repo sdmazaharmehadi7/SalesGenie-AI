@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: theme('colors.line.default');
+  }
+
+  html {
+    min-width: 320px;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    color: theme('colors.ink.primary');
+    background-color: theme('colors.surface.canvas');
+  }
+
+  body {
+    min-width: inherit;
+    min-height: 100vh;
+    margin: 0;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-control items-center justify-center gap-2 rounded-control px-3.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-focus focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-sm {
+    @apply h-control-sm rounded-control px-3 text-xs;
+  }
+
+  .btn-lg {
+    @apply h-control-lg rounded-control px-5 text-base;
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 text-ink-inverse shadow-xs hover:bg-brand-700;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-default text-ink-primary shadow-xs ring-1 ring-inset ring-line-default hover:bg-surface-muted;
+  }
+
+  .btn-outline {
+    @apply border border-line-strong bg-transparent text-ink-secondary hover:bg-surface-muted hover:text-ink-primary;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-ink-secondary hover:bg-surface-muted hover:text-ink-primary;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-ink-inverse shadow-xs hover:bg-red-700;
+  }
+
+  .input {
+    @apply block h-control w-full rounded-control border border-line-default bg-surface-default px-3.5 text-sm text-ink-primary shadow-xs outline-none transition placeholder:text-ink-disabled hover:border-line-strong focus:border-line-focus focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-disabled;
+  }
+
+  .input[aria-invalid='true'] {
+    @apply border-danger focus:border-danger focus:ring-red-100;
+  }
+
+  .card {
+    @apply rounded-card border border-line-default bg-surface-default p-card shadow-card;
+  }
+
+  .card-interactive {
+    @apply card transition duration-150 hover:border-line-strong hover:shadow-floating focus-within:border-brand-300;
+  }
+
+  .card-elevated {
+    @apply card border-transparent shadow-floating;
+  }
+}
