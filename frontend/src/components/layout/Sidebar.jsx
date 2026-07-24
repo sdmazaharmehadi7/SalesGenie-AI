@@ -65,7 +65,7 @@ function Sidebar({ isCollapsed, isMobileOpen, onCollapse, onMobileClose }) {
   return (
     <>
       <aside
-        className={`hidden shrink-0 flex-col border-r border-line-default bg-surface-default transition-[width] duration-200 md:flex ${
+        className={`hidden h-screen shrink-0 flex-col border-r border-line-default bg-surface-default transition-[width] duration-200 md:flex ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >

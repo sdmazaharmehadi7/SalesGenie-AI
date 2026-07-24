@@ -9,7 +9,7 @@ function Layout() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen bg-surface-canvas text-ink-primary">
+    <div className="flex h-screen overflow-hidden bg-surface-canvas text-ink-primary">
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         isMobileOpen={isMobileSidebarOpen}
@@ -19,7 +19,10 @@ function Layout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopNavbar onMenuClick={() => setIsMobileSidebarOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-section" id="main-content">
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-section"
+        >
           <Outlet />
         </main>
       </div>
