@@ -1,0 +1,1146 @@
+import { useState } from 'react'
+
+// ─── Icons (inline SVG to avoid dependency issues) ────────────────────────────
+function Icon({ d, className = 'size-5' }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+const ICONS = {
+  general:      'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  workspace:    'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+  notifications:'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+  security:     'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  appearance:   'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01',
+  ai:           'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',
+  account:      'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  email:        'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  check:        'M5 13l4 4L19 7',
+  chevron:      'M9 5l7 7-7 7',
+  save:         'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4',
+  danger:       'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  copy:         'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z',
+  refresh:      'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  link:         'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+  trash:        'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+  sun:          'M12 3v1m0 16v1m8.66-9H21M3 12H2m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z',
+  moon:         'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z',
+  key:          'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+  shield:       'M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  zap:          'M13 10V3L4 14h7v7l9-11h-7z',
+}
+
+const NAV_SECTIONS = [
+  { id: 'general',       label: 'General',          icon: 'general'       },
+  { id: 'workspace',     label: 'Workspace',         icon: 'workspace'     },
+  { id: 'notifications', label: 'Notifications',     icon: 'notifications' },
+  { id: 'security',      label: 'Security',          icon: 'security'      },
+  { id: 'appearance',    label: 'Appearance',        icon: 'appearance'    },
+  { id: 'ai',            label: 'AI Preferences',    icon: 'ai'            },
+  { id: 'account',       label: 'Account',           icon: 'account'       },
+  { id: 'email',         label: 'Email Integration', icon: 'email'         },
+]
+
+// ─── Primitive controls ───────────────────────────────────────────────────────
+function Toggle({ checked, onChange, id }) {
+  return (
+    <button
+      aria-checked={checked}
+      className={[
+        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
+        checked ? 'bg-brand-600' : 'bg-line-strong',
+      ].join(' ')}
+      id={id}
+      onClick={() => onChange(!checked)}
+      role="switch"
+      type="button"
+    >
+      <span
+        className={[
+          'pointer-events-none inline-block size-5 rounded-full bg-white shadow ring-0 transition-transform duration-200',
+          checked ? 'translate-x-5' : 'translate-x-0',
+        ].join(' ')}
+      />
+    </button>
+  )
+}
+
+function SettingInput({ label, hint, value, onChange, type = 'text', placeholder, disabled }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-ink-secondary">{label}</label>
+      <input
+        className="input"
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        type={type}
+        value={value}
+      />
+      {hint && <p className="text-xs text-ink-muted">{hint}</p>}
+    </div>
+  )
+}
+
+function SettingSelect({ label, hint, value, onChange, options }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-ink-secondary">{label}</label>
+      <div className="relative">
+        <select
+          className="input cursor-pointer appearance-none pr-8"
+          onChange={(e) => onChange(e.target.value)}
+          value={value}
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted">
+          <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </div>
+      {hint && <p className="text-xs text-ink-muted">{hint}</p>}
+    </div>
+  )
+}
+
+function SettingTextarea({ label, hint, value, onChange, rows = 3, placeholder }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-ink-secondary">{label}</label>
+      <textarea
+        className="input h-auto resize-none py-2.5 leading-relaxed"
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        value={value}
+      />
+      {hint && <p className="text-xs text-ink-muted">{hint}</p>}
+    </div>
+  )
+}
+
+// ─── Shared section primitives ────────────────────────────────────────────────
+function SectionCard({ children, className = '' }) {
+  return (
+    <div className={['card space-y-6', className].join(' ')}>
+      {children}
+    </div>
+  )
+}
+
+function SectionTitle({ title, description }) {
+  return (
+    <div className="border-b border-line-default pb-4">
+      <h2 className="text-base font-semibold text-ink-primary">{title}</h2>
+      {description && <p className="mt-0.5 text-sm text-ink-muted">{description}</p>}
+    </div>
+  )
+}
+
+function ToggleRow({ label, description, checked, onChange, id }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-ink-primary">{label}</p>
+        {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
+      </div>
+      <Toggle checked={checked} id={id} onChange={onChange} />
+    </div>
+  )
+}
+
+function Divider() {
+  return <div className="border-t border-line-default" />
+}
+
+function SaveBar({ onSave, saved }) {
+  return (
+    <div className="flex items-center justify-between rounded-card border border-line-default bg-surface-default px-4 py-3 shadow-card">
+      <p className="text-sm text-ink-muted">
+        {saved
+          ? <span className="flex items-center gap-1.5 text-emerald-600 font-medium"><Icon className="size-4" d={ICONS.check} /> Changes saved</span>
+          : 'You have unsaved changes'}
+      </p>
+      <div className="flex gap-2">
+        <button className="btn btn-secondary btn-sm" type="button">Discard</button>
+        <button className="btn btn-primary btn-sm" onClick={onSave} type="button">
+          <Icon className="size-4" d={ICONS.save} /> Save changes
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DangerRow({ label, description, buttonLabel, variant = 'outline' }) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-card border border-red-100 bg-red-50 px-4 py-3">
+      <div className="flex gap-3">
+        <Icon className="mt-0.5 size-4 shrink-0 text-red-500" d={ICONS.danger} />
+        <div>
+          <p className="text-sm font-medium text-red-800">{label}</p>
+          {description && <p className="mt-0.5 text-xs text-red-600">{description}</p>}
+        </div>
+      </div>
+      <button className="btn btn-sm shrink-0 border border-red-300 bg-white text-red-700 hover:bg-red-50" type="button">
+        {buttonLabel}
+      </button>
+    </div>
+  )
+}
+
+function AvatarUpload({ name }) {
+  const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+  return (
+    <div className="flex items-center gap-4">
+      <span className="inline-grid size-16 place-items-center rounded-full bg-brand-100 text-xl font-bold text-brand-700 ring-2 ring-brand-200 ring-offset-2">
+        {initials}
+      </span>
+      <div>
+        <button className="btn btn-secondary btn-sm" type="button">Upload photo</button>
+        <p className="mt-1 text-xs text-ink-muted">JPG, PNG or GIF. Max 5 MB.</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Section: General ─────────────────────────────────────────────────────────
+function GeneralSection() {
+  const [saved, setSaved] = useState(false)
+  const [form, setForm] = useState({
+    name: 'Sarah Mitchell',
+    email: 'sarah.mitchell@salesgenie.io',
+    phone: '+1 (415) 555-0192',
+    timezone: 'America/New_York',
+    language: 'en',
+    dateFormat: 'MM/DD/YYYY',
+  })
+  const set = (key) => (val) => { setSaved(false); setForm((f) => ({ ...f, [key]: val })) }
+
+  return (
+    <div className="space-y-4">
+      <SectionCard>
+        <SectionTitle title="Profile" description="Your personal information and preferences." />
+        <AvatarUpload name={form.name} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SettingInput label="Full name" onChange={set('name')} placeholder="John Smith" value={form.name} />
+          <SettingInput label="Email address" onChange={set('email')} placeholder="john@company.com" type="email" value={form.email} />
+          <SettingInput label="Phone number" onChange={set('phone')} placeholder="+1 (555) 000-0000" type="tel" value={form.phone} />
+          <SettingSelect
+            label="Timezone"
+            onChange={set('timezone')}
+            options={[
+              { value: 'America/New_York',    label: 'Eastern Time (ET)' },
+              { value: 'America/Chicago',     label: 'Central Time (CT)' },
+              { value: 'America/Denver',      label: 'Mountain Time (MT)' },
+              { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+              { value: 'Europe/London',       label: 'Greenwich Mean Time (GMT)' },
+              { value: 'Asia/Kolkata',        label: 'India Standard Time (IST)' },
+              { value: 'Asia/Tokyo',          label: 'Japan Standard Time (JST)' },
+            ]}
+            value={form.timezone}
+          />
+          <SettingSelect
+            label="Language"
+            onChange={set('language')}
+            options={[
+              { value: 'en', label: 'English' },
+              { value: 'es', label: 'Spanish' },
+              { value: 'fr', label: 'French' },
+              { value: 'de', label: 'German' },
+              { value: 'ja', label: 'Japanese' },
+            ]}
+            value={form.language}
+          />
+          <SettingSelect
+            label="Date format"
+            onChange={set('dateFormat')}
+            options={[
+              { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
+              { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
+              { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },
+            ]}
+            value={form.dateFormat}
+          />
+        </div>
+        <SaveBar onSave={() => setSaved(true)} saved={saved} />
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Section: Workspace ───────────────────────────────────────────────────────
+function WorkspaceSection() {
+  const [saved, setSaved] = useState(false)
+  const [form, setForm] = useState({
+    name: 'SalesGenie AI',
+    slug: 'salesgenie-ai',
+    website: 'https://salesgenie.io',
+    industry: 'saas',
+    size: '11-50',
+    description: 'AI-powered CRM and sales automation platform for modern sales teams.',
+  })
+  const set = (key) => (val) => { setSaved(false); setForm((f) => ({ ...f, [key]: val })) }
+
+  return (
+    <div className="space-y-4">
+      <SectionCard>
+        <SectionTitle title="Workspace settings" description="Manage your organization details and branding." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SettingInput label="Workspace name" onChange={set('name')} value={form.name} />
+          <SettingInput
+            hint="salesgenie.io/{slug}"
+            label="Workspace slug"
+            onChange={set('slug')}
+            value={form.slug}
+          />
+          <SettingInput label="Website" onChange={set('website')} placeholder="https://yoursite.com" type="url" value={form.website} />
+          <SettingSelect
+            label="Industry"
+            onChange={set('industry')}
+            options={[
+              { value: 'saas',        label: 'SaaS / Software' },
+              { value: 'finance',     label: 'Finance' },
+              { value: 'healthcare',  label: 'Healthcare' },
+              { value: 'retail',      label: 'Retail & E-commerce' },
+              { value: 'marketing',   label: 'Marketing & Advertising' },
+              { value: 'other',       label: 'Other' },
+            ]}
+            value={form.industry}
+          />
+          <SettingSelect
+            label="Company size"
+            onChange={set('size')}
+            options={[
+              { value: '1-10',    label: '1–10 employees' },
+              { value: '11-50',   label: '11–50 employees' },
+              { value: '51-200',  label: '51–200 employees' },
+              { value: '201-500', label: '201–500 employees' },
+              { value: '500+',    label: '500+ employees' },
+            ]}
+            value={form.size}
+          />
+        </div>
+        <SettingTextarea
+          hint="Short description of your company shown on shared reports."
+          label="Description"
+          onChange={set('description')}
+          placeholder="Describe your company…"
+          value={form.description}
+        />
+        <SaveBar onSave={() => setSaved(true)} saved={saved} />
+      </SectionCard>
+
+      <SectionCard>
+        <SectionTitle title="Danger zone" description="These actions are irreversible. Proceed with caution." />
+        <div className="space-y-3">
+          <DangerRow
+            buttonLabel="Transfer"
+            description="Assign ownership to another admin in the workspace."
+            label="Transfer workspace ownership"
+          />
+          <DangerRow
+            buttonLabel="Delete workspace"
+            description="Permanently deletes all data, leads, and integrations. Cannot be undone."
+            label="Delete this workspace"
+          />
+        </div>
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Section: Notifications ───────────────────────────────────────────────────
+function NotificationsSection() {
+  const [saved, setSaved] = useState(false)
+  const [prefs, setPrefs] = useState({
+    leadAssigned:    true,
+    leadStatusChange: true,
+    emailOpened:     false,
+    emailReplied:    true,
+    meetingReminder: true,
+    weeklyDigest:    true,
+    aiInsights:      true,
+    teamMentions:    true,
+    browserPush:     false,
+    mobilePush:      true,
+    slackAlerts:     false,
+    smsAlerts:       false,
+  })
+  const toggle = (key) => { setSaved(false); setPrefs((p) => ({ ...p, [key]: !p[key] })) }
+
+  const groups = [
+    {
+      title: 'Lead activity',
+      rows: [
+        { key: 'leadAssigned',     label: 'Lead assigned to me',          desc: 'When a new lead is assigned to your account.' },
+        { key: 'leadStatusChange', label: 'Lead status changes',          desc: 'When a lead progresses through pipeline stages.' },
+      ],
+    },
+    {
+      title: 'Email activity',
+      rows: [
+        { key: 'emailOpened',  label: 'Email opened',   desc: 'When a prospect opens an email you sent.' },
+        { key: 'emailReplied', label: 'Email replied',  desc: 'When a prospect replies to an outreach email.' },
+      ],
+    },
+    {
+      title: 'Meetings & reminders',
+      rows: [
+        { key: 'meetingReminder', label: 'Meeting reminders', desc: '15 minutes before a scheduled meeting.' },
+        { key: 'weeklyDigest',    label: 'Weekly digest',     desc: 'Summary of your pipeline every Monday morning.' },
+      ],
+    },
+    {
+      title: 'AI & team',
+      rows: [
+        { key: 'aiInsights',  label: 'AI insights & recommendations', desc: 'When AI detects new opportunities or risks.' },
+        { key: 'teamMentions', label: 'Team mentions',                desc: 'When a teammate @mentions you in a note.' },
+      ],
+    },
+    {
+      title: 'Delivery channels',
+      rows: [
+        { key: 'browserPush', label: 'Browser push notifications', desc: 'Receive notifications in your browser.' },
+        { key: 'mobilePush',  label: 'Mobile push notifications',  desc: 'Push notifications on your phone.' },
+        { key: 'slackAlerts', label: 'Slack alerts',               desc: 'Send notifications to a connected Slack channel.' },
+        { key: 'smsAlerts',   label: 'SMS alerts',                 desc: 'Receive critical alerts via text message.' },
+      ],
+    },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {groups.map((group) => (
+        <SectionCard key={group.title}>
+          <SectionTitle title={group.title} />
+          <div className="space-y-4">
+            {group.rows.map((row, i) => (
+              <div key={row.key}>
+                {i > 0 && <Divider />}
+                <div className={i > 0 ? 'pt-4' : ''}>
+                  <ToggleRow
+                    checked={prefs[row.key]}
+                    description={row.desc}
+                    id={`notif-${row.key}`}
+                    label={row.label}
+                    onChange={() => toggle(row.key)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ))}
+      <SaveBar onSave={() => setSaved(true)} saved={saved} />
+    </div>
+  )
+}
+
+// ─── Section: Security ────────────────────────────────────────────────────────
+function SecuritySection() {
+  const [saved, setSaved] = useState(false)
+  const [form, setForm] = useState({ current: '', newPass: '', confirm: '' })
+  const [twoFA, setTwoFA] = useState(true)
+  const [sessionTimeout, setSessionTimeout] = useState('8h')
+  const set = (key) => (val) => { setSaved(false); setForm((f) => ({ ...f, [key]: val })) }
+
+  const sessions = [
+    { device: 'MacBook Pro 16"', location: 'New York, US',  browser: 'Chrome 126', active: true,  time: 'Active now' },
+    { device: 'iPhone 15 Pro',   location: 'New York, US',  browser: 'Safari iOS', active: false, time: '2 hours ago' },
+    { device: 'Windows PC',      location: 'Chicago, US',   browser: 'Edge 125',   active: false, time: 'Yesterday' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {/* Change password */}
+      <SectionCard>
+        <SectionTitle title="Change password" description="Use a strong password of at least 12 characters." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <SettingInput label="Current password" onChange={set('current')} placeholder="••••••••" type="password" value={form.current} />
+          </div>
+          <SettingInput label="New password" onChange={set('newPass')} placeholder="••••••••" type="password" value={form.newPass} />
+          <SettingInput label="Confirm new password" onChange={set('confirm')} placeholder="••••••••" type="password" value={form.confirm} />
+        </div>
+
+        {/* Password strength */}
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-ink-muted">Password strength</p>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4].map((n) => (
+              <div
+                className={['h-1.5 flex-1 rounded-full', form.newPass.length >= n * 3 ? (n <= 2 ? 'bg-amber-400' : 'bg-emerald-500') : 'bg-surface-muted'].join(' ')}
+                key={n}
+              />
+            ))}
+          </div>
+        </div>
+        <SaveBar onSave={() => setSaved(true)} saved={saved} />
+      </SectionCard>
+
+      {/* 2FA */}
+      <SectionCard>
+        <SectionTitle title="Two-factor authentication" description="Add an extra layer of security to your account." />
+        <div className="flex items-start gap-4 rounded-card bg-surface-muted p-4">
+          <Icon className="mt-0.5 size-5 shrink-0 text-brand-600" d={ICONS.shield} />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-ink-primary">Authenticator app</p>
+            <p className="mt-0.5 text-xs text-ink-muted">Use an app like Google Authenticator or Authy to generate one-time codes.</p>
+          </div>
+          <Toggle checked={twoFA} id="twofa" onChange={setTwoFA} />
+        </div>
+        {twoFA && (
+          <div className="flex items-center gap-3 rounded-card border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <Icon className="size-4 text-emerald-600" d={ICONS.check} />
+            <p className="text-sm font-medium text-emerald-800">Two-factor authentication is enabled.</p>
+          </div>
+        )}
+
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-ink-secondary">Recovery codes</p>
+          <p className="text-xs text-ink-muted mb-3">Keep these codes safe. You can use them to access your account if you lose your authenticator device.</p>
+          <div className="grid grid-cols-2 gap-2 rounded-card bg-surface-muted p-3 font-mono text-xs text-ink-secondary sm:grid-cols-3">
+            {['7a3k-9xmq', 'b2lp-4nhr', 'c8wd-6svt', 'e5fj-3qyz', 'g1rb-7mkp', 'h9ux-2cnw'].map((code) => (
+              <span className="text-center" key={code}>{code}</span>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button className="btn btn-secondary btn-sm gap-1.5" type="button"><Icon className="size-3.5" d={ICONS.copy} /> Copy codes</button>
+            <button className="btn btn-secondary btn-sm gap-1.5" type="button"><Icon className="size-3.5" d={ICONS.refresh} /> Regenerate</button>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Session timeout */}
+      <SectionCard>
+        <SectionTitle title="Session timeout" description="Automatically sign out after a period of inactivity." />
+        <SettingSelect
+          label="Auto sign-out after"
+          onChange={setSessionTimeout}
+          options={[
+            { value: '1h',   label: '1 hour' },
+            { value: '4h',   label: '4 hours' },
+            { value: '8h',   label: '8 hours' },
+            { value: '24h',  label: '24 hours' },
+            { value: 'never', label: 'Never' },
+          ]}
+          value={sessionTimeout}
+        />
+      </SectionCard>
+
+      {/* Active sessions */}
+      <SectionCard>
+        <SectionTitle title="Active sessions" description="All devices currently signed in to your account." />
+        <div className="space-y-3">
+          {sessions.map((s) => (
+            <div className="flex items-start justify-between gap-4 rounded-card border border-line-default p-3" key={s.device}>
+              <div className="flex items-center gap-3">
+                <span className={['size-2 mt-1.5 rounded-full shrink-0', s.active ? 'bg-emerald-500' : 'bg-line-strong'].join(' ')} />
+                <div>
+                  <p className="text-sm font-medium text-ink-primary">{s.device}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">{s.browser} · {s.location} · {s.time}</p>
+                </div>
+              </div>
+              {!s.active && (
+                <button className="btn btn-ghost btn-sm text-danger hover:bg-red-50 hover:text-danger" type="button">Revoke</button>
+              )}
+              {s.active && (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">Current</span>
+              )}
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-ghost btn-sm text-danger hover:bg-red-50" type="button">
+          <Icon className="size-3.5" d={ICONS.key} /> Revoke all other sessions
+        </button>
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Section: Appearance ──────────────────────────────────────────────────────
+function AppearanceSection() {
+  const [theme, setTheme] = useState('light')
+  const [density, setDensity] = useState('comfortable')
+  const [accent, setAccent] = useState('blue')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [animationsEnabled, setAnimationsEnabled] = useState(true)
+  const [saved, setSaved] = useState(false)
+
+  const themes = [
+    { id: 'light', label: 'Light', icon: 'sun' },
+    { id: 'dark',  label: 'Dark',  icon: 'moon' },
+    { id: 'auto',  label: 'Auto',  icon: 'general' },
+  ]
+
+  const densities = [
+    { id: 'compact',     label: 'Compact' },
+    { id: 'comfortable', label: 'Comfortable' },
+    { id: 'spacious',    label: 'Spacious' },
+  ]
+
+  const accents = [
+    { id: 'blue',   color: '#3b6eea', label: 'Blue'   },
+    { id: 'violet', color: '#7c3aed', label: 'Violet' },
+    { id: 'emerald',color: '#16a36a', label: 'Emerald'},
+    { id: 'rose',   color: '#e11d48', label: 'Rose'   },
+    { id: 'amber',  color: '#d97706', label: 'Amber'  },
+    { id: 'slate',  color: '#64748b', label: 'Slate'  },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <SectionCard>
+        <SectionTitle title="Theme" description="Choose how SalesGenie AI looks for you." />
+        <div className="grid grid-cols-3 gap-3">
+          {themes.map((t) => (
+            <button
+              className={[
+                'flex flex-col items-center gap-2 rounded-card border-2 p-4 transition-colors',
+                theme === t.id
+                  ? 'border-brand-500 bg-brand-50'
+                  : 'border-line-default bg-surface-default hover:border-line-strong',
+              ].join(' ')}
+              key={t.id}
+              onClick={() => { setTheme(t.id); setSaved(false) }}
+              type="button"
+            >
+              <Icon className="size-5 text-ink-secondary" d={ICONS[t.icon]} />
+              <span className={['text-xs font-medium', theme === t.id ? 'text-brand-700' : 'text-ink-secondary'].join(' ')}>
+                {t.label}
+              </span>
+              {theme === t.id && (
+                <span className="size-1.5 rounded-full bg-brand-500" />
+              )}
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard>
+        <SectionTitle title="Accent color" description="Used for highlights, buttons, and links." />
+        <div className="flex flex-wrap gap-3">
+          {accents.map((a) => (
+            <button
+              aria-label={a.label}
+              className={[
+                'group relative size-8 rounded-full ring-2 ring-offset-2 transition-all',
+                accent === a.id ? 'ring-ink-primary scale-110' : 'ring-transparent hover:ring-ink-muted',
+              ].join(' ')}
+              key={a.id}
+              onClick={() => { setAccent(a.id); setSaved(false) }}
+              style={{ backgroundColor: a.color }}
+              title={a.label}
+              type="button"
+            >
+              {accent === a.id && (
+                <span className="absolute inset-0 flex items-center justify-center text-white">
+                  <Icon className="size-4" d={ICONS.check} />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard>
+        <SectionTitle title="Layout density" description="Controls spacing and information density across the app." />
+        <div className="grid grid-cols-3 gap-3">
+          {densities.map((d) => (
+            <button
+              className={[
+                'rounded-card border-2 py-3 text-sm font-medium transition-colors',
+                density === d.id
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-line-default text-ink-secondary hover:border-line-strong',
+              ].join(' ')}
+              key={d.id}
+              onClick={() => { setDensity(d.id); setSaved(false) }}
+              type="button"
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+
+        <Divider />
+
+        <ToggleRow
+          checked={sidebarCollapsed}
+          description="Collapse the sidebar to icon-only mode by default."
+          id="sidebar-collapsed"
+          label="Collapsed sidebar by default"
+          onChange={() => { setSidebarCollapsed(!sidebarCollapsed); setSaved(false) }}
+        />
+
+        <Divider />
+
+        <ToggleRow
+          checked={animationsEnabled}
+          description="Disable to improve performance on lower-end devices."
+          id="animations"
+          label="Enable animations"
+          onChange={() => { setAnimationsEnabled(!animationsEnabled); setSaved(false) }}
+        />
+      </SectionCard>
+      <SaveBar onSave={() => setSaved(true)} saved={saved} />
+    </div>
+  )
+}
+
+// ─── Section: AI Preferences ──────────────────────────────────────────────────
+function AISection() {
+  const [saved, setSaved] = useState(false)
+  const [prefs, setPrefs] = useState({
+    autoSummarize:    true,
+    leadScoring:      true,
+    sentimentAnalysis: true,
+    smartSuggestions: true,
+    autoFollowUp:     false,
+    modelQuality:     'balanced',
+    language:         'en',
+    tone:             'professional',
+    summaryLength:    'medium',
+  })
+  const set = (key) => (val) => { setSaved(false); setPrefs((p) => ({ ...p, [key]: val })) }
+  const toggle = (key) => { setSaved(false); setPrefs((p) => ({ ...p, [key]: !p[key] })) }
+
+  const usagePercent = 68
+
+  return (
+    <div className="space-y-4">
+      <SectionCard>
+        <SectionTitle title="AI features" description="Control which AI capabilities are active for your account." />
+        <div className="space-y-4">
+          {[
+            { key: 'autoSummarize',    label: 'Auto-summarize conversations',  desc: 'Generate AI summaries after each recorded call or meeting.' },
+            { key: 'leadScoring',      label: 'AI lead scoring',               desc: 'Automatically score leads based on behaviour and fit signals.' },
+            { key: 'sentimentAnalysis',label: 'Sentiment analysis',            desc: 'Detect sentiment in emails and call transcripts.' },
+            { key: 'smartSuggestions', label: 'Smart reply suggestions',       desc: 'Get AI-powered email reply suggestions in your outreach editor.' },
+            { key: 'autoFollowUp',     label: 'Auto follow-up scheduling',     desc: 'Let AI suggest and schedule follow-up tasks automatically.' },
+          ].map((row, i, arr) => (
+            <div key={row.key}>
+              <ToggleRow checked={prefs[row.key]} description={row.desc} id={`ai-${row.key}`} label={row.label} onChange={() => toggle(row.key)} />
+              {i < arr.length - 1 && <Divider />}
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard>
+        <SectionTitle title="AI model & output" description="Tune how the AI generates content for you." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SettingSelect
+            hint="Faster is quicker but less accurate; Precise is slower but higher quality."
+            label="Model quality"
+            onChange={set('modelQuality')}
+            options={[
+              { value: 'fast',     label: 'Fast' },
+              { value: 'balanced', label: 'Balanced (recommended)' },
+              { value: 'precise',  label: 'Precise' },
+            ]}
+            value={prefs.modelQuality}
+          />
+          <SettingSelect
+            label="AI output language"
+            onChange={set('language')}
+            options={[
+              { value: 'en', label: 'English' },
+              { value: 'es', label: 'Spanish' },
+              { value: 'fr', label: 'French' },
+              { value: 'de', label: 'German' },
+            ]}
+            value={prefs.language}
+          />
+          <SettingSelect
+            hint="Affects email drafts, summaries, and suggestions."
+            label="Communication tone"
+            onChange={set('tone')}
+            options={[
+              { value: 'professional', label: 'Professional' },
+              { value: 'friendly',     label: 'Friendly' },
+              { value: 'concise',      label: 'Concise' },
+              { value: 'formal',       label: 'Formal' },
+            ]}
+            value={prefs.tone}
+          />
+          <SettingSelect
+            label="Summary length"
+            onChange={set('summaryLength')}
+            options={[
+              { value: 'short',  label: 'Short (1–2 sentences)' },
+              { value: 'medium', label: 'Medium (1 paragraph)' },
+              { value: 'long',   label: 'Long (full detail)' },
+            ]}
+            value={prefs.summaryLength}
+          />
+        </div>
+        <SaveBar onSave={() => setSaved(true)} saved={saved} />
+      </SectionCard>
+
+      {/* AI usage */}
+      <SectionCard>
+        <SectionTitle title="AI usage" description="Your current AI request consumption for this billing cycle." />
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-ink-secondary">Requests used</span>
+            <span className="font-semibold text-ink-primary">26,460 / 38,910</span>
+          </div>
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface-muted">
+            <div
+              className="h-full rounded-full bg-brand-600 transition-all"
+              style={{ width: `${usagePercent}%` }}
+            />
+          </div>
+          <p className="text-xs text-ink-muted">{usagePercent}% used · Resets on Aug 1, 2026</p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Summaries',   val: '1,248' },
+            { label: 'Emails',      val: '8,930' },
+            { label: 'Lead scores', val: '16,282' },
+          ].map((item) => (
+            <div className="rounded-card bg-surface-muted p-3 text-center" key={item.label}>
+              <p className="text-base font-semibold text-ink-primary">{item.val}</p>
+              <p className="text-xs text-ink-muted">{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Section: Account ─────────────────────────────────────────────────────────
+function AccountSection() {
+  const [saved, setSaved] = useState(false)
+  const plan = { name: 'Pro', price: '$79/mo', renewDate: 'Aug 1, 2026', seats: 12, maxSeats: 20 }
+
+  const members = [
+    { name: 'Sarah Mitchell', email: 'sarah@salesgenie.io',   role: 'Owner',  avatar: 'SM', active: true  },
+    { name: 'James Carter',   email: 'james@salesgenie.io',   role: 'Admin',  avatar: 'JC', active: true  },
+    { name: 'Priya Mehta',    email: 'priya@salesgenie.io',   role: 'Member', avatar: 'PM', active: true  },
+    { name: 'Dan Torres',     email: 'dan@salesgenie.io',     role: 'Member', avatar: 'DT', active: false },
+  ]
+
+  const roleColor = {
+    Owner:  'bg-brand-50 text-brand-700 ring-brand-100',
+    Admin:  'bg-violet-50 text-violet-700 ring-violet-100',
+    Member: 'bg-slate-100 text-slate-600 ring-slate-200',
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Plan */}
+      <SectionCard>
+        <SectionTitle title="Subscription plan" description="Your current plan and billing information." />
+        <div className="flex flex-wrap items-start gap-4 rounded-card bg-gradient-to-br from-brand-50 to-brand-100 p-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-brand-700">{plan.name}</span>
+              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">Current</span>
+            </div>
+            <p className="mt-1 text-sm text-brand-800">{plan.price} · Renews {plan.renewDate}</p>
+            <p className="mt-0.5 text-xs text-brand-700">{plan.seats} of {plan.maxSeats} seats used</p>
+            <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-brand-200">
+              <div className="h-full rounded-full bg-brand-600" style={{ width: `${(plan.seats / plan.maxSeats) * 100}%` }} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <button className="btn btn-primary btn-sm" type="button">Upgrade plan</button>
+            <button className="btn btn-ghost btn-sm" type="button">Manage billing</button>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Team members */}
+      <SectionCard>
+        <div className="flex items-center justify-between">
+          <SectionTitle title="Team members" description="Manage access and roles for your workspace." />
+          <button className="btn btn-secondary btn-sm shrink-0" type="button">Invite member</button>
+        </div>
+        <div className="space-y-2">
+          {members.map((m) => (
+            <div className="flex items-center gap-3 rounded-card border border-line-default p-3" key={m.email}>
+              <span className={['inline-grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold',
+                m.active ? 'bg-brand-100 text-brand-700' : 'bg-surface-muted text-ink-muted'].join(' ')}>
+                {m.avatar}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className={['text-sm font-medium', m.active ? 'text-ink-primary' : 'text-ink-muted'].join(' ')}>{m.name}</p>
+                <p className="text-xs text-ink-muted truncate">{m.email}</p>
+              </div>
+              <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', roleColor[m.role]].join(' ')}>
+                {m.role}
+              </span>
+              {!m.active && (
+                <span className="text-xs text-ink-disabled">Inactive</span>
+              )}
+              {m.role !== 'Owner' && (
+                <button className="btn btn-ghost btn-sm text-ink-muted" type="button">
+                  <Icon className="size-3.5" d={ICONS.trash} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      {/* Billing history */}
+      <SectionCard>
+        <SectionTitle title="Billing history" />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line-default">
+                <th className="pb-2 text-left text-xs font-medium text-ink-muted">Date</th>
+                <th className="pb-2 text-left text-xs font-medium text-ink-muted">Description</th>
+                <th className="pb-2 text-left text-xs font-medium text-ink-muted">Amount</th>
+                <th className="pb-2 text-right text-xs font-medium text-ink-muted">Invoice</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line-default">
+              {[
+                { date: 'Jul 1, 2026', desc: 'Pro plan – July 2026', amount: '$79.00' },
+                { date: 'Jun 1, 2026', desc: 'Pro plan – June 2026', amount: '$79.00' },
+                { date: 'May 1, 2026', desc: 'Pro plan – May 2026',  amount: '$79.00' },
+              ].map((row) => (
+                <tr key={row.date}>
+                  <td className="py-2.5 text-ink-muted">{row.date}</td>
+                  <td className="py-2.5 text-ink-secondary">{row.desc}</td>
+                  <td className="py-2.5 font-medium text-ink-primary">{row.amount}</td>
+                  <td className="py-2.5 text-right">
+                    <button className="text-brand-600 hover:text-brand-700 text-xs font-medium" type="button">Download</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      {/* Danger zone */}
+      <SectionCard>
+        <SectionTitle title="Danger zone" />
+        <div className="space-y-3">
+          <DangerRow
+            buttonLabel="Export"
+            description="Download a full archive of your data in CSV/JSON format."
+            label="Export all data"
+          />
+          <DangerRow
+            buttonLabel="Delete account"
+            description="Permanently delete your account and all associated data. This cannot be undone."
+            label="Delete account"
+          />
+        </div>
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Section: Email Integration ───────────────────────────────────────────────
+function EmailSection() {
+  const [saved, setSaved] = useState(false)
+  const [tracking, setTracking] = useState({ opens: true, clicks: true, unsubscribes: true })
+  const [signature, setSignature] = useState('Best regards,\nSarah Mitchell\nAccount Executive — SalesGenie AI\n📧 sarah@salesgenie.io | 📞 +1 (415) 555-0192')
+  const [defaultFrom, setDefaultFrom] = useState('sarah@salesgenie.io')
+  const [delay, setDelay] = useState('5')
+
+  const providers = [
+    { id: 'gmail',   label: 'Gmail',         icon: '✉️', connected: true,  email: 'sarah@salesgenie.io' },
+    { id: 'outlook', label: 'Outlook',        icon: '📧', connected: false, email: null },
+    { id: 'smtp',    label: 'Custom SMTP',    icon: '🔧', connected: false, email: null },
+    { id: 'sendgrid',label: 'SendGrid',       icon: '⚡', connected: false, email: null },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {/* Connected accounts */}
+      <SectionCard>
+        <SectionTitle title="Connected email accounts" description="Link email providers to send and track outreach campaigns." />
+        <div className="space-y-3">
+          {providers.map((p) => (
+            <div className="flex items-center gap-3 rounded-card border border-line-default p-3" key={p.id}>
+              <span className="text-xl">{p.icon}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink-primary">{p.label}</p>
+                {p.connected
+                  ? <p className="text-xs text-ink-muted">{p.email}</p>
+                  : <p className="text-xs text-ink-disabled">Not connected</p>
+                }
+              </div>
+              {p.connected
+                ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">
+                      <span className="size-1.5 rounded-full bg-emerald-500" />
+                      Connected
+                    </span>
+                    <button className="btn btn-ghost btn-sm text-danger hover:bg-red-50" type="button">Disconnect</button>
+                  </div>
+                )
+                : <button className="btn btn-secondary btn-sm gap-1.5" type="button"><Icon className="size-3.5" d={ICONS.link} /> Connect</button>
+              }
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      {/* Sending settings */}
+      <SectionCard>
+        <SectionTitle title="Sending settings" description="Configure how outreach emails are sent." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SettingInput
+            hint="The address that appears in the 'From' field."
+            label="Default from address"
+            onChange={setDefaultFrom}
+            type="email"
+            value={defaultFrom}
+          />
+          <SettingSelect
+            hint="Delay between emails in a sequence to avoid spam filters."
+            label="Send delay between emails"
+            onChange={setDelay}
+            options={[
+              { value: '0',  label: 'No delay' },
+              { value: '2',  label: '2 minutes' },
+              { value: '5',  label: '5 minutes' },
+              { value: '10', label: '10 minutes' },
+              { value: '30', label: '30 minutes' },
+            ]}
+            value={delay}
+          />
+        </div>
+        <SettingTextarea
+          hint="Appended automatically to all outgoing emails."
+          label="Email signature"
+          onChange={setSignature}
+          placeholder="Your signature…"
+          rows={5}
+          value={signature}
+        />
+        <SaveBar onSave={() => setSaved(true)} saved={saved} />
+      </SectionCard>
+
+      {/* Tracking */}
+      <SectionCard>
+        <SectionTitle title="Email tracking" description="Monitor recipient engagement with your emails." />
+        <div className="space-y-4">
+          {[
+            { key: 'opens',        label: 'Track email opens',         desc: 'Know when a recipient opens your email.' },
+            { key: 'clicks',       label: 'Track link clicks',         desc: 'See which links get clicked in your emails.' },
+            { key: 'unsubscribes', label: 'Respect unsubscribe links', desc: 'Automatically suppress contacts who unsubscribe.' },
+          ].map((row, i, arr) => (
+            <div key={row.key}>
+              <ToggleRow
+                checked={tracking[row.key]}
+                description={row.desc}
+                id={`email-${row.key}`}
+                label={row.label}
+                onChange={() => { setTracking((t) => ({ ...t, [row.key]: !t[row.key] })); setSaved(false) }}
+              />
+              {i < arr.length - 1 && <Divider />}
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Placeholder for sections not yet fully detailed ─────────────────────────
+// (all 8 sections are implemented above)
+
+// ─── Nav item ─────────────────────────────────────────────────────────────────
+function NavItem({ active, label, icon, onClick }) {
+  return (
+    <button
+      className={[
+        'flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-left text-sm font-medium transition-colors',
+        active
+          ? 'bg-brand-50 text-brand-700'
+          : 'text-ink-secondary hover:bg-surface-muted hover:text-ink-primary',
+      ].join(' ')}
+      onClick={onClick}
+      type="button"
+    >
+      <Icon
+        className={['size-4 shrink-0', active ? 'text-brand-600' : 'text-ink-muted'].join(' ')}
+        d={ICONS[icon]}
+      />
+      {label}
+      {active && (
+        <Icon className="ml-auto size-3.5 text-brand-400" d={ICONS.chevron} />
+      )}
+    </button>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+const SECTION_CONTENT = {
+  general:       <GeneralSection />,
+  workspace:     <WorkspaceSection />,
+  notifications: <NotificationsSection />,
+  security:      <SecuritySection />,
+  appearance:    <AppearanceSection />,
+  ai:            <AISection />,
+  account:       <AccountSection />,
+  email:         <EmailSection />,
+}
+
+function SettingsPage() {
+  const [active, setActive] = useState('general')
+  const current = NAV_SECTIONS.find((s) => s.id === active)
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      {/* Header */}
+      <header className="mb-6">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink-primary">Settings</h1>
+        <p className="mt-1.5 text-sm text-ink-muted">Manage your account, workspace, and preferences.</p>
+      </header>
+
+      <div className="flex flex-col gap-6 lg:flex-row">
+        {/* Sidebar nav */}
+        <nav
+          aria-label="Settings sections"
+          className="shrink-0 lg:w-52 xl:w-56"
+        >
+          <div className="card p-2 lg:sticky lg:top-6">
+            {NAV_SECTIONS.map((section) => (
+              <NavItem
+                active={active === section.id}
+                icon={section.icon}
+                key={section.id}
+                label={section.label}
+                onClick={() => setActive(section.id)}
+              />
+            ))}
+          </div>
+        </nav>
+
+        {/* Content */}
+        <main className="min-w-0 flex-1">
+          {/* Section breadcrumb */}
+          <div className="mb-4 flex items-center gap-2 text-xs text-ink-muted">
+            <span>Settings</span>
+            <Icon className="size-3" d={ICONS.chevron} />
+            <span className="font-medium text-ink-secondary">{current?.label}</span>
+          </div>
+
+          {SECTION_CONTENT[active]}
+        </main>
+      </div>
+    </div>
+  )
+}
+
+export default SettingsPage
