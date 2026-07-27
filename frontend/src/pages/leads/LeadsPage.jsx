@@ -1,3 +1,8 @@
+import {
+  getLeads,
+  updateLead,
+  deleteLead as deleteLeadAPI,
+} from "@/services/api/leads";
 import { useEffect, useMemo, useState } from 'react'
 
 import Button from '@/components/ui/Button'
@@ -17,8 +22,10 @@ const initialLeads = [
   { id: 8, name: 'Noah Garcia', email: 'noah@ember.co', company: 'Ember Collective', status: 'Nurturing', score: 63, owner: 'A. Rao', updated: 'Jul 21', source: 'Referral', phone: '+1 917 555 0163' },
 ]
 
-const statusOptions = ['All statuses', 'New', 'Contacted', 'Qualified', 'Nurturing']
-const ownerOptions = ['All owners', 'S. Mehta', 'A. Rao', 'L. Kim']
+const statusOptions = [
+  "All statuses",
+  "qualified",
+];
 const pageSize = 5
 
 function LeadDetails({ lead, onClose, onEdit }) {
@@ -43,7 +50,7 @@ function LeadDetails({ lead, onClose, onEdit }) {
         <div className="flex-1 p-5">
           <div className="flex items-start justify-between gap-4">
             <div><h2 className="text-xl font-semibold text-ink-primary">{lead.name}</h2><p className="mt-1 text-sm text-ink-muted">Lead score: {lead.score}</p></div>
-            <StatusBadge status={lead.status} />
+            <StatusBadge status={lead.lead_status} />
           </div>
           <dl className="mt-8 divide-y divide-line-default border-y border-line-default">
             {fields.map(([label, value]) => <div className="flex justify-between gap-4 py-3" key={label}><dt className="text-sm text-ink-muted">{label}</dt><dd className="text-right text-sm font-medium text-ink-primary">{value}</dd></div>)}
@@ -59,10 +66,21 @@ function EditLeadModal({ lead, onClose, onSave }) {
   if (!lead) return null
 
   function handleSubmit(event) {
-    event.preventDefault()
-    const formData = new FormData(event.currentTarget)
-    onSave({ ...lead, name: formData.get('name'), email: formData.get('email'), company: formData.get('company'), status: formData.get('status') })
-  }
+  event.preventDefault();
+
+  const formData = new FormData(event.currentTarget);
+
+  onSave({
+    ...lead,
+    company_name: formData.get("company_name"),
+    industry: formData.get("industry"),
+    contact_name: formData.get("contact_name"),
+    email: formData.get("email") || null,
+    phone: formData.get("phone"),
+    deal_value: Number(formData.get("deal_value")),
+    lead_status: formData.get("lead_status"),
+  });
+}
 
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/30 p-4">
@@ -70,11 +88,81 @@ function EditLeadModal({ lead, onClose, onSave }) {
         <div className="flex items-center justify-between border-b border-line-default p-5"><h2 className="text-base font-semibold text-ink-primary">Edit lead</h2><button aria-label="Close edit lead" className="rounded-control p-1.5 text-ink-muted hover:bg-surface-muted" onClick={onClose} type="button"><X className="size-5" /></button></div>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <label className="space-y-1.5"><span className="text-sm font-medium text-ink-secondary">Full name</span><input className="input" defaultValue={lead.name} name="name" required /></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-ink-secondary">Company</span><input className="input" defaultValue={lead.company} name="company" required /></label>
-            <label className="space-y-1.5 sm:col-span-2"><span className="text-sm font-medium text-ink-secondary">Email</span><input className="input" defaultValue={lead.email} name="email" required type="email" /></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-ink-secondary">Status</span><select className="input" defaultValue={lead.status} name="status">{statusOptions.slice(1).map((status) => <option key={status}>{status}</option>)}</select></label>
-          </div>
+
+  <label className="space-y-1.5">
+    <span>Company Name</span>
+    <input
+      className="input"
+      name="company_name"
+      defaultValue={lead.company_name}
+      required
+    />
+  </label>
+
+  <label className="space-y-1.5">
+    <span>Industry</span>
+    <input
+      className="input"
+      name="industry"
+      defaultValue={lead.industry}
+    />
+  </label>
+
+  <label className="space-y-1.5">
+    <span>Contact Name</span>
+    <input
+      className="input"
+      name="contact_name"
+      defaultValue={lead.contact_name}
+    />
+  </label>
+
+  <label className="space-y-1.5">
+    <span>Email</span>
+    <input
+      className="input"
+      type="email"
+      name="email"
+      defaultValue={lead.email}
+    />
+  </label>
+
+  <label className="space-y-1.5">
+    <span>Phone</span>
+    <input
+      className="input"
+      name="phone"
+      defaultValue={lead.phone}
+    />
+  </label>
+
+  <label className="space-y-1.5">
+    <span>Deal Value</span>
+    <input
+      className="input"
+      type="number"
+      name="deal_value"
+      defaultValue={lead.deal_value}
+    />
+  </label>
+
+  <label className="space-y-1.5 sm:col-span-2">
+    <span>Status</span>
+    <select
+      className="input"
+      name="lead_status"
+      defaultValue={lead.lead_status}
+    >
+      <option value="new">New</option>
+      <option value="contacted">Contacted</option>
+      <option value="qualified">Qualified</option>
+      <option value="proposal">Proposal</option>
+      <option value="won">Won</option>
+      <option value="lost">Lost</option>
+    </select>
+  </label>
+
+</div>
           <div className="flex justify-end gap-3 border-t border-line-default p-5"><Button onClick={onClose} type="button" variant="secondary">Cancel</Button><Button type="submit">Save changes</Button></div>
         </form>
       </div>
@@ -97,61 +185,157 @@ function DeleteLeadDialog({ lead, onCancel, onConfirm }) {
 }
 
 function LeadsPage() {
-  const [leads, setLeads] = useState(initialLeads)
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('All statuses')
-  const [owner, setOwner] = useState('All owners')
   const [page, setPage] = useState(1)
   const [selectedLead, setSelectedLead] = useState(null)
   const [editingLead, setEditingLead] = useState(null)
   const [leadToDelete, setLeadToDelete] = useState(null)
 
-  const filteredLeads = useMemo(() => leads.filter((lead) => {
-    const searchValue = `${lead.name} ${lead.email} ${lead.company}`.toLowerCase()
-    return searchValue.includes(query.trim().toLowerCase()) && (status === 'All statuses' || lead.status === status) && (owner === 'All owners' || lead.owner === owner)
-  }), [leads, owner, query, status])
+  const filteredLeads = useMemo(() => {
+  return leads.filter((lead) => {
+    const searchValue =
+      `${lead.company_name} ${lead.industry}`.toLowerCase();
+
+    return (
+      searchValue.includes(query.trim().toLowerCase()) &&
+      (status === "All statuses" ||
+        lead.lead_status === status)
+    );
+  });
+}, [leads, query, status]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize))
   const pageLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize)
 
-  useEffect(() => setPage(1), [query, status, owner])
+  useEffect(() => setPage(1), [query, status])
   useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
+  useEffect(() => {
+  async function loadLeads() {
+    try {
+      const data = await getLeads();
+
+
+
+setLeads(data.items || []);
+    } catch (error) {
+      console.error("Leads Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loadLeads();
+}, []);
+
+if (loading) {
+  return <div className="p-6">Loading leads...</div>;
+}
 
   function clearFilters() {
     setQuery('')
     setStatus('All statuses')
-    setOwner('All owners')
   }
 
-  function saveLead(updatedLead) {
-    setLeads((currentLeads) => currentLeads.map((lead) => lead.id === updatedLead.id ? updatedLead : lead))
-    setEditingLead(null)
-    setSelectedLead(null)
-  }
+  const saveLead = async (updatedLead) => {
+  try {
+    await updateLead(updatedLead.id, updatedLead);
 
-  function deleteLead(id) {
-    setLeads((currentLeads) => currentLeads.filter((lead) => lead.id !== id))
-    setLeadToDelete(null)
-    setSelectedLead(null)
+    const data = await getLeads();
+    setLeads(data.items || []);
+
+    setEditingLead(null);
+    setSelectedLead(null);
+
+    alert("Lead updated successfully!");
+  } catch (error) {
+    console.error("Update Error:", error);
+    alert("Failed to update lead.");
   }
+};
+
+  const deleteLead = async (id) => {
+  try {
+    await deleteLeadAPI(id);
+
+    const data = await getLeads();
+    setLeads(data.items || []);
+
+    setLeadToDelete(null);
+    setSelectedLead(null);
+
+    alert("Lead deleted successfully!");
+  } catch (error) {
+    console.error(error);
+    alert("Failed to delete lead.");
+  }
+};
 
   const columns = [
-    { key: 'lead', header: 'Lead', render: (lead) => <div><p className="font-medium text-ink-primary">{lead.name}</p><p className="mt-0.5 text-xs text-ink-muted">{lead.email}</p></div> },
-    { key: 'company', header: 'Company', render: (lead) => <span className="text-ink-secondary">{lead.company}</span> },
-    { key: 'status', header: 'Status', render: (lead) => <StatusBadge status={lead.status} /> },
-    { key: 'score', header: 'Score', cellClassName: 'text-center', headerClassName: 'text-center', render: (lead) => <span className="font-medium text-ink-primary">{lead.score}</span> },
-    { key: 'owner', header: 'Owner', render: (lead) => <span className="text-ink-secondary">{lead.owner}</span> },
-    { key: 'updated', header: 'Updated', render: (lead) => <span className="whitespace-nowrap text-ink-muted">{lead.updated}</span> },
+  {
+    key: "company",
+    header: "Company",
+    render: (lead) => (
+      <span className="font-medium text-ink-primary">
+        {lead.company_name}
+      </span>
+    ),
+  },
+  {
+    key: "industry",
+    header: "Industry",
+    render: (lead) => (
+      <span>{lead.industry}</span>
+    ),
+  },
+  {
+    key: "deal_value",
+    header: "Deal Value",
+    render: (lead) => (
+      <span>${lead.deal_value}</span>
+    ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (lead) => (
+      <StatusBadge status={lead.lead_status} />
+    ),
+  },
+  {
+    key: "updated",
+    header: "Updated",
+    render: (lead) => (
+      <span>
+        {new Date(lead.updated_at).toLocaleDateString()}
+      </span>
+    ),
+  },
     {
-      key: 'actions', header: <span className="sr-only">Actions</span>, cellClassName: 'w-32', render: (lead) => (
-        <div className="flex items-center justify-end gap-1">
-          <button aria-label={`View ${lead.name}`} className="rounded-control p-2 text-ink-muted hover:bg-surface-muted hover:text-ink-primary" onClick={() => setSelectedLead(lead)} type="button"><Eye className="size-4" /></button>
-          <button aria-label={`Edit ${lead.name}`} className="rounded-control p-2 text-ink-muted hover:bg-surface-muted hover:text-ink-primary" onClick={() => setEditingLead(lead)} type="button"><Pencil className="size-4" /></button>
-          <button aria-label={`Delete ${lead.name}`} className="rounded-control p-2 text-ink-muted hover:bg-red-50 hover:text-danger" onClick={() => setLeadToDelete(lead)} type="button"><Trash2 className="size-4" /></button>
-        </div>
-      ),
-    },
-  ]
+    key: "actions",
+    header: "Actions",
+    render: (lead) => (
+      <div className="flex gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => setEditingLead(lead)}
+        >
+          <Pencil className="size-4" />
+        </Button>
+
+        <Button
+          variant="danger"
+          onClick={() => setLeadToDelete(lead)}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
+    ),
+  },
+];
+
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -164,18 +348,32 @@ function LeadsPage() {
           <div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" /><input className="input pl-9" onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, email, or company" value={query} /></div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="relative"><SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" /><select aria-label="Filter by status" className="input min-w-40 pl-9" onChange={(event) => setStatus(event.target.value)} value={status}>{statusOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
-            <select aria-label="Filter by owner" className="input min-w-36" onChange={(event) => setOwner(event.target.value)} value={owner}>{ownerOptions.map((option) => <option key={option}>{option}</option>)}</select>
-            {(query || status !== 'All statuses' || owner !== 'All owners') ? <Button onClick={clearFilters} variant="ghost">Clear</Button> : null}
+            
+            {(query || status !== 'All statuses') ? <Button onClick={clearFilters} variant="ghost">Clear</Button> : null}
           </div>
         </div>
-        <DataTable columns={columns} data={pageLeads} getRowId={(lead) => lead.id} />
+        <DataTable
+  columns={columns}
+  data={leads}
+  getRowId={(lead) => lead.id}
+/>
         <Pagination currentPage={page} onPageChange={setPage} pageSize={pageSize} totalItems={filteredLeads.length} />
       </section>
 
-      <LeadDetails lead={selectedLead} onClose={() => setSelectedLead(null)} onEdit={(lead) => { setSelectedLead(null); setEditingLead(lead) }} />
-      <EditLeadModal lead={editingLead} onClose={() => setEditingLead(null)} onSave={saveLead} />
-      <DeleteLeadDialog lead={leadToDelete} onCancel={() => setLeadToDelete(null)} onConfirm={deleteLead} />
+      {/* <LeadDetails lead={selectedLead} onClose={() => setSelectedLead(null)} onEdit={(lead) => { setSelectedLead(null); setEditingLead(lead) }} /> */}
+      <EditLeadModal
+  lead={editingLead}
+  onClose={() => setEditingLead(null)}
+  onSave={saveLead}
+/>
+
+<DeleteLeadDialog
+  lead={leadToDelete}
+  onCancel={() => setLeadToDelete(null)}
+  onConfirm={deleteLead}
+/>
     </div>
+    
   )
 }
 
