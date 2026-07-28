@@ -16,13 +16,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # ---------------------------------------------------------------------------
-# Router imports — add new routers here as the project grows.
+# Router imports — unified AI router for all SalesGenie AI capabilities.
 # ---------------------------------------------------------------------------
 from app.ai.routes import router as ai_router
 
 # ---------------------------------------------------------------------------
 # Logging — basic config so log output is human-readable during development.
-# In production, replace with a structured logging setup (e.g. structlog).
 # ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
@@ -38,9 +37,9 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="SalesGenie AI",
     description=(
-        "AI-powered B2B sales assistant API. "
-        "Helps generate outreach emails, summarise conversations, "
-        "suggest follow-ups, score leads, and handle objections."
+        "Production-ready AI-powered B2B sales assistant API. "
+        "Provides modular endpoints to generate outreach emails, summarize conversations, "
+        "suggest follow-ups, score leads, and handle sales objections."
     ),
     version="1.0.0",
     docs_url="/docs",       # Swagger UI
@@ -49,7 +48,7 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# CORS — adjust origins before deploying to production.
+# CORS Middleware
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
@@ -60,16 +59,19 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# Router registration
-# — Add new routers below this line, following the same pattern.
+# Router registration — registers endpoints:
+#   - POST /api/chat
+#   - POST /api/email
+#   - POST /api/summarize
+#   - POST /api/followup
+#   - POST /api/lead-score
+#   - POST /api/objection
 # ---------------------------------------------------------------------------
-
-# AI assistant endpoints  →  /api/ai/*
 app.include_router(ai_router)
 
 
 # ---------------------------------------------------------------------------
-# Health-check endpoint — useful for load balancers and deployment checks.
+# Health-check endpoint
 # ---------------------------------------------------------------------------
 @app.get(
     "/health",

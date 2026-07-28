@@ -1,36 +1,44 @@
 """
-client.py — Reusable OpenAI Client
-====================================
-Initialises the OpenAI SDK client once at import time and exposes a
-single ``openai_client`` object that can be imported anywhere in the
-backend.
+client.py — AI Provider Client Singleton
+==========================================
+Initializes AI SDK clients (Google Gemini / OpenAI) once at import time
+and exposes shared client objects.
 
 Usage:
-    from app.ai.client import openai_client
-
-    response = openai_client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[{"role": "user", "content": "Hello!"}],
-    )
-
-Keeping a single client instance avoids the overhead of re-authenticating
-on every request and makes it easy to swap the underlying provider later.
+    from app.ai.client import gemini_client, PRIMARY_MODEL, PROVIDER
 """
 
+import logging
+import google.generativeai as genai
 from openai import OpenAI
 
-# ---------------------------------------------------------------------------
-# Pull validated configuration constants from config.py.
-# config.py already calls load_dotenv() and raises ValueError if the API
-# key is absent, so no additional validation is needed here.
-# ---------------------------------------------------------------------------
-from app.ai.config import OPENAI_API_KEY, OPENAI_MODEL  # noqa: F401 – re-export MODEL for convenience
+from app.ai.config import GEMINI_API_KEY, GEMINI_MODEL, OPENAI_API_KEY, OPENAI_MODEL
 
-# ---------------------------------------------------------------------------
-# Initialise the OpenAI client once.
-#
-# The `OpenAI` constructor accepts the API key directly so the client is
-# self-contained and does not rely on the OPENAI_API_KEY environment
-# variable being read again at the SDK level.
-# ---------------------------------------------------------------------------
-openai_client: OpenAI = OpenAI(api_key=OPENAI_API_KEY)
+logger = logging.getLogger(__name__)
+
+gemini_client: genai.GenerativeModel | None = None
+openai_client: OpenAI | None = None
+PROVIDER: str = ""
+PRIMARY_MODEL: str = ""
+
+# Initialize Gemini if key is provided
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_client = genai.GenerativeModel(model_name=GEMINI_MODEL)
+        PROVIDER = "gemini"
+        PRIMARY_MODEL = GEMINI_MODEL
+        logger.info("Initialized Google Gemini client with model: %s", GEMINI_MODEL)
+    except Exception as exc:
+        logger.warning("Failed to initialize Gemini client: %s", exc)
+
+# Initialize OpenAI if key is provided
+if OPENAI_API_KEY:
+    try:
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        if not PROVIDER:
+            PROVIDER = "openai"
+            PRIMARY_MODEL = OPENAI_MODEL
+        logger.info("Initialized OpenAI client with model: %s", OPENAI_MODEL)
+    except Exception as exc:
+        logger.warning("Failed to initialize OpenAI client: %s", exc)
