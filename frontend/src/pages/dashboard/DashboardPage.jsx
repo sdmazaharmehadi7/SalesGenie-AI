@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { createLead } from "@/services/api/leads";
+import { getDashboardSummary } from "@/services/api/dashboard";
 import {
   Area,
   AreaChart,
@@ -28,12 +31,12 @@ import {
   Users,
 } from '@/components/ui/icons'
 
-const metrics = [
-  { label: 'Total leads', value: '1,284', change: '+12.5%', icon: Users },
-  { label: 'Qualified leads', value: '486', change: '+8.2%', icon: Check },
-  { label: 'Conversion rate', value: '18.6%', change: '+2.4%', icon: Activity },
-  { label: 'Revenue', value: '$84,260', change: '+16.8%', icon: ArrowUpRight },
-]
+// const metrics = [
+//   { label: 'Total leads', value: '1,284', change: '+12.5%', icon: Users },
+//   { label: 'Qualified leads', value: '486', change: '+8.2%', icon: Check },
+//   { label: 'Conversion rate', value: '18.6%', change: '+2.4%', icon: Activity },
+//   { label: 'Revenue', value: '$84,260', change: '+16.8%', icon: ArrowUpRight },
+// ]
 
 const monthlyLeads = [
   { month: 'Jan', leads: 84 },
@@ -98,7 +101,94 @@ function SectionHeader({ action, children, description }) {
 }
 
 function DashboardPage() {
+
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const [showCreateLead, setShowCreateLead] = useState(false);
+  const [leadForm, setLeadForm] = useState({
+  company_name: "",
+  industry: "",
+  contact_name: "",
+  email: "",
+  phone: "",
+  deal_value: "",
+  lead_status: "new",
+});
+
+useEffect(() => {
+  async function loadDashboard() {
+    try {
+      const data = await getDashboardSummary();
+      console.log("Dashboard Summary:", data);
+      setSummary(data);
+    } catch (error) {
+      console.error("Dashboard Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  loadDashboard();
+}, []);
+
+  const handleCreateLead = async () => {
+    try {
+      await createLead(leadForm);
+
+      alert("Lead created successfully!");
+
+      setShowCreateLead(false);
+
+      const summary = await getDashboardSummary();
+      setSummary(summary);
+
+      setLeadForm({
+        company_name: "",
+        industry: "",
+        contact_name: "",
+        email: "",
+        phone: "",
+        deal_value: "",
+        lead_status: "new",
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create lead");
+    }
+  };
+  if (loading) {
+    return <div className="p-6">Loading dashboard...</div>;
+  }
+
+  const metrics = [
+    {
+      label: "Total Leads",
+      value: summary?.total_leads ?? 0,
+      change: "",
+      icon: Users,
+    },
+    {
+      label: "Qualified Leads",
+      value: summary?.qualified_leads ?? 0,
+      change: "",
+      icon: Check,
+    },
+    {
+      label: "Conversion Rate",
+      value: `${summary?.conversion_rate ?? 0}%`,
+      change: "",
+      icon: Activity,
+    },
+    {
+      label: "Pipeline Value",
+      value: `$${summary?.pipeline_value ?? 0}`,
+      change: "",
+      icon: ArrowUpRight,
+    },
+  ];
   return (
+    
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
@@ -106,7 +196,15 @@ function DashboardPage() {
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-primary">Good morning, Sales Team</h1>
           <p className="mt-2 text-sm text-ink-muted">Here’s what’s happening across your pipeline today.</p>
         </div>
-        <Button leftIcon={<Plus className="size-4" />}>Add lead</Button>
+        <Button
+  leftIcon={<Plus className="size-4" />}
+  onClick={() => {
+    console.log("Button clicked");
+    setShowCreateLead(true);
+  }}
+>
+  Add lead
+</Button>
       </header>
 
       <section aria-label="Pipeline overview" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -122,7 +220,14 @@ function DashboardPage() {
                 </span>
               </div>
               <p className="mt-4 text-2xl font-semibold tracking-tight text-ink-primary">{metric.value}</p>
-              <p className="mt-1.5 text-xs text-ink-muted"><span className="font-medium text-success">{metric.change}</span> from last month</p>
+              {metric.change && (
+  <p className="mt-1.5 text-xs text-ink-muted">
+    <span className="font-medium text-success">
+      {metric.change}
+    </span>{" "}
+    from last month
+  </p>
+)}
             </article>
           )
         })}
@@ -247,6 +352,100 @@ function DashboardPage() {
           </div>
         </article>
       </section>
+
+      {showCreateLead && (
+  <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
+    <div className="rounded-lg bg-white p-6 shadow-xl">
+      <div className="space-y-4">
+  <input
+    className="w-full rounded-md border border-gray-300 p-2"
+    placeholder="Company Name"
+    value={leadForm.company_name}
+    onChange={(e) =>
+      setLeadForm({
+        ...leadForm,
+        company_name: e.target.value,
+      })
+    }
+  />
+
+  <input
+    className="w-full rounded-md border border-gray-300 p-2"
+    placeholder="Industry"
+    value={leadForm.industry}
+    onChange={(e) =>
+      setLeadForm({
+        ...leadForm,
+        industry: e.target.value,
+      })
+    }
+  />
+
+  <input
+    className="w-full rounded-md border border-gray-300 p-2"
+    placeholder="Contact Name"
+    value={leadForm.contact_name}
+    onChange={(e) =>
+      setLeadForm({
+        ...leadForm,
+        contact_name: e.target.value,
+      })
+    }
+  />
+
+  <input
+    className="w-full rounded-md border border-gray-300 p-2"
+    type="email"
+    placeholder="Email"
+    value={leadForm.email}
+    onChange={(e) =>
+      setLeadForm({
+        ...leadForm,
+        email: e.target.value,
+      })
+    }
+  />
+
+  <input
+    className="w-full rounded-md border border-gray-300 p-2"
+    placeholder="Phone"
+    value={leadForm.phone}
+    onChange={(e) =>
+      setLeadForm({
+        ...leadForm,
+        phone: e.target.value,
+      })
+    }
+  />
+
+  <input className="w-full rounded-md border border-gray-300 p-2"
+    type="number"
+    placeholder="Deal Value"
+    value={leadForm.deal_value}
+    onChange={(e) =>
+      setLeadForm({
+        ...leadForm,
+        deal_value: Number(e.target.value),
+      })
+    }
+  />
+</div>
+
+      <div className="mt-6 flex justify-end gap-3">
+  <Button
+    variant="secondary"
+    onClick={() => setShowCreateLead(false)}
+  >
+    Cancel
+  </Button>
+
+  <Button onClick={handleCreateLead}>
+    Create Lead
+  </Button>
+</div>
+    </div>
+  </div>
+)}
     </div>
   )
 }
