@@ -1,12 +1,13 @@
 """
-Application entry point.
+main.py — SalesGenie AI FastAPI Application Entry Point
+=========================================================
+Creates and configures the FastAPI application instance.
 
-Run locally with:
-    uvicorn app.main:app --reload
+Uses the `create_app()` factory pattern to keep startup wiring in one place,
+supporting lifespan context management for database cleanup and logging initialization.
 
-The `create_app()` factory pattern (rather than a bare module-level `app`)
-keeps startup wiring in one place and makes it trivial to spin up isolated
-app instances in tests (e.g. with overridden settings/dependencies).
+Running locally:
+    uvicorn app.main:app --reload --port 8000
 """
 
 from collections.abc import AsyncGenerator
@@ -16,6 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.ai.routes import router as ai_router
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.error_handlers import register_exception_handlers
@@ -31,8 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application startup/shutdown hook.
 
-    Startup: configure logging before anything else runs, so even import-
-    time issues in later modules log correctly.
+    Startup: configure logging before anything else runs.
     Shutdown: dispose of the database connection pool cleanly.
     """
     configure_logging()
@@ -51,7 +52,11 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=__version__,
-        description="AI Sales Assistant & Lead Intelligence Platform API",
+        description=(
+            "Production-ready AI-powered B2B sales assistant API. "
+            "Provides modular endpoints to generate outreach emails, summarize conversations, "
+            "suggest follow-ups, score leads, and handle sales objections."
+        ),
         openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
         docs_url=f"{settings.API_V1_PREFIX}/docs",
         redoc_url=f"{settings.API_V1_PREFIX}/redoc",
@@ -59,9 +64,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Order matters: middlewares run outside-in on the request, inside-out
-    # on the response. CORS should wrap everything so its headers are
-    # applied even on error responses produced by other middleware.
+    # CORS Middleware configuration
     if settings.BACKEND_CORS_ORIGINS:
         app.add_middleware(
             CORSMiddleware,
@@ -71,13 +74,39 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
             expose_headers=["X-Request-ID"],
         )
+    else:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
     app.add_middleware(RequestLoggingMiddleware)
 
     register_exception_handlers(app)
 
+    # Register API v1 aggregated routes
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+    # Register direct AI routes (/api/chat, /api/email, etc. for frontend compatibility)
+    app.include_router(ai_router)
 
     return app
 
 
 app = create_app()
+
+
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Health check",
+    description="Returns a simple status payload to confirm the API is running.",
+)
+async def health_check() -> dict:
+    return {"status": "ok", "service": "SalesGenie AI"}
+
+
+logger.info("SalesGenie AI application started.")

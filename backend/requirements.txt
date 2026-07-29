@@ -1,10 +1,11 @@
-# --- Web framework ---
+# --- Web framework & server ---
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 
 # --- Settings & validation (Pydantic v2) ---
 pydantic==2.10.4
 pydantic-settings==2.7.1
+python-dotenv>=1.0.0
 
 # --- Database (SQLAlchemy 2.0 + async/sync Postgres drivers) ---
 sqlalchemy==2.0.36
@@ -18,9 +19,15 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
 python-multipart==0.0.20   # required by FastAPI for OAuth2PasswordRequestForm (Auth module)
 
-# --- External integrations (AI provider, Google Calendar, Salesforce/HubSpot CRM) ---
+# --- AI Providers & External Integrations ---
+openai>=1.30.0
+google-generativeai>=0.7.0
 httpx==0.28.1
 aiosmtplib==3.0.2   # async SMTP client for the Email integration layer
 
-# --- Misc ---
+# --- Testing, Validation & Code Quality ---
 email-validator==2.2.0
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
+ruff>=0.4.0
+black>=24.4.0

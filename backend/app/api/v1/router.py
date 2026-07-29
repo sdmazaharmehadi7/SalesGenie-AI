@@ -10,6 +10,7 @@ since every one of those resources is scoped to a lead.
 
 from fastapi import APIRouter
 
+from app.ai.routes import router as ai_router
 from app.api.v1.endpoints import (
     auth,
     company_insights,
@@ -35,3 +36,6 @@ api_router.include_router(outreach.router, prefix="/leads", tags=["Outreach"])
 api_router.include_router(conversations.router, prefix="/leads", tags=["Conversations"])
 api_router.include_router(crm.router, prefix="/leads", tags=["CRM Integration"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+
+# Register SalesGenie AI Router under /api/v1 architecture
+api_router.include_router(ai_router)
