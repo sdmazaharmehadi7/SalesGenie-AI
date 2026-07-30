@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import Layout from '@/components/layout/Layout'
+import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AiAssistantPage from '@/pages/ai-assistant/AiAssistantPage'
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage'
 import CompaniesPage from '@/pages/companies/CompaniesPage'
@@ -29,7 +30,11 @@ export const router = createBrowserRouter([
     element: <ForgotPasswordPage />,
   },
   {
-    element: <Layout />,
+    element: (
+      <ProtectedRoute>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Navigate replace to="/dashboard" /> },
       {

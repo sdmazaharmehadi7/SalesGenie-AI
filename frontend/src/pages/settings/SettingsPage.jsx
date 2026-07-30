@@ -1,4 +1,35 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
+
+/**
+ * Persist settings to localStorage so they survive page refreshes.
+ * Falls back gracefully if localStorage is unavailable.
+ */
+function usePersistedSettings(storageKey, defaultValues) {
+  const [state, setState] = useState(() => {
+    try {
+      const raw = localStorage.getItem(storageKey)
+      return raw ? { ...defaultValues, ...JSON.parse(raw) } : defaultValues
+    } catch {
+      return defaultValues
+    }
+  })
+
+  const set = useCallback((key) => (val) => {
+    setState((prev) => {
+      const next = { ...prev, [key]: val }
+      try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [storageKey])
+
+  const save = useCallback(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(state)) } catch { /* ignore */ }
+  }, [storageKey, state])
+
+  return [state, set, save]
+}
 
 // ─── Icons (inline SVG to avoid dependency issues) ────────────────────────────
 function Icon({ d, className = 'size-5' }) {
@@ -212,16 +243,32 @@ function AvatarUpload({ name }) {
 
 // ─── Section: General ─────────────────────────────────────────────────────────
 function GeneralSection() {
+  const { user } = useAuth()
+  const { showToast } = useToast()
   const [saved, setSaved] = useState(false)
-  const [form, setForm] = useState({
-    name: 'Sarah Mitchell',
-    email: 'sarah.mitchell@salesgenie.io',
-    phone: '+1 (415) 555-0192',
+  const [form, set, persist] = usePersistedSettings('sg_settings_general', {
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: '',
     timezone: 'America/New_York',
     language: 'en',
     dateFormat: 'MM/DD/YYYY',
   })
-  const set = (key) => (val) => { setSaved(false); setForm((f) => ({ ...f, [key]: val })) }
+
+  // Seed from the real user if localStorage didn't have a name yet
+  useEffect(() => {
+    if (user?.name && !localStorage.getItem('sg_settings_general')) {
+      set('name')(user.name)
+      set('email')(user.email || '')
+    }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = () => {
+    persist()
+    setSaved(true)
+    showToast('Settings saved!', 'success')
+    setTimeout(() => setSaved(false), 2500)
+  }
 
   return (
     <div className="space-y-4">
@@ -269,7 +316,7 @@ function GeneralSection() {
             value={form.dateFormat}
           />
         </div>
-        <SaveBar onSave={() => setSaved(true)} saved={saved} />
+        <SaveBar onSave={handleSave} saved={saved} />
       </SectionCard>
     </div>
   )

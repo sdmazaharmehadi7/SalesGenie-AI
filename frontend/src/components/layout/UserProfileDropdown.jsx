@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-
+import { useAuth } from '@/context/AuthContext'
 import { ChevronDown, LogOut, Settings, User } from '@/components/ui/icons'
+
+/** Returns up to 2 uppercase initials from a name string. */
+function getInitials(name) {
+  if (!name) return 'U'
+  const parts = name.trim().split(/\s+/)
+  const first = parts[0]?.[0] || ''
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : ''
+  return (first + last).toUpperCase() || 'U'
+}
 
 function UserProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef(null)
+  const { user, logout } = useAuth()
 
   useEffect(() => {
     function closeOnOutsideClick(event) {
@@ -29,6 +39,10 @@ function UserProfileDropdown() {
     }
   }, [])
 
+  const displayName = user?.name || 'User'
+  const displayEmail = user?.email || ''
+  const initials = getInitials(displayName)
+
   return (
     <div className="relative" ref={menuRef}>
       <button
@@ -39,28 +53,49 @@ function UserProfileDropdown() {
         onClick={() => setIsOpen((open) => !open)}
         type="button"
       >
-        <span className="grid size-7 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">SM</span>
+        <span className="grid size-7 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+          {initials}
+        </span>
         <ChevronDown className="hidden size-4 text-ink-muted sm:block" />
       </button>
 
       {isOpen ? (
-        <div aria-label="User menu" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-60 rounded-card border border-line-default bg-surface-default p-1.5 shadow-floating" role="menu">
+        <div
+          aria-label="User menu"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-60 rounded-card border border-line-default bg-surface-default p-1.5 shadow-floating"
+          role="menu"
+        >
           <div className="border-b border-line-default px-3 py-2.5">
-            <p className="text-sm font-medium text-ink-primary">Sales Team</p>
-            <p className="mt-0.5 truncate text-xs text-ink-muted">team@salesgenie.ai</p>
+            <p className="text-sm font-medium text-ink-primary">{displayName}</p>
+            <p className="mt-0.5 truncate text-xs text-ink-muted">{displayEmail}</p>
           </div>
           <div className="py-1">
-            <NavLink className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-ink-secondary hover:bg-surface-muted hover:text-ink-primary" onClick={() => setIsOpen(false)} role="menuitem" to="/profile">
+            <NavLink
+              className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-ink-secondary hover:bg-surface-muted hover:text-ink-primary"
+              onClick={() => setIsOpen(false)}
+              role="menuitem"
+              to="/profile"
+            >
               <User className="size-4" />
               Profile
             </NavLink>
-            <NavLink className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-ink-secondary hover:bg-surface-muted hover:text-ink-primary" onClick={() => setIsOpen(false)} role="menuitem" to="/settings">
+            <NavLink
+              className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-ink-secondary hover:bg-surface-muted hover:text-ink-primary"
+              onClick={() => setIsOpen(false)}
+              role="menuitem"
+              to="/settings"
+            >
               <Settings className="size-4" />
               Account settings
             </NavLink>
           </div>
           <div className="border-t border-line-default pt-1">
-            <button className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-danger hover:bg-red-50" role="menuitem" type="button">
+            <button
+              className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-danger hover:bg-red-50"
+              onClick={() => { setIsOpen(false); logout() }}
+              role="menuitem"
+              type="button"
+            >
               <LogOut className="size-4" />
               Sign out
             </button>

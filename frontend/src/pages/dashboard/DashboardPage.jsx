@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import { createLead } from "@/services/api/leads";
-import { getDashboardSummary } from "@/services/api/dashboard";
+import { useCallback, useEffect, useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -17,6 +15,11 @@ import {
   YAxis,
 } from 'recharts'
 
+import { getDashboardSummary } from '@/services/api/dashboard'
+import { getLeads, createLead } from '@/services/api/leads'
+import { useToast } from '@/context/ToastContext'
+import { useAuth } from '@/context/AuthContext'
+
 import Button from '@/components/ui/Button'
 import {
   Activity,
@@ -31,55 +34,17 @@ import {
   Users,
 } from '@/components/ui/icons'
 
-// const metrics = [
-//   { label: 'Total leads', value: '1,284', change: '+12.5%', icon: Users },
-//   { label: 'Qualified leads', value: '486', change: '+8.2%', icon: Check },
-//   { label: 'Conversion rate', value: '18.6%', change: '+2.4%', icon: Activity },
-//   { label: 'Revenue', value: '$84,260', change: '+16.8%', icon: ArrowUpRight },
-// ]
+// ─── Constants ────────────────────────────────────────────────────────────────
+const STATUS_LABELS = {
+  new: 'New',
+  qualified: 'Qualified',
+  proposal: 'Proposal',
+  negotiation: 'Negotiation',
+  closed_won: 'Closed Won',
+  closed_lost: 'Closed Lost',
+}
 
-const monthlyLeads = [
-  { month: 'Jan', leads: 84 },
-  { month: 'Feb', leads: 106 },
-  { month: 'Mar', leads: 98 },
-  { month: 'Apr', leads: 127 },
-  { month: 'May', leads: 142 },
-  { month: 'Jun', leads: 162 },
-  { month: 'Jul', leads: 154 },
-]
-
-const funnelData = [
-  { name: 'Captured', value: 1284, fill: '#3b6eea' },
-  { name: 'Qualified', value: 486, fill: '#5c91f6' },
-  { name: 'Proposal', value: 212, fill: '#7da8f8' },
-  { name: 'Won', value: 94, fill: '#bcd4ff' },
-]
-
-const pipelineData = [
-  { stage: 'Discovery', value: 34 },
-  { stage: 'Qualification', value: 26 },
-  { stage: 'Proposal', value: 18 },
-  { stage: 'Negotiation', value: 12 },
-  { stage: 'Closed won', value: 10 },
-]
-
-const activities = [
-  { action: 'Maya Chen moved to Qualified', detail: 'Lead score updated to 84', time: '12 min ago', icon: Users },
-  { action: 'Proposal sent to Northstar Labs', detail: 'Enterprise plan · $24,000', time: '45 min ago', icon: Mail },
-  { action: 'Call summary generated', detail: 'Orbit Systems discovery call', time: '2 hr ago', icon: Sparkles },
-]
-
-const tasks = [
-  { title: 'Follow up with Maya Chen', meta: 'Today · High priority' },
-  { title: 'Review Q3 outreach sequence', meta: 'Today · Marketing' },
-  { title: 'Prepare Northstar proposal', meta: 'Tomorrow · Sales' },
-]
-
-const meetings = [
-  { title: 'Discovery call · Orbit Systems', time: '10:00 AM – 10:30 AM', people: '3 attendees' },
-  { title: 'Pipeline review', time: '1:30 PM – 2:00 PM', people: 'Sales team' },
-  { title: 'Demo · Pine & Co.', time: '4:00 PM – 4:45 PM', people: '2 attendees' },
-]
+const FUNNEL_COLORS = ['#3b6eea', '#5c91f6', '#7da8f8', '#bcd4ff', '#d9e6ff']
 
 const tooltipStyle = {
   border: '1px solid #e2e8f0',
@@ -88,6 +53,54 @@ const tooltipStyle = {
   fontSize: '12px',
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Group leads by the month they were created (past 7 months). */
+function buildMonthlyGrowth(leads) {
+  const now = new Date()
+  const result = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const year = d.getFullYear()
+    const month = d.getMonth()
+    const count = leads.filter((l) => {
+      const c = new Date(l.updated_at || l.created_at || Date.now())
+      return c.getFullYear() === year && c.getMonth() === month
+    }).length
+    result.push({ month: MONTHS[month], leads: count })
+  }
+  return result
+}
+
+/** Map backend stages into funnel-chart data. */
+function buildFunnelData(stages) {
+  const byStatus = Object.fromEntries((stages || []).map((s) => [s.status, s.count]))
+  const order = ['new', 'qualified', 'proposal', 'negotiation', 'closed_won']
+  return order.map((status, i) => ({
+    name: STATUS_LABELS[status] || status,
+    value: byStatus[status] || 0,
+    fill: FUNNEL_COLORS[i],
+  }))
+}
+
+/** Map backend stages into pipeline bar chart data. */
+function buildPipelineData(stages) {
+  const total = stages.reduce((sum, s) => sum + s.count, 0) || 1
+  const order = ['new', 'qualified', 'proposal', 'negotiation', 'closed_won']
+  return order
+    .filter((s) => stages.some((st) => st.status === s))
+    .map((status) => {
+      const found = stages.find((s) => s.status === status)
+      return {
+        stage: STATUS_LABELS[status] || status,
+        value: found ? Math.round((found.count / total) * 100) : 0,
+      }
+    })
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 function SectionHeader({ action, children, description }) {
   return (
     <div className="mb-5 flex items-start justify-between gap-4">
@@ -100,144 +113,203 @@ function SectionHeader({ action, children, description }) {
   )
 }
 
+function MetricSkeleton() {
+  return (
+    <article className="card animate-pulse p-5">
+      <div className="mb-4 h-4 w-28 rounded bg-surface-muted" />
+      <div className="h-8 w-20 rounded bg-surface-muted" />
+    </article>
+  )
+}
+
+// ─── Lead Form ────────────────────────────────────────────────────────────────
+const EMPTY_LEAD = { company_name: '', industry: '', contact_name: '', email: '', phone: '', deal_value: '', lead_status: 'new' }
+
+function AddLeadModal({ open, onClose, onSave, isSaving }) {
+  const [form, setForm] = useState(EMPTY_LEAD)
+
+  if (!open) return null
+
+  function update(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSave({ ...form, deal_value: form.deal_value ? Number(form.deal_value) : null })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-card bg-surface-default shadow-overlay">
+        <div className="flex items-center justify-between border-b border-line-default p-5">
+          <h2 className="text-base font-semibold text-ink-primary">Add lead</h2>
+          <button className="rounded-control p-1.5 text-ink-muted hover:bg-surface-muted" onClick={onClose} type="button">✕</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 p-5 sm:grid-cols-2">
+            {[
+              ['Company Name *', 'company_name', 'text', true],
+              ['Industry', 'industry', 'text', false],
+              ['Contact Name', 'contact_name', 'text', false],
+              ['Email', 'email', 'email', false],
+              ['Phone', 'phone', 'text', false],
+              ['Deal Value', 'deal_value', 'number', false],
+            ].map(([label, field, type, required]) => (
+              <label className="space-y-1.5" key={field}>
+                <span className="text-sm font-medium text-ink-secondary">{label}</span>
+                <input
+                  className="input"
+                  type={type}
+                  required={required}
+                  value={form[field]}
+                  onChange={(e) => update(field, e.target.value)}
+                  min={type === 'number' ? 0 : undefined}
+                />
+              </label>
+            ))}
+            <label className="space-y-1.5 sm:col-span-2">
+              <span className="text-sm font-medium text-ink-secondary">Status</span>
+              <select className="input" value={form.lead_status} onChange={(e) => update('lead_status', e.target.value)}>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-line-default p-5">
+            <Button onClick={onClose} type="button" variant="secondary" disabled={isSaving}>Cancel</Button>
+            <Button type="submit" disabled={isSaving}>{isSaving ? 'Creating…' : 'Create lead'}</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 function DashboardPage() {
+  const { user } = useAuth()
+  const { showToast } = useToast()
 
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null)
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const [showCreateLead, setShowCreateLead] = useState(false);
-  const [leadForm, setLeadForm] = useState({
-  company_name: "",
-  industry: "",
-  contact_name: "",
-  email: "",
-  phone: "",
-  deal_value: "",
-  lead_status: "new",
-});
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const greeting = (() => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 17) return 'Good afternoon'
+    return 'Good evening'
+  })()
 
-useEffect(() => {
-  async function loadDashboard() {
+  const loadData = useCallback(async () => {
+    setLoading(true)
     try {
-      const data = await getDashboardSummary();
-      console.log("Dashboard Summary:", data);
-      setSummary(data);
-    } catch (error) {
-      console.error("Dashboard Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-  
-  loadDashboard();
-}, []);
-
-  const handleCreateLead = async () => {
-    try {
-      await createLead(leadForm);
-
-      alert("Lead created successfully!");
-
-      setShowCreateLead(false);
-
-      const summary = await getDashboardSummary();
-      setSummary(summary);
-
-      setLeadForm({
-        company_name: "",
-        industry: "",
-        contact_name: "",
-        email: "",
-        phone: "",
-        deal_value: "",
-        lead_status: "new",
-      });
+      const [summaryData, leadsData] = await Promise.all([
+        getDashboardSummary(),
+        getLeads({ page_size: 100 }),
+      ])
+      setSummary(summaryData)
+      setLeads(leadsData.items || [])
     } catch (err) {
-      console.error(err);
-      alert("Failed to create lead");
+      showToast('Failed to load dashboard data.', 'error')
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
-  };
-  if (loading) {
-    return <div className="p-6">Loading dashboard...</div>;
-  }
+  }, [showToast])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // ── Derived data ─────────────────────────────────────────────────────────────
+  const monthlyLeads = buildMonthlyGrowth(leads)
+  const funnelData = summary ? buildFunnelData(summary.stages) : []
+  const pipelineData = summary ? buildPipelineData(summary.stages) : []
+
+  const qualifiedLeads = (summary?.stages || []).find((s) => s.status === 'qualified')?.count ?? 0
 
   const metrics = [
-    {
-      label: "Total Leads",
-      value: summary?.total_leads ?? 0,
-      change: "",
-      icon: Users,
-    },
-    {
-      label: "Qualified Leads",
-      value: summary?.qualified_leads ?? 0,
-      change: "",
-      icon: Check,
-    },
-    {
-      label: "Conversion Rate",
-      value: `${summary?.conversion_rate ?? 0}%`,
-      change: "",
-      icon: Activity,
-    },
-    {
-      label: "Pipeline Value",
-      value: `$${summary?.pipeline_value ?? 0}`,
-      change: "",
-      icon: ArrowUpRight,
-    },
-  ];
+    { label: 'Total Leads', value: summary?.total_leads ?? '—', icon: Users },
+    { label: 'Qualified Leads', value: qualifiedLeads ?? '—', icon: Check },
+    { label: 'Conversion Rate', value: summary ? `${Number(summary.conversion_rate).toFixed(1)}%` : '—', icon: Activity },
+    { label: 'Pipeline Value', value: summary ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(Number(summary.pipeline_value)) : '—', icon: ArrowUpRight },
+  ]
+
+  // Recent leads (last 5 by updated_at)
+  const recentLeads = [...leads]
+    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+    .slice(0, 5)
+
+  const handleAddLead = async (data) => {
+    setIsSaving(true)
+    try {
+      await createLead(data)
+      showToast('Lead created successfully!', 'success')
+      setShowAddModal(false)
+      await loadData()
+    } catch (err) {
+      const detail = err?.response?.data?.detail
+      showToast(typeof detail === 'string' ? detail : 'Failed to create lead.', 'error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
-    
     <div className="mx-auto max-w-7xl space-y-6">
+      <AddLeadModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSave={handleAddLead}
+        isSaving={isSaving}
+      />
+
+      {/* Header */}
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-medium text-brand-600">Monday, July 24</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-primary">Good morning, Sales Team</h1>
-          <p className="mt-2 text-sm text-ink-muted">Here’s what’s happening across your pipeline today.</p>
+          <p className="text-sm font-medium text-brand-600">{today}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-primary">
+            {greeting}, {user?.name?.split(' ')[0] || 'Sales Team'}
+          </h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            Here&apos;s what&apos;s happening across your pipeline today.
+          </p>
         </div>
-        <Button
-  leftIcon={<Plus className="size-4" />}
-  onClick={() => {
-    console.log("Button clicked");
-    setShowCreateLead(true);
-  }}
->
-  Add lead
-</Button>
+        <Button leftIcon={<Plus className="size-4" />} onClick={() => setShowAddModal(true)}>
+          Add lead
+        </Button>
       </header>
 
+      {/* KPI Metrics */}
       <section aria-label="Pipeline overview" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => {
-          const Icon = metric.icon
-
-          return (
-            <article className="card p-5" key={metric.label}>
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-medium text-ink-secondary">{metric.label}</p>
-                <span className="grid size-8 place-items-center rounded-control bg-surface-muted text-ink-muted">
-                  <Icon className="size-4" strokeWidth={1.8} />
-                </span>
-              </div>
-              <p className="mt-4 text-2xl font-semibold tracking-tight text-ink-primary">{metric.value}</p>
-              {metric.change && (
-  <p className="mt-1.5 text-xs text-ink-muted">
-    <span className="font-medium text-success">
-      {metric.change}
-    </span>{" "}
-    from last month
-  </p>
-)}
-            </article>
-          )
-        })}
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => <MetricSkeleton key={i} />)
+          : metrics.map((metric) => {
+              const Icon = metric.icon
+              return (
+                <article className="card p-5" key={metric.label}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-medium text-ink-secondary">{metric.label}</p>
+                    <span className="grid size-8 place-items-center rounded-control bg-surface-muted text-ink-muted">
+                      <Icon className="size-4" strokeWidth={1.8} />
+                    </span>
+                  </div>
+                  <p className="mt-4 text-2xl font-semibold tracking-tight text-ink-primary">{metric.value}</p>
+                </article>
+              )
+            })}
       </section>
 
+      {/* Charts row 1 */}
       <section className="grid gap-6 xl:grid-cols-3">
         <article className="card min-h-[22rem] xl:col-span-2">
-          <SectionHeader action={<button className="text-sm font-medium text-brand-600 hover:text-brand-700" type="button">View report</button>} description="New leads created over the last seven months">
-            Monthly leads
-          </SectionHeader>
+          <SectionHeader description="New leads created over the last 7 months">Monthly leads</SectionHeader>
           <div className="h-64">
             <ResponsiveContainer height="100%" width="100%">
               <AreaChart data={monthlyLeads} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
@@ -249,8 +321,8 @@ useEffect(() => {
                 </defs>
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
                 <XAxis axisLine={false} dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} tickLine={false} />
-                <YAxis axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickLine={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#cbd5e1' }} formatter={(value) => [value, 'Leads']} />
+                <YAxis axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#cbd5e1' }} formatter={(v) => [v, 'Leads']} />
                 <Area dataKey="leads" fill="url(#leadFill)" fillOpacity={1} stroke="#3b6eea" strokeWidth={2.5} type="monotone" />
               </AreaChart>
             </ResponsiveContainer>
@@ -262,7 +334,7 @@ useEffect(() => {
           <div className="h-64">
             <ResponsiveContainer height="100%" width="100%">
               <FunnelChart>
-                <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value.toLocaleString(), 'Leads']} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [v.toLocaleString(), 'Leads']} />
                 <Funnel dataKey="value" data={funnelData} isAnimationActive={false}>
                   <LabelList dataKey="name" fill="#475569" position="right" stroke="none" />
                   {funnelData.map((entry) => <Cell fill={entry.fill} key={entry.name} />)}
@@ -273,9 +345,13 @@ useEffect(() => {
         </article>
       </section>
 
+      {/* Charts row 2 */}
       <section className="grid gap-6 xl:grid-cols-5">
         <article className="card min-h-[22rem] xl:col-span-3">
-          <SectionHeader action={<button className="text-sm font-medium text-brand-600 hover:text-brand-700" type="button">View pipeline</button>} description="$428,000 across active opportunities">
+          <SectionHeader
+            action={<p className="text-sm text-ink-muted">${Number(summary?.pipeline_value || 0).toLocaleString()} total</p>}
+            description="Distribution across active opportunities"
+          >
             Sales pipeline
           </SectionHeader>
           <div className="h-64">
@@ -284,168 +360,99 @@ useEffect(() => {
                 <CartesianGrid horizontal={false} stroke="#e2e8f0" />
                 <XAxis axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickLine={false} type="number" unit="%" />
                 <YAxis axisLine={false} dataKey="stage" tick={{ fill: '#475569', fontSize: 12 }} tickLine={false} type="category" width={86} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#f8fafc' }} formatter={(value) => [`${value}%`, 'Share of pipeline']} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#f8fafc' }} formatter={(v) => [`${v}%`, 'Share']} />
                 <Bar dataKey="value" fill="#475569" radius={[0, 5, 5, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </article>
 
+        {/* Recent leads */}
         <article className="card xl:col-span-2">
-          <SectionHeader action={<button aria-label="More activity options" className="rounded-control p-1 text-ink-muted hover:bg-surface-muted" type="button"><MoreHorizontal className="size-5" /></button>} description="Latest sales movement">
-            Recent activity
+          <SectionHeader
+            action={<button className="text-sm font-medium text-brand-600 hover:text-brand-700" onClick={() => window.location.href = '/leads'} type="button">View all</button>}
+            description="Latest sales movement"
+          >
+            Recent leads
           </SectionHeader>
-          <div className="divide-y divide-line-default">
-            {activities.map((activity) => {
-              const Icon = activity.icon
-
-              return (
-                <div className="flex gap-3 py-3 first:pt-0 last:pb-0" key={activity.action}>
-                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-control bg-surface-muted text-ink-muted"><Icon className="size-4" /></span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink-primary">{activity.action}</p>
-                    <p className="mt-0.5 truncate text-xs text-ink-muted">{activity.detail}</p>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex gap-3 animate-pulse">
+                  <div className="mt-0.5 size-8 shrink-0 rounded-control bg-surface-muted" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-32 rounded bg-surface-muted" />
+                    <div className="h-2.5 w-20 rounded bg-surface-muted" />
                   </div>
-                  <time className="shrink-0 text-xs text-ink-muted">{activity.time}</time>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : recentLeads.length === 0 ? (
+            <p className="text-sm text-ink-muted">No leads yet. Add your first lead to get started.</p>
+          ) : (
+            <div className="divide-y divide-line-default">
+              {recentLeads.map((lead) => (
+                <div className="flex gap-3 py-3 first:pt-0 last:pb-0" key={lead.id}>
+                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-control bg-surface-muted text-ink-muted">
+                    <Users className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink-primary">{lead.company_name}</p>
+                    <p className="mt-0.5 truncate text-xs text-ink-muted">
+                      {STATUS_LABELS[lead.lead_status] || lead.lead_status}
+                      {lead.deal_value ? ` · $${Number(lead.deal_value).toLocaleString()}` : ''}
+                    </p>
+                  </div>
+                  <time className="shrink-0 text-xs text-ink-muted">
+                    {new Date(lead.updated_at).toLocaleDateString()}
+                  </time>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
       </section>
 
+      {/* Quick actions */}
       <section className="grid gap-6 xl:grid-cols-3">
-        <article className="card">
-          <SectionHeader action={<button className="text-sm font-medium text-brand-600 hover:text-brand-700" type="button">View all</button>} description="Keep your day on track">
-            Upcoming tasks
-          </SectionHeader>
-          <div className="space-y-3">
-            {tasks.map((task) => (
-              <div className="flex items-start gap-3" key={task.title}>
-                <button aria-label={`Complete ${task.title}`} className="mt-0.5 grid size-4 shrink-0 place-items-center rounded border border-line-strong text-transparent hover:border-brand-500 hover:text-brand-600" type="button"><Check className="size-3" /></button>
-                <div><p className="text-sm font-medium text-ink-primary">{task.title}</p><p className="mt-0.5 text-xs text-ink-muted">{task.meta}</p></div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="card">
-          <SectionHeader action={<button className="text-sm font-medium text-brand-600 hover:text-brand-700" type="button">Calendar</button>} description="Today’s scheduled conversations">
-            Recent meetings
-          </SectionHeader>
-          <div className="space-y-4">
-            {meetings.map((meeting) => (
-              <div className="flex gap-3" key={meeting.title}>
-                <span className="grid size-8 shrink-0 place-items-center rounded-control bg-surface-muted text-ink-muted"><Calendar className="size-4" /></span>
-                <div><p className="text-sm font-medium text-ink-primary">{meeting.title}</p><p className="mt-0.5 text-xs text-ink-muted">{meeting.time} · {meeting.people}</p></div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="card">
+        <article className="card xl:col-span-1">
           <SectionHeader description="Start common sales workflows">Quick actions</SectionHeader>
           <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-            <Button className="justify-start" leftIcon={<Plus className="size-4" />} variant="secondary">Add a lead</Button>
-            <Button className="justify-start" leftIcon={<Mail className="size-4" />} variant="secondary">Create outreach</Button>
-            <Button className="justify-start" leftIcon={<FileText className="size-4" />} variant="secondary">Add a note</Button>
+            <Button className="justify-start" leftIcon={<Plus className="size-4" />} onClick={() => setShowAddModal(true)} variant="secondary">Add a lead</Button>
+            <Button className="justify-start" leftIcon={<Mail className="size-4" />} onClick={() => window.location.href = '/outreach-generator'} variant="secondary">Create outreach</Button>
+            <Button className="justify-start" leftIcon={<FileText className="size-4" />} onClick={() => window.location.href = '/conversation-summary'} variant="secondary">New summary</Button>
           </div>
         </article>
+
+        {/* Pipeline stats */}
+        <article className="card xl:col-span-2">
+          <SectionHeader description="Current stage breakdown">Pipeline stages</SectionHeader>
+          {loading ? (
+            <div className="space-y-2.5">
+              {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-6 animate-pulse rounded bg-surface-muted" />)}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {(summary?.stages || []).map((stage) => {
+                const total = summary.total_leads || 1
+                const pct = Math.round((stage.count / total) * 100)
+                return (
+                  <div key={stage.status} className="flex items-center gap-3">
+                    <span className="w-24 shrink-0 text-xs font-medium text-ink-secondary">{STATUS_LABELS[stage.status] || stage.status}</span>
+                    <div className="flex-1 overflow-hidden rounded-full bg-surface-muted h-2">
+                      <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-10 shrink-0 text-right text-xs text-ink-muted">{stage.count}</span>
+                  </div>
+                )
+              })}
+              {(summary?.stages || []).length === 0 && (
+                <p className="text-sm text-ink-muted">No pipeline data yet.</p>
+              )}
+            </div>
+          )}
+        </article>
       </section>
-
-      {showCreateLead && (
-  <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
-    <div className="rounded-lg bg-white p-6 shadow-xl">
-      <div className="space-y-4">
-  <input
-    className="w-full rounded-md border border-gray-300 p-2"
-    placeholder="Company Name"
-    value={leadForm.company_name}
-    onChange={(e) =>
-      setLeadForm({
-        ...leadForm,
-        company_name: e.target.value,
-      })
-    }
-  />
-
-  <input
-    className="w-full rounded-md border border-gray-300 p-2"
-    placeholder="Industry"
-    value={leadForm.industry}
-    onChange={(e) =>
-      setLeadForm({
-        ...leadForm,
-        industry: e.target.value,
-      })
-    }
-  />
-
-  <input
-    className="w-full rounded-md border border-gray-300 p-2"
-    placeholder="Contact Name"
-    value={leadForm.contact_name}
-    onChange={(e) =>
-      setLeadForm({
-        ...leadForm,
-        contact_name: e.target.value,
-      })
-    }
-  />
-
-  <input
-    className="w-full rounded-md border border-gray-300 p-2"
-    type="email"
-    placeholder="Email"
-    value={leadForm.email}
-    onChange={(e) =>
-      setLeadForm({
-        ...leadForm,
-        email: e.target.value,
-      })
-    }
-  />
-
-  <input
-    className="w-full rounded-md border border-gray-300 p-2"
-    placeholder="Phone"
-    value={leadForm.phone}
-    onChange={(e) =>
-      setLeadForm({
-        ...leadForm,
-        phone: e.target.value,
-      })
-    }
-  />
-
-  <input className="w-full rounded-md border border-gray-300 p-2"
-    type="number"
-    placeholder="Deal Value"
-    value={leadForm.deal_value}
-    onChange={(e) =>
-      setLeadForm({
-        ...leadForm,
-        deal_value: Number(e.target.value),
-      })
-    }
-  />
-</div>
-
-      <div className="mt-6 flex justify-end gap-3">
-  <Button
-    variant="secondary"
-    onClick={() => setShowCreateLead(false)}
-  >
-    Cancel
-  </Button>
-
-  <Button onClick={handleCreateLead}>
-    Create Lead
-  </Button>
-</div>
-    </div>
-  </div>
-)}
     </div>
   )
 }

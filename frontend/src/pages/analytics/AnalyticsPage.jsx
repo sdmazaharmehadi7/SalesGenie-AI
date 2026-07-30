@@ -473,12 +473,14 @@ function AnalyticsPage() {
     weeklyActivity,
   } = useAnalytics()
 
-  const latestSnapshot = snapshots.at(-1)
-  const firstSnapshot = snapshots[0]
+  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
+  const firstSnapshot = snapshots.length > 0 ? snapshots[0] : null
   const conversionChange =
-    snapshots.length >= 2 ? `${(latestSnapshot.conversionRate - firstSnapshot.conversionRate >= 0 ? '+' : '')}${(latestSnapshot.conversionRate - firstSnapshot.conversionRate).toFixed(1)}pp` : null
+    snapshots.length >= 2 && latestSnapshot && firstSnapshot
+      ? `${(latestSnapshot.conversionRate - firstSnapshot.conversionRate >= 0 ? '+' : '')}${(latestSnapshot.conversionRate - firstSnapshot.conversionRate).toFixed(1)}pp`
+      : null
   const pipelineChange =
-    snapshots.length >= 2 && firstSnapshot.pipelineValue
+    snapshots.length >= 2 && latestSnapshot && firstSnapshot?.pipelineValue
       ? `${(((latestSnapshot.pipelineValue - firstSnapshot.pipelineValue) / firstSnapshot.pipelineValue) * 100 >= 0 ? '+' : '')}${(((latestSnapshot.pipelineValue - firstSnapshot.pipelineValue) / firstSnapshot.pipelineValue) * 100).toFixed(1)}%`
       : null
 

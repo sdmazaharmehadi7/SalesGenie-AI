@@ -134,12 +134,22 @@ export function useAnalytics() {
               return { data: [] }
             }),
           ])
-          return { interactions: interactionsRes.data, campaigns: campaignsRes.data }
+          const interactions = Array.isArray(interactionsRes?.data)
+            ? interactionsRes.data
+            : Array.isArray(interactionsRes)
+              ? interactionsRes
+              : []
+          const campaigns = Array.isArray(campaignsRes?.data)
+            ? campaignsRes.data
+            : Array.isArray(campaignsRes)
+              ? campaignsRes
+              : []
+          return { interactions, campaigns }
         })
       )
 
-      const allInteractions = perLead.flatMap((p) => p.interactions)
-      const allCampaigns = perLead.flatMap((p) => p.campaigns)
+      const allInteractions = perLead.flatMap((p) => p.interactions || [])
+      const allCampaigns = perLead.flatMap((p) => p.campaigns || [])
 
       setWeeklyActivity(bucketByWeekday(allInteractions))
       setTotalInteractions(allInteractions.length)

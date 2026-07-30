@@ -91,6 +91,7 @@ export function OutreachLayout() {
             onCopy={copyEmailToClipboard}
             copySuccess={copySuccess}
             onDownload={downloadEmailAsTxt}
+            onRegenerate={generateEmail}
           />
 
           <GenerationHistory

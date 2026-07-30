@@ -1,74 +1,191 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { getLeads } from '@/services/api/leads'
 import {
-  generateOutreachEmail,
-  INDUSTRY_OPTIONS,
-  LENGTH_OPTIONS,
-  SAMPLE_PROSPECTS,
-  TONE_OPTIONS,
-} from '../data/mockOutreachData'
+  generateCampaign,
+  getCampaigns,
+  sendCampaign,
+  updateCampaign,
+} from '@/services/api/outreach'
+
+function mapCampaign(c) {
+  if (!c) return null
+  return {
+    id: c.id,
+    leadId: c.lead_id,
+    subject: c.email_subject,
+    body: c.email_content,
+    status: c.campaign_status,
+    createdAt: c.created_at,
+    updatedAt: c.updated_at,
+    _raw: c,
+  }
+}
+
+function extractErrorMessage(err, fallback) {
+  const data = err?.response?.data
+  if (typeof data?.detail === 'string') return data.detail
+  if (Array.isArray(data?.detail)) {
+    return data.detail.map((d) => d.msg || d.message).filter(Boolean).join(' ') || fallback
+  }
+  if (data?.error?.message) return data.error.message
+  return err?.message || fallback
+}
 
 export function useOutreachGenerator() {
-  const [formData, setFormData] = useState({
-    prospectName: 'Sarah Jenkins',
-    jobTitle: 'Chief Technology Officer',
-    companyName: 'Acme Corp',
-    industry: 'Enterprise SaaS',
-    painPoint: 'Manual CRM lead enrichment delays cutting sales team output.',
-    valueProp: 'SalesGenie AI automated lead scoring and real-time webhook sync.',
-    tone: 'consultative',
-    length: 'medium',
-  })
+  const [leads, setLeads] = useState([])
+  const [leadsLoading, setLeadsLoading] = useState(true)
+  const [selectedLeadId, setSelectedLeadId] = useState('')
 
-  const [generatedEmail, setGeneratedEmail] = useState(() =>
-    generateOutreachEmail({
-      prospectName: 'Sarah Jenkins',
-      jobTitle: 'Chief Technology Officer',
-      companyName: 'Acme Corp',
-      industry: 'Enterprise SaaS',
-      painPoint: 'Manual CRM lead enrichment delays cutting sales team output.',
-      valueProp: 'SalesGenie AI automated lead scoring and real-time webhook sync.',
-      tone: 'consultative',
-      length: 'medium',
-    })
-  )
+  const [campaign, setCampaign] = useState(null)
+  const [history, setHistory] = useState([])
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false)
 
   const [isGenerating, setIsGenerating] = useState(false)
-  const [history, setHistory] = useState([])
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSending, setIsSending] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [error, setError] = useState(null)
 
-  const updateFormField = useCallback((field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+  // 1. Fetch leads on mount
+  const loadLeads = useCallback(async () => {
+    setLeadsLoading(true)
+    setError(null)
+    try {
+      const data = await getLeads({ page_size: 100 })
+      const items = data.items || []
+      setLeads(items)
+      if (items.length > 0) {
+        setSelectedLeadId(items[0].id)
+      }
+    } catch (err) {
+      console.error('Failed to load leads:', err)
+      setError(extractErrorMessage(err, 'Failed to load leads.'))
+    } finally {
+      setLeadsLoading(false)
+    }
   }, [])
 
-  const loadSampleProspect = useCallback((sample) => {
-    setFormData((prev) => ({ ...prev, ...sample }))
+  useEffect(() => {
+    loadLeads()
+  }, [loadLeads])
+
+  // Selected lead object
+  const selectedLead = leads.find((l) => l.id === selectedLeadId) || null
+
+  // 2. Fetch campaign history whenever selectedLeadId changes
+  const loadCampaignHistory = useCallback(async (leadId) => {
+    if (!leadId) {
+      setHistory([])
+      setCampaign(null)
+      return
+    }
+    setIsHistoryLoading(true)
+    try {
+      const { data } = await getCampaigns(leadId)
+      const mapped = (data || []).map(mapCampaign).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      setHistory(mapped)
+      setCampaign(mapped[0] || null)
+    } catch (err) {
+      console.error(`Failed to load campaigns for lead ${leadId}:`, err)
+      setHistory([])
+      setCampaign(null)
+    } finally {
+      setIsHistoryLoading(false)
+    }
   }, [])
 
-  const generateEmail = useCallback(() => {
+  useEffect(() => {
+    if (selectedLeadId) {
+      loadCampaignHistory(selectedLeadId)
+    }
+  }, [selectedLeadId, loadCampaignHistory])
+
+  const selectLead = useCallback((leadId) => {
+    setSelectedLeadId(leadId)
+    setError(null)
+  }, [])
+
+  // 3. Generate AI Outreach Email
+  const generateEmail = useCallback(async () => {
+    if (!selectedLeadId) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const newEmail = generateOutreachEmail(formData)
-      setGeneratedEmail(newEmail)
-      setHistory((prev) => [newEmail, ...prev.slice(0, 4)])
+    setError(null)
+    try {
+      const { data } = await generateCampaign(selectedLeadId)
+      const mapped = mapCampaign(data)
+      setCampaign(mapped)
+      setHistory((prev) => [mapped, ...prev.filter((h) => h.id !== mapped.id)])
+    } catch (err) {
+      console.error('Failed to generate outreach email:', err)
+      setError(extractErrorMessage(err, 'Failed to generate outreach email. Please try again.'))
+    } finally {
       setIsGenerating(false)
-    }, 600)
-  }, [formData])
+    }
+  }, [selectedLeadId])
 
-  const regenerateEmail = useCallback(() => {
-    generateEmail()
-  }, [generateEmail])
-
-  const selectSubject = useCallback((subject) => {
-    setGeneratedEmail((prev) => (prev ? { ...prev, selectedSubject: subject } : null))
+  // 4. Update Subject / Body locally
+  const updateSubject = useCallback((newSubject) => {
+    setCampaign((prev) => (prev ? { ...prev, subject: newSubject } : null))
   }, [])
 
   const updateBody = useCallback((newBody) => {
-    setGeneratedEmail((prev) => (prev ? { ...prev, body: newBody } : null))
+    setCampaign((prev) => (prev ? { ...prev, body: newBody } : null))
   }, [])
 
+  // 5. Save Draft
+  const saveDraft = useCallback(async () => {
+    if (!selectedLeadId || !campaign) return
+    setIsSaving(true)
+    setError(null)
+    try {
+      const { data } = await updateCampaign(selectedLeadId, campaign.id, {
+        email_subject: campaign.subject,
+        email_content: campaign.body,
+      })
+      const mapped = mapCampaign(data)
+      setCampaign(mapped)
+      setHistory((prev) => prev.map((h) => (h.id === mapped.id ? mapped : h)))
+    } catch (err) {
+      console.error('Failed to save draft:', err)
+      setError(extractErrorMessage(err, 'Failed to save email draft.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }, [selectedLeadId, campaign])
+
+  // 6. Send Email
+  const sendEmail = useCallback(async () => {
+    if (!selectedLeadId || !campaign) return
+    setIsSending(true)
+    setError(null)
+    try {
+      if (campaign.status === 'draft') {
+        await updateCampaign(selectedLeadId, campaign.id, {
+          email_subject: campaign.subject,
+          email_content: campaign.body,
+        })
+      }
+      const { data } = await sendCampaign(selectedLeadId, campaign.id)
+      const mapped = mapCampaign(data)
+      setCampaign(mapped)
+      setHistory((prev) => prev.map((h) => (h.id === mapped.id ? mapped : h)))
+    } catch (err) {
+      console.error('Failed to send outreach email:', err)
+      setError(extractErrorMessage(err, 'Failed to send outreach email.'))
+    } finally {
+      setIsSending(false)
+    }
+  }, [selectedLeadId, campaign])
+
+  // 7. Select campaign from history
+  const selectCampaignFromHistory = useCallback((c) => {
+    setCampaign(c)
+  }, [])
+
+  // 8. Copy to Clipboard
   const copyEmailToClipboard = useCallback(async () => {
-    if (!generatedEmail) return
-    const textToCopy = `Subject: ${generatedEmail.selectedSubject}\n\n${generatedEmail.body}`
+    if (!campaign) return
+    const textToCopy = `Subject: ${campaign.subject}\n\n${campaign.body}`
     try {
       await navigator.clipboard.writeText(textToCopy)
       setCopySuccess(true)
@@ -76,39 +193,49 @@ export function useOutreachGenerator() {
     } catch (err) {
       console.error('Copy failed: ', err)
     }
-  }, [generatedEmail])
+  }, [campaign])
 
+  // 9. Download as .txt
   const downloadEmailAsTxt = useCallback(() => {
-    if (!generatedEmail) return
-    const content = `Subject: ${generatedEmail.selectedSubject}\n\n${generatedEmail.body}`
+    if (!campaign) return
+    const content = `Subject: ${campaign.subject}\n\n${campaign.body}`
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `Outreach_${formData.companyName.replace(/\s+/g, '_')}_${Date.now()}.txt`
+    const companyName = selectedLead?.company_name || 'Prospect'
+    link.download = `Outreach_${companyName.replace(/\s+/g, '_')}_${Date.now()}.txt`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-  }, [formData.companyName, generatedEmail])
+  }, [campaign, selectedLead])
 
   return {
-    formData,
-    updateFormField,
-    loadSampleProspect,
-    generatedEmail,
+    leads,
+    leadsLoading,
+    selectedLeadId,
+    selectedLead,
+    selectLead,
+
+    campaign,
     isGenerating,
+    isSaving,
+    isSending,
+    error,
+
     generateEmail,
-    regenerateEmail,
-    selectSubject,
+    updateSubject,
     updateBody,
+    saveDraft,
+    sendEmail,
+
+    history,
+    isHistoryLoading,
+    selectCampaignFromHistory,
+
     copyEmailToClipboard,
     copySuccess,
     downloadEmailAsTxt,
-    history,
-    toneOptions: TONE_OPTIONS,
-    lengthOptions: LENGTH_OPTIONS,
-    industryOptions: INDUSTRY_OPTIONS,
-    sampleProspects: SAMPLE_PROSPECTS,
   }
 }

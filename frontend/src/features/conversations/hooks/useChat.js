@@ -1,17 +1,51 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { generateAiResponse, MOCK_CONVERSATIONS } from '../data/mockConversations'
+import { sendChatMessage } from '@/services/api/ai'
 
+const STORAGE_KEY = 'sg_chat_threads'
+
+/** Load persisted threads from localStorage (or return empty array). */
+function loadThreads() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+/** Persist threads to localStorage. */
+function saveThreads(threads) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(threads))
+  } catch {
+    // Ignore quota errors silently
+  }
+}
+
+function timestamp() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * useChat — manages AI conversation threads backed by POST /api/v1/chat.
+ *
+ * Conversations are stored in localStorage for persistence across refreshes.
+ * Streaming is simulated word-by-word after the full response arrives, since
+ * the backend returns the complete reply in one shot.
+ */
 export function useChat() {
-  const [conversations, setConversations] = useState(MOCK_CONVERSATIONS)
-  const [activeThreadId, setActiveThreadId] = useState('conv-1')
+  const [conversations, setConversations] = useState(() => loadThreads())
+  const [activeThreadId, setActiveThreadId] = useState(() => loadThreads()[0]?.id || null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const intervalRef = useRef(null)
+  const abortRef = useRef(false)
 
-  const activeThread = useMemo(() => {
-    return conversations.find((c) => c.id === activeThreadId) || null
-  }, [conversations, activeThreadId])
+  const activeThread = useMemo(
+    () => conversations.find((c) => c.id === activeThreadId) || null,
+    [conversations, activeThreadId],
+  )
 
   const filteredConversations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -24,9 +58,16 @@ export function useChat() {
     })
   }, [conversations, searchQuery])
 
-  const selectThread = useCallback((id) => {
-    setActiveThreadId(id)
+  /** Persist to localStorage whenever conversations change. */
+  const updateConversations = useCallback((updater) => {
+    setConversations((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveThreads(next)
+      return next
+    })
   }, [])
+
+  const selectThread = useCallback((id) => setActiveThreadId(id), [])
 
   const createNewChat = useCallback(() => {
     setActiveThreadId(null)
@@ -34,17 +75,18 @@ export function useChat() {
   }, [])
 
   const togglePin = useCallback((id) => {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c))
+    updateConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)),
     )
-  }, [])
+  }, [updateConversations])
 
   const deleteThread = useCallback((id) => {
-    setConversations((prev) => prev.filter((c) => c.id !== id))
+    updateConversations((prev) => prev.filter((c) => c.id !== id))
     setActiveThreadId((curr) => (curr === id ? null : curr))
-  }, [])
+  }, [updateConversations])
 
   const stopGeneration = useCallback(() => {
+    abortRef.current = true
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
@@ -54,55 +96,69 @@ export function useChat() {
         id: `m-${Date.now()}`,
         role: 'assistant',
         content: streamingContent + '\n\n*(Generation stopped)*',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: timestamp(),
       }
-      setConversations((prev) =>
-        prev.map((c) => (c.id === activeThreadId ? { ...c, messages: [...c.messages, msg] } : c))
+      updateConversations((prev) =>
+        prev.map((c) => (c.id === activeThreadId ? { ...c, messages: [...c.messages, msg] } : c)),
       )
     }
     setIsGenerating(false)
     setStreamingContent('')
-  }, [activeThreadId, streamingContent])
+  }, [activeThreadId, streamingContent, updateConversations])
 
-  const simulateStream = useCallback((fullText, threadId) => {
-    setIsGenerating(true)
-    setStreamingContent('')
-    const words = fullText.split(' ')
-    let idx = 0
+  /** Simulate streaming by revealing the full text word-by-word. */
+  const simulateStream = useCallback(
+    (fullText, threadId) => {
+      setIsGenerating(true)
+      setStreamingContent('')
+      abortRef.current = false
+      const words = fullText.split(' ')
+      let idx = 0
 
-    if (intervalRef.current) clearInterval(intervalRef.current)
+      if (intervalRef.current) clearInterval(intervalRef.current)
 
-    intervalRef.current = setInterval(() => {
-      if (idx < words.length) {
-        setStreamingContent(words.slice(0, idx + 1).join(' '))
-        idx++
-      } else {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-        const finalMsg = {
-          id: `m-${Date.now()}`,
-          role: 'assistant',
-          content: fullText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      intervalRef.current = setInterval(() => {
+        if (abortRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+          return
         }
-        setConversations((prev) =>
-          prev.map((c) => (c.id === threadId ? { ...c, messages: [...c.messages, finalMsg] } : c))
-        )
-        setIsGenerating(false)
-        setStreamingContent('')
-      }
-    }, 40)
-  }, [])
+        if (idx < words.length) {
+          setStreamingContent(words.slice(0, idx + 1).join(' '))
+          idx++
+        } else {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+
+          const finalMsg = {
+            id: `m-${Date.now()}`,
+            role: 'assistant',
+            content: fullText,
+            timestamp: timestamp(),
+            model: 'SalesGenie AI',
+          }
+          updateConversations((prev) =>
+            prev.map((c) =>
+              c.id === threadId ? { ...c, messages: [...c.messages, finalMsg] } : c,
+            ),
+          )
+          setIsGenerating(false)
+          setStreamingContent('')
+        }
+      }, 35)
+    },
+    [updateConversations],
+  )
 
   const sendMessage = useCallback(
-    (text) => {
-      if (!text.trim() || isGenerating) return
+    async (text) => {
+      if (!text?.trim() || isGenerating) return
 
       const userMsg = {
         id: `m-${Date.now()}`,
         role: 'user',
         content: text.trim(),
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: timestamp(),
       }
 
       let threadId = activeThreadId
@@ -111,27 +167,47 @@ export function useChat() {
         threadId = `conv-${Date.now()}`
         const newConv = {
           id: threadId,
-          title: text.length > 30 ? text.substring(0, 30) + '...' : text,
+          title: text.length > 40 ? text.substring(0, 40) + '…' : text,
           updatedAt: 'Just now',
           isPinned: false,
           messages: [userMsg],
         }
-        setConversations((prev) => [newConv, ...prev])
+        updateConversations((prev) => [newConv, ...prev])
         setActiveThreadId(threadId)
       } else {
-        setConversations((prev) =>
-          prev.map((c) => (c.id === threadId ? { ...c, messages: [...c.messages, userMsg] } : c))
+        updateConversations((prev) =>
+          prev.map((c) =>
+            c.id === threadId ? { ...c, messages: [...c.messages, userMsg] } : c,
+          ),
         )
       }
 
-      const responseText = generateAiResponse(text)
-      setTimeout(() => simulateStream(responseText, threadId), 400)
+      // Call the real AI API
+      try {
+        const { data } = await sendChatMessage(text.trim())
+        const replyText = data?.reply || 'I was unable to generate a response. Please try again.'
+        setTimeout(() => simulateStream(replyText, threadId), 300)
+      } catch (err) {
+        console.error('Chat API error:', err)
+        const errorMsg = {
+          id: `m-${Date.now()}`,
+          role: 'assistant',
+          content: '⚠️ Sorry, I encountered an error connecting to the AI service. Please check your connection and try again.',
+          timestamp: timestamp(),
+          isError: true,
+        }
+        updateConversations((prev) =>
+          prev.map((c) => (c.id === threadId ? { ...c, messages: [...c.messages, errorMsg] } : c)),
+        )
+        setIsGenerating(false)
+      }
     },
-    [activeThreadId, isGenerating, simulateStream]
+    [activeThreadId, isGenerating, simulateStream, updateConversations],
   )
 
   const regenerateResponse = useCallback(() => {
     if (!activeThread || activeThread.messages.length === 0 || isGenerating) return
+
     const msgs = [...activeThread.messages]
     const last = msgs[msgs.length - 1]
 
@@ -144,16 +220,15 @@ export function useChat() {
       prompt = last.content
     }
 
-    setConversations((prev) =>
-      prev.map((c) => (c.id === activeThreadId ? { ...c, messages: msgs } : c))
+    updateConversations((prev) =>
+      prev.map((c) => (c.id === activeThreadId ? { ...c, messages: msgs } : c)),
     )
 
-    const resp = generateAiResponse(prompt)
-    simulateStream(resp, activeThreadId)
-  }, [activeThread, activeThreadId, isGenerating, simulateStream])
+    sendMessage(prompt)
+  }, [activeThread, activeThreadId, isGenerating, sendMessage, updateConversations])
 
   return {
-    conversations,
+    conversations: filteredConversations,
     activeThreadId,
     activeThread,
     searchQuery,

@@ -1,281 +1,214 @@
+import { useState } from 'react'
 import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Building2,
-  ShieldCheck,
-  Briefcase,
-  Camera,
-  Award,
   Activity,
-} from "lucide-react";
+  Award,
+  Briefcase,
+  Building2,
+  Mail,
+  ShieldCheck,
+  User,
+} from 'lucide-react'
+
+import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
+import { getDashboardSummary } from '@/services/api/dashboard'
+import { useEffect } from 'react'
+
+/** Returns up to 2 uppercase initials from a name string. */
+function getInitials(name) {
+  if (!name) return 'U'
+  const parts = name.trim().split(/\s+/)
+  const first = parts[0]?.[0] || ''
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : ''
+  return (first + last).toUpperCase() || 'U'
+}
+
+const ROLE_LABELS = {
+  admin: 'Admin',
+  sales_rep: 'Sales Rep',
+  manager: 'Manager',
+}
 
 export default function ProfilePage() {
+  const { user } = useAuth()
+  const { showToast } = useToast()
+
+  // Live pipeline stats from the dashboard
+  const [stats, setStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  useEffect(() => {
+    getDashboardSummary()
+      .then((data) => setStats(data))
+      .catch(console.error)
+      .finally(() => setStatsLoading(false))
+  }, [])
+
+  const initials = getInitials(user?.name)
+  const roleLabel = ROLE_LABELS[user?.role] || user?.role || 'Sales Rep'
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : '—'
+
+  const closedWon = stats?.stages?.find((s) => s.status === 'closed_won')?.count ?? 0
+  const totalLeads = stats?.total_leads ?? 0
+  const conversionRate = stats?.conversion_rate ? `${Number(stats.conversion_rate).toFixed(1)}%` : '—'
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="mx-auto max-w-6xl space-y-8 p-2">
 
       {/* Header */}
-
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">
-          My Profile
-        </h1>
-
-        <p className="mt-2 text-gray-500">
-          Manage your account information and preferences.
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-ink-primary">My Profile</h1>
+        <p className="mt-2 text-sm text-ink-muted">
+          Your account information and activity summary.
         </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
 
-        {/* LEFT CARD */}
+        {/* ─── LEFT CARD ──────────────────────────────────────────────────── */}
+        <div className="card p-8">
+          <div className="flex flex-col items-center text-center">
 
-        <div className="rounded-2xl bg-white p-8 shadow-sm border">
-
-          <div className="flex flex-col items-center">
-
-            <div className="relative">
-
-              <img
-                src="https://ui-avatars.com/api/?name=Sayyad&background=4F46E5&color=fff&size=256"
-                alt="Profile"
-                className="h-32 w-32 rounded-full object-cover"
-              />
-
-              <button className="absolute bottom-0 right-0 rounded-full bg-indigo-600 p-2 text-white shadow-lg hover:bg-indigo-700">
-                <Camera size={18} />
-              </button>
-
+            {/* Avatar */}
+            <div className="grid size-24 place-items-center rounded-full bg-slate-900 text-3xl font-bold text-white ring-4 ring-white shadow-md">
+              {initials}
             </div>
 
-            <h2 className="mt-5 text-2xl font-bold">
-              Sayyad Mazahar Mehadi
-            </h2>
+            <h2 className="mt-5 text-xl font-bold text-ink-primary">{user?.name || '—'}</h2>
+            <p className="text-sm text-ink-muted">{roleLabel}</p>
 
-            <p className="text-gray-500">
-              AI Engineer
-            </p>
-
-            <div className="mt-6 flex gap-3">
-
-              <span className="rounded-full bg-indigo-100 px-4 py-1 text-sm font-medium text-indigo-700">
-                Admin
+            {/* Role & status badges */}
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-100">
+                {roleLabel}
               </span>
-
-              <span className="rounded-full bg-green-100 px-4 py-1 text-sm font-medium text-green-700">
-                Active
-              </span>
-
+              {user?.is_active !== false && (
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">
+                  Active
+                </span>
+              )}
             </div>
 
+            <hr className="my-6 w-full border-line-default" />
+
+            {/* Contact details */}
+            <div className="w-full space-y-3 text-left">
+              <div className="flex items-center gap-3 text-sm text-ink-secondary">
+                <Mail className="size-4 shrink-0 text-brand-500" />
+                <span className="truncate">{user?.email || '—'}</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-ink-secondary">
+                <Building2 className="size-4 shrink-0 text-amber-500" />
+                <span>{user?.department || 'SalesGenie AI'}</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-ink-secondary">
+                <User className="size-4 shrink-0 text-slate-400" />
+                <span>Member since {memberSince}</span>
+              </div>
+            </div>
           </div>
-
-          <hr className="my-8" />
-
-          <div className="space-y-5">
-
-            <div className="flex items-center gap-3">
-              <Mail className="text-indigo-600" />
-              <span>sayyad@example.com</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Phone className="text-green-600" />
-              <span>+91 9876543210</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Building2 className="text-orange-500" />
-              <span>SalesGenie AI</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <MapPin className="text-red-500" />
-              <span>Andhra Pradesh, India</span>
-            </div>
-
-          </div>
-
         </div>
 
-        {/* RIGHT SECTION */}
-
-        <div className="space-y-8 lg:col-span-2">
+        {/* ─── RIGHT SECTION ───────────────────────────────────────────────── */}
+        <div className="space-y-6 lg:col-span-2">
 
           {/* Personal Information */}
-
-          <div className="rounded-2xl border bg-white p-8 shadow-sm">
-
-            <h2 className="mb-6 text-2xl font-semibold">
-              Personal Information
-            </h2>
-
-            <div className="grid gap-6 md:grid-cols-2">
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-600">
-                  Full Name
-                </label>
-
+          <div className="card p-6">
+            <h2 className="mb-5 text-base font-semibold text-ink-primary">Personal Information</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-ink-secondary">Full Name</span>
                 <input
-                  defaultValue="Sayyad Mazahar Mehadi"
-                  className="w-full rounded-xl border p-3 outline-none focus:border-indigo-500"
+                  className="input"
+                  defaultValue={user?.name || ''}
+                  disabled
+                  title="Name cannot be changed here. Contact your administrator."
                 />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-600">
-                  Email
-                </label>
-
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-ink-secondary">Email</span>
                 <input
-                  defaultValue="sayyad@example.com"
-                  className="w-full rounded-xl border p-3 outline-none focus:border-indigo-500"
+                  className="input"
+                  defaultValue={user?.email || ''}
+                  disabled
+                  type="email"
                 />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-600">
-                  Phone
-                </label>
-
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-ink-secondary">Department</span>
                 <input
-                  defaultValue="+91 9876543210"
-                  className="w-full rounded-xl border p-3 outline-none focus:border-indigo-500"
+                  className="input"
+                  defaultValue={user?.department || ''}
+                  disabled
+                  placeholder="No department set"
                 />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-600">
-                  Position
-                </label>
-
-                <input
-                  defaultValue="AI Engineer"
-                  className="w-full rounded-xl border p-3 outline-none focus:border-indigo-500"
-                />
-              </div>
-
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-ink-secondary">Role</span>
+                <input className="input" defaultValue={roleLabel} disabled />
+              </label>
             </div>
-
-            <button className="mt-8 rounded-xl bg-indigo-600 px-6 py-3 text-white hover:bg-indigo-700">
-              Save Changes
-            </button>
-
+            <p className="mt-4 text-xs text-ink-muted">
+              To change your name, department, or role, contact your workspace administrator.
+            </p>
           </div>
 
-          {/* Statistics */}
-
-          <div className="grid gap-6 md:grid-cols-3">
-
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
-
-              <Award className="mb-4 text-yellow-500" size={35} />
-
-              <p className="text-gray-500">
-                Deals Closed
-              </p>
-
-              <h2 className="mt-2 text-3xl font-bold">
-                127
-              </h2>
-
-            </div>
-
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
-
-              <Activity className="mb-4 text-green-500" size={35} />
-
-              <p className="text-gray-500">
-                Success Rate
-              </p>
-
-              <h2 className="mt-2 text-3xl font-bold">
-                91%
-              </h2>
-
-            </div>
-
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
-
-              <Briefcase className="mb-4 text-indigo-600" size={35} />
-
-              <p className="text-gray-500">
-                Leads Managed
-              </p>
-
-              <h2 className="mt-2 text-3xl font-bold">
-                358
-              </h2>
-
-            </div>
-
+          {/* Live Stats */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              { icon: Award, color: 'text-amber-500', label: 'Deals Won', value: statsLoading ? '…' : closedWon },
+              { icon: Activity, color: 'text-emerald-500', label: 'Conversion Rate', value: statsLoading ? '…' : conversionRate },
+              { icon: Briefcase, color: 'text-brand-500', label: 'Total Leads', value: statsLoading ? '…' : totalLeads },
+            ].map(({ icon: Icon, color, label, value }) => (
+              <article className="card p-5" key={label}>
+                <Icon className={`mb-3 size-7 ${color}`} />
+                <p className="text-sm text-ink-muted">{label}</p>
+                <h3 className="mt-1 text-2xl font-bold text-ink-primary">{value}</h3>
+              </article>
+            ))}
           </div>
 
           {/* Security */}
-
-          <div className="rounded-2xl border bg-white p-8 shadow-sm">
-
-            <div className="flex items-center gap-3">
-
-              <ShieldCheck
-                className="text-green-600"
-                size={28}
-              />
-
-              <h2 className="text-2xl font-semibold">
-                Security
-              </h2>
-
+          <div className="card p-6">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="size-5 text-emerald-600" />
+              <h2 className="text-base font-semibold text-ink-primary">Security</h2>
             </div>
-
-            <div className="mt-6 space-y-5">
-
-              <div className="flex items-center justify-between">
-
+            <div className="mt-5 divide-y divide-line-default">
+              <div className="flex items-center justify-between py-4">
                 <div>
-                  <h3 className="font-semibold">
-                    Password
-                  </h3>
-
-                  <p className="text-sm text-gray-500">
-                    Last updated 30 days ago
+                  <h3 className="text-sm font-medium text-ink-primary">Password</h3>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    Your password is managed via the login system.
                   </p>
                 </div>
-
-                <button className="rounded-lg border px-5 py-2 hover:bg-gray-100">
+                <button
+                  className="rounded-control border border-line-strong px-4 py-2 text-sm hover:bg-surface-muted"
+                  onClick={() => showToast('Password reset is not available in this version.', 'warning')}
+                  type="button"
+                >
                   Change
                 </button>
-
               </div>
-
-              <div className="flex items-center justify-between">
-
+              <div className="flex items-center justify-between py-4">
                 <div>
-                  <h3 className="font-semibold">
-                    Two-Factor Authentication
-                  </h3>
-
-                  <p className="text-sm text-gray-500">
-                    Protect your account.
-                  </p>
+                  <h3 className="text-sm font-medium text-ink-primary">Two-Factor Authentication</h3>
+                  <p className="mt-0.5 text-xs text-ink-muted">Add an extra layer of security.</p>
                 </div>
-
-                <button className="rounded-lg bg-green-600 px-5 py-2 text-white hover:bg-green-700">
+                <button
+                  className="rounded-control bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700"
+                  onClick={() => showToast('2FA setup is not available in this version.', 'warning')}
+                  type="button"
+                >
                   Enable
                 </button>
-
               </div>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
-  );
+  )
 }

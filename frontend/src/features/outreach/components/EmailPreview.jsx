@@ -1,4 +1,4 @@
-import { Check, Copy, Download, Mail, Send, ShieldCheck, Sparkles } from 'lucide-react'
+import { Check, Copy, Download, Mail, RefreshCw, Send, ShieldCheck, Sparkles } from 'lucide-react'
 
 import StatusBadge from '@/components/ui/StatusBadge'
 
@@ -14,6 +14,7 @@ export function EmailPreview({
   onCopy,
   copySuccess,
   onDownload,
+  onRegenerate,
 }) {
   if (isGenerating) {
     return (
@@ -45,7 +46,9 @@ export function EmailPreview({
     )
   }
 
-  const isEditable = campaign.status === 'draft'
+  // Backend uses campaign_status enum values: 'draft', 'sent', etc.
+  const status = (campaign.status || '').toLowerCase()
+  const isEditable = status === 'draft'
 
   return (
     <div className="rounded-card border border-line-default bg-surface-default p-5 shadow-card space-y-4">
@@ -127,6 +130,17 @@ export function EmailPreview({
                 <span>Copy Email</span>
               </>
             )}
+          </button>
+
+          {/* Regenerate — always visible when a campaign exists */}
+          <button
+            type="button"
+            onClick={onRegenerate}
+            disabled={isGenerating}
+            className="flex items-center space-x-1.5 rounded-control border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700 hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            <span>Regenerate</span>
           </button>
         </div>
 

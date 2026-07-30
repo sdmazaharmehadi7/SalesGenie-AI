@@ -1,23 +1,38 @@
-import api from "./client";
+import api from './client'
 
-export const getLeads = async () => {
-  const response = await api.get("/leads?page=1&page_size=20");
-  return response.data;
-};
+/**
+ * Get a paginated list of leads.
+ * @param {{ page?, page_size?, status?, search? }} params
+ */
+export const getLeads = async (params = {}) => {
+  const { page = 1, page_size = 100, status, search } = params
+  const query = { page, page_size }
+  if (status) query.status_filter = status
+  if (search) query.search = search
+  const response = await api.get('/leads', { params: query })
+  return response.data
+}
 
+/** Create a new lead. */
 export const createLead = async (leadData) => {
-  const response = await api.post("/leads", leadData);
-  return response.data;
-};
+  const response = await api.post('/leads', leadData)
+  return response.data
+}
 
-// Update Lead
+/** Get a single lead by ID. */
+export const getLead = async (leadId) => {
+  const response = await api.get(`/leads/${leadId}`)
+  return response.data
+}
+
+/** Update a lead (PATCH). */
 export const updateLead = async (leadId, leadData) => {
-  const response = await api.patch(`/leads/${leadId}`, leadData);
-  return response.data;
-};
+  const response = await api.patch(`/leads/${leadId}`, leadData)
+  return response.data
+}
 
-// Delete Lead
+/** Permanently delete a lead. */
 export const deleteLead = async (leadId) => {
-  const response = await api.delete(`/leads/${leadId}`);
-  return response.data;
-};
+  const response = await api.delete(`/leads/${leadId}`)
+  return response.data
+}

@@ -1,82 +1,110 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { login } from "@/services/api/auth";
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import api from '@/services/api/client'
+import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import AuthLayout from '@/components/auth/AuthLayout'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
-function LoginPage() {
-  const navigate = useNavigate();
-
-const [email, setEmail] = useState("");
-const [password, setPassword] = useState("");
-const [loading, setLoading] = useState(false);
-  async function handleSubmit(event) {
-  event.preventDefault();
-
-  try {
-    setLoading(true);
-
-    const data = await login(email, password);
-
-    console.log(data);
-
-    localStorage.setItem("access_token", data.access_token);
-
-    navigate("/dashboard");
-
-  } catch (error) {
-    console.error(error);
-    alert("Login failed");
-  } finally {
-    setLoading(false);
+function extractErrorMessage(err, fallback) {
+  const data = err?.response?.data
+  if (typeof data?.detail === 'string') return data.detail
+  if (Array.isArray(data?.detail)) {
+    return data.detail.map((d) => d.msg || d.message).filter(Boolean).join(' ') || fallback
   }
+  if (data?.error?.message) return data.error.message
+  return err?.message || fallback
 }
+
+function LoginPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { login } = useAuth()
+  const { showToast } = useToast()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Redirect to the page the user was trying to visit, or /dashboard
+  const from = location.state?.from?.pathname || '/dashboard'
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError(null)
+    setLoading(true)
+
+    try {
+      const formData = new URLSearchParams()
+      formData.append('username', email)
+      formData.append('password', password)
+
+      const { data } = await api.post('/auth/login', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+
+      await login(data.access_token)
+      showToast('Signed in successfully!', 'success')
+      navigate(from, { replace: true })
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Invalid email or password. Please try again.')
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <AuthLayout subtitle="Enter your details to access your workspace." title="Welcome back">
       <form className="space-y-5" onSubmit={handleSubmit}>
         <Input
-  autoComplete="email"
-  label="Work email"
-  name="email"
-  placeholder="you@company.com"
-  type="email"
-  value={email}
-  onChange={(e) => setEmail(e.target.value)}
-/>
+          autoComplete="email"
+          label="Work email"
+          name="email"
+          placeholder="you@company.com"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-4">
-            <label className="text-sm font-medium text-ink-secondary" htmlFor="password">Password</label>
+            <label className="text-sm font-medium text-ink-secondary" htmlFor="password">
+              Password
+            </label>
             <Link className="text-xs font-medium text-brand-600 hover:text-brand-700" to="/forgot-password">
               Forgot password?
             </Link>
           </div>
           <Input
-  autoComplete="current-password"
-  id="password"
-  name="password"
-  placeholder="Enter your password"
-  type="password"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-/>
+            autoComplete="current-password"
+            id="password"
+            name="password"
+            placeholder="Enter your password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-        <label className="flex w-fit items-center gap-2 text-sm text-ink-secondary">
-          <input className="size-4 rounded border-line-strong text-brand-600 focus:ring-brand-500" name="remember" type="checkbox" />
-          Remember me
-        </label>
-        <Button
-  className="w-full"
-  type="submit"
-  disabled={loading}
->
-  {loading ? "Signing in..." : "Sign in"}
-</Button>
+
+        {error && (
+          <div className="rounded-control border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+
+        <Button className="w-full" disabled={loading} type="submit">
+          {loading ? 'Signing in…' : 'Sign in'}
+        </Button>
       </form>
       <p className="mt-8 text-center text-sm text-ink-muted">
         New to SalesGenie?{' '}
-        <Link className="font-medium text-brand-600 hover:text-brand-700" to="/signup">Create an account</Link>
+        <Link className="font-medium text-brand-600 hover:text-brand-700" to="/signup">
+          Create an account
+        </Link>
       </p>
     </AuthLayout>
   )
