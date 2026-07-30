@@ -1,3 +1,4 @@
+import { generateCampaign } from '@/services/api/outreach'
 import { useState } from 'react'
 import {
   X,
@@ -51,7 +52,7 @@ export function ProfileModal({ lead, onClose }) {
                 </span>
               </div>
               <p className="text-brand-100 text-sm mt-1">
-                {lead.title} at <span className="font-semibold text-white">{lead.company}</span>
+                Contact at <span className="font-semibold text-white">{lead.company}</span>
               </p>
             </div>
           </div>
@@ -99,7 +100,7 @@ export function ProfileModal({ lead, onClose }) {
               </div>
               <div className="flex items-center gap-2.5 text-ink-secondary">
                 <MapPin className="size-4 text-ink-muted shrink-0" />
-                <span>{lead.location}</span>
+                <span>{lead.statusLabel} status</span>
               </div>
             </div>
           </div>
@@ -110,22 +111,36 @@ export function ProfileModal({ lead, onClose }) {
               <Sparkles className="size-4 text-brand-600" />
               <span>AI Lead Intelligence Deep Dive</span>
             </div>
-            <p className="text-sm text-ink-secondary leading-relaxed">
-              {lead.aiInsights.whyPromising}
-            </p>
-            <div>
-              <p className="text-xs font-semibold text-ink-primary uppercase tracking-wider mb-1.5">
-                Key Pain Points
+            {lead.insight ? (
+              <>
+                {lead.insight.industryAnalysis && (
+                  <p className="text-sm text-ink-secondary leading-relaxed">
+                    {lead.insight.industryAnalysis}
+                  </p>
+                )}
+                <div>
+                  <p className="text-xs font-semibold text-ink-primary uppercase tracking-wider mb-1.5">
+                    Business Needs
+                  </p>
+                  <p className="text-xs text-ink-secondary leading-relaxed">
+                    {lead.insight.businessNeeds || 'Not yet generated.'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-ink-primary uppercase tracking-wider mb-1.5">
+                    Opportunities
+                  </p>
+                  <p className="text-xs text-ink-secondary leading-relaxed">
+                    {lead.insight.opportunities || 'Not yet generated.'}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-ink-secondary leading-relaxed">
+                No AI company insight has been generated for this lead yet. Use "Generate AI
+                Insights" on the lead card to create one.
               </p>
-              <ul className="space-y-1">
-                {lead.aiInsights.painPoints.map((point, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-xs text-ink-secondary">
-                    <span className="size-1.5 rounded-full bg-brand-500 mt-1.5 shrink-0" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            )}
           </div>
         </div>
 
@@ -154,16 +169,20 @@ export function EmailModal({ lead, onClose }) {
   const [subject, setSubject] = useState(defaultSubject)
   const [body, setBody] = useState(defaultBody)
 
-  const handleRegenerate = () => {
-    setGenerating(true)
-    setTimeout(() => {
-      setSubject(`Tailored AI Solution for ${lead.company}`)
-      setBody(
-        `Hi ${lead.name.split(' ')[0]},\n\nBased on your focus at ${lead.company}, I put together a quick breakdown of how automated lead intelligence can address key bottlenecks in your sales pipeline.\n\nRecommended next step: ${lead.aiInsights.suggestedNextAction}.\n\nLet me know if you'd like me to send over the custom deck!\n\nBest,\nSalesGenie AI Team`
-      )
-      setGenerating(false)
-    }, 600)
+  const handleRegenerate = async () => {
+  setGenerating(true)
+
+  try {
+    const { data } = await generateCampaign(lead.id)
+
+    setSubject(data.subject)
+    setBody(data.body)
+  } catch (error) {
+    console.error("Failed to generate AI email", error)
+  } finally {
+    setGenerating(false)
   }
+}
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`)
@@ -191,7 +210,7 @@ export function EmailModal({ lead, onClose }) {
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-brand-50/70 p-3 border border-brand-100 text-xs">
             <div className="flex items-center gap-2">
               <span className="font-medium text-brand-700">Target Contact:</span>
-              <span className="text-ink-primary">{lead.name} ({lead.title} @ {lead.company})</span>
+              <span className="text-ink-primary">{lead.name} ({lead.company})</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-ink-muted">Tone:</span>
@@ -301,7 +320,11 @@ export function MeetingModal({ lead, onClose }) {
           <form onSubmit={handleSchedule} className="p-6 space-y-4">
             <div className="rounded-card bg-surface-muted p-3 text-xs space-y-1">
               <p className="font-medium text-ink-primary">{lead.name} — {lead.company}</p>
-              <p className="text-ink-muted">Best Time (AI recommendation): {lead.aiInsights.bestTimeToContact}</p>
+              <p className="text-ink-muted">
+                {lead.hasScore
+                  ? `AI Score: ${lead.score}/100 · ${Math.round(lead.conversionProbability * 100)}% conversion probability`
+                  : 'No AI score generated for this lead yet.'}
+              </p>
             </div>
 
             <div className="space-y-3 text-sm">

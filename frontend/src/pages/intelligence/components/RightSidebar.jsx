@@ -1,18 +1,22 @@
 import { Flame, TrendingUp, CheckCircle, Zap, ArrowUpRight, Award, BarChart3 } from 'lucide-react'
 
 export function RightSidebar({ leads, onSelectLead }) {
-  // Compute analytics from lead list
-  const hotLeads = leads
+  // Compute analytics from lead list (only leads with a real AI score count
+  // toward score-based stats; leads not yet scored are excluded rather than
+  // treated as 0, so the average isn't dragged down by ungenerated leads).
+  const scoredLeads = leads.filter((l) => l.hasScore)
+
+  const hotLeads = scoredLeads
     .filter((l) => l.score >= 80)
     .sort((a, b) => b.score - a.score)
     .slice(0, 4)
 
-  const avgScore = Math.round(
-    leads.reduce((acc, l) => acc + l.score, 0) / (leads.length || 1)
-  )
+  const avgScore = scoredLeads.length
+    ? Math.round(scoredLeads.reduce((acc, l) => acc + l.score, 0) / scoredLeads.length)
+    : 0
 
   const totalQualified = leads.filter(
-    (l) => l.status === 'Qualified' || l.status === 'Negotiation'
+    (l) => l.status === 'qualified' || l.status === 'negotiation'
   ).length
 
   const highIntentCount = leads.filter((l) => l.buyingIntent === 'High').length

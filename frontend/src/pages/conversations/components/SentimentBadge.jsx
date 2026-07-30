@@ -1,7 +1,11 @@
-import { SENTIMENTS } from '../data/summaryData'
+import { INTERACTION_TYPES } from '../data/summaryData'
 
-function SentimentBadge({ sentiment }) {
-  const config = SENTIMENTS[sentiment] ?? SENTIMENTS.Neutral
+// Renders the real `interaction_type` value returned by the backend
+// (call / email / meeting / demo / other). Kept as its own component (same
+// spot in the tree as the original mock "sentiment" badge) since the
+// backend has no sentiment field to display.
+function SentimentBadge({ type }) {
+  const config = INTERACTION_TYPES[type] ?? INTERACTION_TYPES.other
   return (
     <span
       className={[

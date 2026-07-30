@@ -1,33 +1,30 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Sparkles,
   Search,
-  Filter,
-  SlidersHorizontal,
-  ArrowUpDown,
   RefreshCw,
   X,
-  Plus,
-  Users,
-  CheckCircle2,
-  TrendingUp,
-  BarChart2,
   FileQuestion,
+  AlertTriangle,
 } from 'lucide-react'
 
-import { INITIAL_LEADS, INDUSTRIES, STATUSES, SCORE_RANGES } from './data/intelligenceData'
+import { useLeadIntelligence } from '@/features/intelligence/hooks/useLeadIntelligence'
+
+import { STATUSES, SCORE_RANGES, DEFAULT_INDUSTRY_OPTION } from './data/intelligenceData'
 import { LeadCard } from './components/LeadCard'
 import { RightSidebar } from './components/RightSidebar'
 import { LeadSkeleton } from './components/LeadSkeleton'
 import { ProfileModal, EmailModal, MeetingModal, NoteModal } from './components/ActionModals'
 
 function LeadIntelligencePage() {
-  const [leads, setLeads] = useState(INITIAL_LEADS)
-  const [isLoading, setIsLoading] = useState(false)
+  const { leads, isLoading, error, generatingIds, reload, generateForLead, generateAll } =
+    useLeadIntelligence()
+
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false)
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedIndustry, setSelectedIndustry] = useState('All Industries')
+  const [selectedIndustry, setSelectedIndustry] = useState(DEFAULT_INDUSTRY_OPTION)
   const [selectedStatus, setSelectedStatus] = useState('All Statuses')
   const [selectedScoreRange, setSelectedScoreRange] = useState('All Scores')
   const [sortBy, setSortBy] = useState('score-desc') // 'score-desc' | 'updated-desc' | 'value-desc'
@@ -46,6 +43,15 @@ function LeadIntelligencePage() {
     setTimeout(() => setToastMessage(null), 3000)
   }
 
+  // Industries are derived from whatever leads actually came back from the
+  // backend, since `industry` is a free-text field with no fixed enum.
+  const industries = useMemo(() => {
+    const unique = Array.from(
+      new Set(leads.map((l) => l.industry).filter((ind) => ind && ind !== 'Unspecified'))
+    ).sort()
+    return [DEFAULT_INDUSTRY_OPTION, ...unique]
+  }, [leads])
+
   // Filter & Sort Logic
   const filteredLeads = useMemo(() => {
     return leads
@@ -56,32 +62,33 @@ function LeadIntelligencePage() {
           !query ||
           lead.name.toLowerCase().includes(query) ||
           lead.company.toLowerCase().includes(query) ||
-          lead.industry.toLowerCase().includes(query) ||
-          lead.title.toLowerCase().includes(query)
+          lead.industry.toLowerCase().includes(query)
 
         // Industry filter
         const matchesIndustry =
-          selectedIndustry === 'All Industries' || lead.industry === selectedIndustry
+          selectedIndustry === DEFAULT_INDUSTRY_OPTION || lead.industry === selectedIndustry
 
         // Status filter
         const matchesStatus =
-          selectedStatus === 'All Statuses' || lead.status === selectedStatus
+          selectedStatus === 'All Statuses' || lead.statusLabel === selectedStatus
 
         // Score range filter
         let matchesScore = true
         if (selectedScoreRange === 'Hot Leads (80-100)') {
-          matchesScore = lead.score >= 80
+          matchesScore = lead.score !== null && lead.score >= 80
         } else if (selectedScoreRange === 'Warm Leads (50-79)') {
-          matchesScore = lead.score >= 50 && lead.score <= 79
+          matchesScore = lead.score !== null && lead.score >= 50 && lead.score <= 79
         } else if (selectedScoreRange === 'Cold Leads (0-49)') {
-          matchesScore = lead.score < 50
+          matchesScore = lead.score !== null && lead.score < 50
+        } else if (selectedScoreRange === 'Not Yet Scored') {
+          matchesScore = lead.score === null
         }
 
         return matchesSearch && matchesIndustry && matchesStatus && matchesScore
       })
       .sort((a, b) => {
         if (sortBy === 'score-desc') {
-          return b.score - a.score
+          return (b.score ?? -1) - (a.score ?? -1)
         }
         if (sortBy === 'updated-desc') {
           return new Date(b.updatedAt) - new Date(a.updatedAt)
@@ -96,43 +103,46 @@ function LeadIntelligencePage() {
   // Reset all filters
   const handleResetFilters = () => {
     setSearchQuery('')
-    setSelectedIndustry('All Industries')
+    setSelectedIndustry(DEFAULT_INDUSTRY_OPTION)
     setSelectedStatus('All Statuses')
     setSelectedScoreRange('All Scores')
     setSortBy('score-desc')
   }
 
-  // Simulate refreshing AI data
-  const handleRefreshData = () => {
-    setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      showToast('AI Lead Scores & Insights re-calculated.')
-    }, 700)
+  // Re-generate AI scoring & insights for every currently loaded lead
+  const handleRefreshData = async () => {
+    setIsRefreshingAll(true)
+    try {
+      const { total, failed } = await generateAll()
+      if (failed > 0) {
+        showToast(`AI scoring updated for ${total - failed}/${total} leads (${failed} failed).`)
+      } else {
+        showToast('AI Lead Scores & Insights re-calculated for all leads.')
+      }
+    } finally {
+      setIsRefreshingAll(false)
+    }
   }
 
-  // Add note handler
-  const handleAddNoteSave = (leadId, noteText) => {
-    setLeads((prevLeads) =>
-      prevLeads.map((l) =>
-        l.id === leadId
-          ? {
-              ...l,
-              lastInteraction: 'Just now',
-              aiInsights: {
-                ...l.aiInsights,
-                suggestedNextAction: `Note added: "${noteText.slice(0, 45)}..."`,
-              },
-            }
-          : l
-      )
-    )
+  // Generate (or regenerate) AI insights for a single lead
+  const handleGenerateInsights = async (lead) => {
+    const result = await generateForLead(lead.id)
+    if (result.success) {
+      showToast(`AI insights generated for ${lead.company}.`)
+    } else {
+      showToast(result.message || 'Failed to generate AI insights.')
+    }
+  }
+
+  // Add note handler (local-only UI note; lead notes aren't part of the
+  // Lead Intelligence API surface)
+  const handleAddNoteSave = () => {
     showToast('Note added successfully!')
   }
 
   const hasActiveFilters =
     searchQuery ||
-    selectedIndustry !== 'All Industries' ||
+    selectedIndustry !== DEFAULT_INDUSTRY_OPTION ||
     selectedStatus !== 'All Statuses' ||
     selectedScoreRange !== 'All Scores'
 
@@ -165,21 +175,37 @@ function LeadIntelligencePage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsLoading(!isLoading)}
+            onClick={reload}
             className="btn btn-secondary btn-sm gap-1.5 text-xs"
-            title="Toggle Skeleton Loader Preview"
+            disabled={isLoading}
           >
-            {isLoading ? 'Show Content' : 'Simulate Skeleton'}
+            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Reload Leads
           </button>
           <button
             onClick={handleRefreshData}
             className="btn btn-primary btn-sm gap-1.5"
+            disabled={isRefreshingAll || isLoading || leads.length === 0}
           >
-            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh AI Scoring
+            <RefreshCw className={`size-3.5 ${isRefreshingAll ? 'animate-spin' : ''}`} />
+            {isRefreshingAll ? 'Refreshing…' : 'Refresh AI Scoring'}
           </button>
         </div>
       </header>
+
+      {/* Error banner */}
+      {error && (
+        <div className="card flex items-center gap-3 border border-rose-200 bg-rose-50 p-4 text-rose-800">
+          <AlertTriangle className="size-5 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold">Couldn't load lead intelligence data</p>
+            <p className="text-rose-700/90">{error}</p>
+          </div>
+          <button onClick={reload} className="btn btn-secondary btn-sm">
+            Try Again
+          </button>
+        </div>
+      )}
 
       {/* Search & Filters Card */}
       <section aria-label="Filters bar" className="card p-4 space-y-3">
@@ -189,7 +215,7 @@ function LeadIntelligencePage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
             <input
               type="search"
-              placeholder="Search by lead name, company, or title..."
+              placeholder="Search by contact name, company, or industry..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="input h-10 pl-9 pr-8"
@@ -226,7 +252,7 @@ function LeadIntelligencePage() {
               onChange={(e) => setSelectedIndustry(e.target.value)}
               className="input h-10 cursor-pointer text-sm"
             >
-              {INDUSTRIES.map((ind) => (
+              {industries.map((ind) => (
                 <option key={ind} value={ind}>
                   {ind}
                 </option>
@@ -300,10 +326,12 @@ function LeadIntelligencePage() {
               <LeadCard
                 key={lead.id}
                 lead={lead}
+                isGenerating={generatingIds.has(lead.id)}
                 onViewProfile={(l) => setProfileModalLead(l)}
                 onGenerateEmail={(l) => setEmailModalLead(l)}
                 onScheduleMeeting={(l) => setMeetingModalLead(l)}
                 onAddNote={(l) => setNoteModalLead(l)}
+                onGenerateInsights={handleGenerateInsights}
               />
             ))
           ) : (
@@ -314,19 +342,23 @@ function LeadIntelligencePage() {
               </div>
               <div className="max-w-md space-y-1">
                 <h3 className="text-base font-semibold text-ink-primary">
-                  No leads match your criteria
+                  {leads.length === 0 ? 'No leads found' : 'No leads match your criteria'}
                 </h3>
                 <p className="text-xs text-ink-muted leading-relaxed">
-                  We couldn't find any lead matching your selected search query or filters. Try adjusting the filters or search term.
+                  {leads.length === 0
+                    ? 'Create a lead in Lead Management to see AI scoring and intelligence here.'
+                    : "We couldn't find any lead matching your selected search query or filters. Try adjusting the filters or search term."}
                 </p>
               </div>
-              <button
-                onClick={handleResetFilters}
-                className="btn btn-secondary btn-sm gap-1.5"
-              >
-                <X className="size-3.5" />
-                Reset All Filters
-              </button>
+              {leads.length > 0 && (
+                <button
+                  onClick={handleResetFilters}
+                  className="btn btn-secondary btn-sm gap-1.5"
+                >
+                  <X className="size-3.5" />
+                  Reset All Filters
+                </button>
+              )}
             </div>
           )}
         </main>

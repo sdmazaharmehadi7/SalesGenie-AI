@@ -1,17 +1,24 @@
 import { useMemo, useState } from 'react'
 import {
+  AlertCircle,
   Building2,
   Calendar,
+  CalendarClock,
   FileText,
   Filter,
+  ListChecks,
+  Plus,
+  RefreshCw,
   Search,
   Sparkles,
   X,
 } from 'lucide-react'
 
-import { COMPANIES, summaries } from './data/summaryData'
+import { DATE_OPTIONS, INTERACTION_TYPES } from './data/summaryData'
 import ConversationCard from './components/ConversationCard'
 import SentimentBadge from './components/SentimentBadge'
+import NewSummaryModal from './components/NewSummaryModal'
+import { useConversationSummaries } from './hooks/useConversationSummaries'
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, accent }) {
@@ -45,7 +52,7 @@ function FilterSelect({ icon: Icon, onChange, options, value }) {
         value={value}
       >
         {options.map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
+          <option key={opt.value ?? opt} value={opt.value ?? opt}>{opt.label ?? opt}</option>
         ))}
       </select>
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted">
@@ -75,7 +82,25 @@ function FilterPill({ label, onRemove }) {
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
-function EmptyState({ onClear, query }) {
+function EmptyState({ hasSummaries, onClear, onNew, query }) {
+  if (!hasSummaries) {
+    return (
+      <div className="col-span-full flex flex-col items-center justify-center gap-3 rounded-card border border-dashed border-line-strong bg-surface-subtle py-16 text-center">
+        <span className="grid size-12 place-items-center rounded-full bg-surface-muted text-ink-muted">
+          <Sparkles className="size-6" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-ink-primary">No conversation summaries yet</p>
+          <p className="mt-1 text-sm text-ink-muted">Generate your first AI summary from a call or meeting transcript.</p>
+        </div>
+        <button className="btn btn-primary btn-sm gap-1.5" onClick={onNew} type="button">
+          <Plus className="size-3.5" />
+          New Summary
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="col-span-full flex flex-col items-center justify-center gap-3 rounded-card border border-dashed border-line-strong bg-surface-subtle py-16 text-center">
       <span className="grid size-12 place-items-center rounded-full bg-surface-muted text-ink-muted">
@@ -87,24 +112,32 @@ function EmptyState({ onClear, query }) {
           {query ? <>No results for <strong>"{query}"</strong>.</> : 'Try adjusting your filters.'}
         </p>
       </div>
-      <button
-        className="btn btn-secondary btn-sm"
-        onClick={onClear}
-        type="button"
-      >
+      <button className="btn btn-secondary btn-sm" onClick={onClear} type="button">
         Clear all filters
       </button>
     </div>
   )
 }
 
-// ─── Date filter options ──────────────────────────────────────────────────────
-const DATE_OPTIONS = [
-  'All Time',
-  'Last 7 Days',
-  'Last 30 Days',
-  'Last 90 Days',
-]
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+function CardSkeleton() {
+  return (
+    <div className="card animate-pulse space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="size-9 rounded-full bg-surface-muted" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 w-32 rounded bg-surface-muted" />
+          <div className="h-2.5 w-24 rounded bg-surface-muted" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-2.5 w-full rounded bg-surface-muted" />
+        <div className="h-2.5 w-5/6 rounded bg-surface-muted" />
+        <div className="h-2.5 w-3/4 rounded bg-surface-muted" />
+      </div>
+    </div>
+  )
+}
 
 function isWithinRange(dateStr, range) {
   if (range === 'All Time') return true
@@ -116,12 +149,42 @@ function isWithinRange(dateStr, range) {
   return date >= cutoff
 }
 
+const ALL_COMPANIES = 'All Companies'
+const ALL_TYPES = 'All Types'
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 function ConversationSummaryPage() {
+  const {
+    leads,
+    summaries,
+    isLoading,
+    error,
+    reload,
+    generateSummary,
+    isGenerating,
+    generateError,
+    setGenerateError,
+  } = useConversationSummaries()
+
   const [search, setSearch] = useState('')
-  const [company, setCompany] = useState('All Companies')
+  const [company, setCompany] = useState(ALL_COMPANIES)
+  const [interactionType, setInteractionType] = useState(ALL_TYPES)
   const [dateRange, setDateRange] = useState('All Time')
   const [detailSummary, setDetailSummary] = useState(null)
+  const [showNewSummary, setShowNewSummary] = useState(false)
+
+  const companyOptions = useMemo(() => {
+    const unique = Array.from(new Set(summaries.map((s) => s.company))).sort()
+    return [ALL_COMPANIES, ...unique]
+  }, [summaries])
+
+  const typeOptions = useMemo(
+    () => [
+      { value: ALL_TYPES, label: ALL_TYPES },
+      ...Object.entries(INTERACTION_TYPES).map(([value, cfg]) => ({ value, label: cfg.label })),
+    ],
+    []
+  )
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -130,32 +193,46 @@ function ConversationSummaryPage() {
         !q ||
         s.company.toLowerCase().includes(q) ||
         s.contact.toLowerCase().includes(q) ||
-        s.aiSummary.toLowerCase().includes(q) ||
-        s.tags.some((t) => t.toLowerCase().includes(q))
-      const matchesCompany = company === 'All Companies' || s.company === company
+        s.aiSummary.toLowerCase().includes(q)
+      const matchesCompany = company === ALL_COMPANIES || s.company === company
+      const matchesType = interactionType === ALL_TYPES || s.interactionType === interactionType
       const matchesDate = isWithinRange(s.meetingDate, dateRange)
-      return matchesSearch && matchesCompany && matchesDate
+      return matchesSearch && matchesCompany && matchesType && matchesDate
     })
-  }, [search, company, dateRange])
+  }, [search, company, interactionType, dateRange, summaries])
 
   // Stats
-  const positiveCount = summaries.filter((s) => s.sentiment === 'Positive').length
-  const totalMeetingMinutes = summaries.reduce((acc, s) => acc + parseInt(s.duration), 0)
+  const withActionItems = summaries.filter((s) => s.actionItems.length > 0).length
+  const companiesCovered = new Set(summaries.map((s) => s.company)).size
+  const thisWeek = summaries.filter((s) => isWithinRange(s.meetingDate, 'Last 7 Days')).length
 
   const hasActiveFilters =
-    search || company !== 'All Companies' || dateRange !== 'All Time'
+    search || company !== ALL_COMPANIES || interactionType !== ALL_TYPES || dateRange !== 'All Time'
 
   const clearAll = () => {
     setSearch('')
-    setCompany('All Companies')
+    setCompany(ALL_COMPANIES)
+    setInteractionType(ALL_TYPES)
     setDateRange('All Time')
   }
 
   return (
     <>
-      {/* Detail Modal (rendered outside normal flow for z-index) */}
       {detailSummary && (
         <DetailModalWrapper onClose={() => setDetailSummary(null)} summary={detailSummary} />
+      )}
+
+      {showNewSummary && (
+        <NewSummaryModal
+          error={generateError}
+          isGenerating={isGenerating}
+          leads={leads}
+          onClose={() => {
+            setShowNewSummary(false)
+            setGenerateError(null)
+          }}
+          onGenerate={generateSummary}
+        />
       )}
 
       <div className="mx-auto max-w-7xl space-y-6">
@@ -170,20 +247,40 @@ function ConversationSummaryPage() {
               Conversation Summaries
             </h1>
             <p className="mt-2 text-sm text-ink-muted">
-              Review AI-generated summaries, key decisions, and next actions from your sales meetings.
+              Review AI-generated summaries and action items from your sales calls, meetings, and demos.
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-sm text-ink-muted">{summaries.length} summaries total</span>
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="text-sm text-ink-muted">
+              {isLoading ? 'Loading…' : `${summaries.length} summaries total`}
+            </span>
+            <button className="btn btn-primary gap-1.5" onClick={() => setShowNewSummary(true)} type="button">
+              <Plus className="size-4" />
+              New Summary
+            </button>
           </div>
         </header>
 
+        {/* Error state */}
+        {error && (
+          <div className="flex items-center justify-between gap-3 rounded-card bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-inset ring-red-100">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button className="btn btn-secondary btn-sm gap-1.5" onClick={reload} type="button">
+              <RefreshCw className="size-3.5" />
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Stats row */}
         <section aria-label="Summary statistics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard accent="blue" icon={FileText} label="Total Summaries" value={summaries.length} />
-          <StatCard accent="emerald" icon={Sparkles} label="Positive Outcomes" value={positiveCount} />
-          <StatCard accent="slate" icon={Building2} label="Companies Covered" value={new Set(summaries.map((s) => s.company)).size} />
-          <StatCard accent="amber" icon={Calendar} label="Meeting Minutes Logged" value={`${totalMeetingMinutes} min`} />
+          <StatCard accent="blue" icon={FileText} label="Total Summaries" value={isLoading ? '—' : summaries.length} />
+          <StatCard accent="emerald" icon={ListChecks} label="With Action Items" value={isLoading ? '—' : withActionItems} />
+          <StatCard accent="slate" icon={Building2} label="Companies Covered" value={isLoading ? '—' : companiesCovered} />
+          <StatCard accent="amber" icon={CalendarClock} label="Logged This Week" value={isLoading ? '—' : thisWeek} />
         </section>
 
         {/* Filters */}
@@ -213,27 +310,16 @@ function ConversationSummaryPage() {
             </div>
 
             {/* Company filter */}
-            <FilterSelect
-              icon={Building2}
-              onChange={setCompany}
-              options={COMPANIES}
-              value={company}
-            />
+            <FilterSelect icon={Building2} onChange={setCompany} options={companyOptions} value={company} />
+
+            {/* Interaction type filter */}
+            <FilterSelect icon={Filter} onChange={setInteractionType} options={typeOptions} value={interactionType} />
 
             {/* Date filter */}
-            <FilterSelect
-              icon={Calendar}
-              onChange={setDateRange}
-              options={DATE_OPTIONS}
-              value={dateRange}
-            />
+            <FilterSelect icon={Calendar} onChange={setDateRange} options={DATE_OPTIONS} value={dateRange} />
 
             {hasActiveFilters && (
-              <button
-                className="btn btn-ghost btn-sm gap-1.5"
-                onClick={clearAll}
-                type="button"
-              >
+              <button className="btn btn-ghost btn-sm gap-1.5" onClick={clearAll} type="button">
                 <Filter className="size-3.5" />
                 Clear filters
               </button>
@@ -243,15 +329,15 @@ function ConversationSummaryPage() {
           {/* Active filter pills */}
           {hasActiveFilters && (
             <div className="mt-3 flex flex-wrap gap-2 border-t border-line-default pt-3">
-              {search && (
-                <FilterPill label={`Search: "${search}"`} onRemove={() => setSearch('')} />
+              {search && <FilterPill label={`Search: "${search}"`} onRemove={() => setSearch('')} />}
+              {company !== ALL_COMPANIES && <FilterPill label={company} onRemove={() => setCompany(ALL_COMPANIES)} />}
+              {interactionType !== ALL_TYPES && (
+                <FilterPill
+                  label={INTERACTION_TYPES[interactionType]?.label ?? interactionType}
+                  onRemove={() => setInteractionType(ALL_TYPES)}
+                />
               )}
-              {company !== 'All Companies' && (
-                <FilterPill label={company} onRemove={() => setCompany('All Companies')} />
-              )}
-              {dateRange !== 'All Time' && (
-                <FilterPill label={dateRange} onRemove={() => setDateRange('All Time')} />
-              )}
+              {dateRange !== 'All Time' && <FilterPill label={dateRange} onRemove={() => setDateRange('All Time')} />}
               <span className="text-xs text-ink-muted self-center">
                 {filtered.length} result{filtered.length !== 1 ? 's' : ''}
               </span>
@@ -261,16 +347,19 @@ function ConversationSummaryPage() {
 
         {/* Conversation cards grid */}
         <section aria-label="Conversation summaries" className="grid gap-4 xl:grid-cols-2">
-          {filtered.length > 0 ? (
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
+          ) : filtered.length > 0 ? (
             filtered.map((summary) => (
-              <ConversationCard
-                key={summary.id}
-                onViewDetails={setDetailSummary}
-                summary={summary}
-              />
+              <ConversationCard key={summary.id} onViewDetails={setDetailSummary} summary={summary} />
             ))
           ) : (
-            <EmptyState onClear={clearAll} query={search} />
+            <EmptyState
+              hasSummaries={summaries.length > 0}
+              onClear={clearAll}
+              onNew={() => setShowNewSummary(true)}
+              query={search}
+            />
           )}
         </section>
       </div>
@@ -280,6 +369,12 @@ function ConversationSummaryPage() {
 
 // Detail modal wrapper — renders the full-screen modal
 function DetailModalWrapper({ onClose, summary }) {
+  const formattedDate = new Date(summary.meetingDate).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -300,11 +395,11 @@ function DetailModalWrapper({ onClose, summary }) {
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line-default bg-surface-default px-6 py-4">
           <div className="flex items-center gap-3">
             <span className="inline-grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">
-              {summary.contactAvatar}
+              {summary.contactInitials}
             </span>
             <div>
               <p className="text-sm font-semibold text-ink-primary">{summary.contact}</p>
-              <p className="text-xs text-ink-muted">{summary.contactRole} · {summary.company}</p>
+              <p className="text-xs text-ink-muted">{summary.company}</p>
             </div>
           </div>
           <button
@@ -319,13 +414,10 @@ function DetailModalWrapper({ onClose, summary }) {
         <div className="space-y-6 p-6">
           {/* Meta */}
           <div className="flex flex-wrap gap-3">
-            <SentimentBadge sentiment={summary.sentiment} />
+            <SentimentBadge type={summary.interactionType} />
             <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
               <Calendar className="size-3.5" />
-              {new Date(summary.meetingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-              {summary.meetingType} · {summary.duration}
+              {formattedDate}
             </span>
           </div>
 
@@ -338,39 +430,21 @@ function DetailModalWrapper({ onClose, summary }) {
             <p className="text-sm leading-relaxed text-ink-secondary">{summary.aiSummary}</p>
           </div>
 
-          {/* Key Decisions */}
+          {/* Action Items */}
           <div>
-            <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">Key Decisions</h3>
-            <ul className="space-y-1.5">
-              {summary.keyDecisions.map((d, i) => (
-                <li className="flex items-start gap-2 text-sm text-ink-secondary" key={i}>
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-400" />
-                  {d}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Next Actions */}
-          <div>
-            <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">Next Actions</h3>
-            <ul className="space-y-1.5">
-              {summary.nextActions.map((a, i) => (
-                <li className="flex items-start gap-2 text-sm text-ink-secondary" key={i}>
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-400" />
-                  {a}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-1.5">
-            {summary.tags.map((tag) => (
-              <span key={tag} className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-secondary ring-1 ring-inset ring-line-default">
-                {tag}
-              </span>
-            ))}
+            <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">Action Items</h3>
+            {summary.actionItems.length ? (
+              <ul className="space-y-1.5">
+                {summary.actionItems.map((a, i) => (
+                  <li className="flex items-start gap-2 text-sm text-ink-secondary" key={i}>
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-400" />
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-ink-muted">No action items were logged for this interaction.</p>
+            )}
           </div>
         </div>
       </div>

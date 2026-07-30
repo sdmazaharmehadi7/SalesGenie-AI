@@ -1,30 +1,28 @@
-import { useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 
+import Button from '@/components/ui/Button'
 import CompanyIntelligence, { LeadScoreCard, RecommendationList } from '@/features/companies/components/CompanyIntelligence'
 import CompanyOverviewCard from '@/features/companies/components/CompanyOverviewCard'
 import CompanySearch from '@/features/companies/components/CompanySearch'
-
-const companies = [
-  {
-    id: 'northstar', name: 'Northstar Labs', domain: 'northstarlabs.com', industry: 'B2B SaaS', employees: '201–500', revenue: '$35M–$50M', headquarters: 'San Francisco, CA', stage: 'Growth', score: 84,
-    insights: ['Recently expanded its revenue operations team, signaling an active investment in sales tooling.', 'Hiring activity in sales engineering suggests a complex evaluation process with multiple stakeholders.', 'The company’s public roadmap mentions workflow automation as a priority for the second half of the year.'],
-    recommendations: ['Prioritize a discovery call with revenue operations and sales leadership.', 'Tailor outreach around reducing manual handoffs in the lead-to-opportunity workflow.', 'Reference the recent sales engineering expansion when positioning team collaboration features.'],
-  },
-  {
-    id: 'orbit', name: 'Orbit Systems', domain: 'orbit.co', industry: 'Cloud Infrastructure', employees: '501–1,000', revenue: '$80M–$100M', headquarters: 'Austin, TX', stage: 'Scale', score: 72,
-    insights: ['The company has grown its distributed engineering teams across North America and Europe.', 'Its current technology stack indicates a focus on consolidating operational reporting.', 'Leadership is emphasizing efficient growth and predictable pipeline coverage in recent updates.'],
-    recommendations: ['Engage the operations team with a consolidation and reporting narrative.', 'Map stakeholders across sales, customer success, and engineering operations.', 'Share a concise business case focused on predictable pipeline performance.'],
-  },
-  {
-    id: 'pine', name: 'Pine & Co.', domain: 'pine.co', industry: 'Professional Services', employees: '51–200', revenue: '$10M–$25M', headquarters: 'New York, NY', stage: 'Expansion', score: 68,
-    insights: ['Pine & Co. is growing its client advisory practice and adding account-management roles.', 'The organization is active in several verticals with varied sales cycles and handoff needs.', 'A recent partner announcement points to broader enterprise ambitions.'],
-    recommendations: ['Lead with a simple rollout plan that supports multiple sales motions.', 'Identify the team responsible for account expansion before scheduling a demo.', 'Use client visibility and handoff consistency as the core value proposition.'],
-  },
-]
+import { useCompanyIntelligence } from '@/features/companies/hooks/useCompanyIntelligence'
 
 function CompaniesPage() {
-  const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0].id)
-  const selectedCompany = companies.find((company) => company.id === selectedCompanyId) ?? companies[0]
+  const {
+    companies,
+    isLoading,
+    error,
+    reload,
+    selectedId,
+    setSelectedId,
+    insight,
+    score,
+    isDetailLoading,
+    detailError,
+    isGenerating,
+    generateProfile,
+  } = useCompanyIntelligence()
+
+  const selectedCompany = companies.find((company) => company.id === selectedId) ?? null
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -34,17 +32,51 @@ function CompaniesPage() {
         <p className="mt-2 text-sm leading-6 text-ink-muted">Evaluate account fit, surface buying signals, and prepare focused next steps.</p>
       </header>
 
-      <CompanySearch companies={companies} onSelect={setSelectedCompanyId} selectedCompanyId={selectedCompanyId} />
+      {error ? (
+        <div className="card flex items-center gap-3 border border-rose-200 bg-rose-50 p-4 text-rose-800">
+          <AlertTriangle className="size-5 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold">Couldn't load companies</p>
+            <p className="text-rose-700/90">{error}</p>
+          </div>
+          <Button onClick={reload} variant="secondary">Try again</Button>
+        </div>
+      ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <CompanyOverviewCard company={selectedCompany} />
-        <CompanyIntelligence insights={selectedCompany.insights} />
-      </section>
+      {isLoading ? (
+        <div className="card p-10 text-center text-sm text-ink-muted">Loading companies…</div>
+      ) : companies.length === 0 ? (
+        <div className="card flex flex-col items-center justify-center gap-2 p-12 text-center border-dashed border-2">
+          <h3 className="text-base font-semibold text-ink-primary">No companies found</h3>
+          <p className="max-w-md text-xs leading-relaxed text-ink-muted">
+            Create a lead in Lead Management to see it here as a company profile.
+          </p>
+        </div>
+      ) : (
+        <>
+          <CompanySearch companies={companies} onSelect={setSelectedId} selectedCompanyId={selectedId} />
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <LeadScoreCard company={selectedCompany} />
-        <RecommendationList recommendations={selectedCompany.recommendations} />
-      </section>
+          {selectedCompany ? (
+            <>
+              <section className="grid gap-6 xl:grid-cols-3">
+                <CompanyOverviewCard company={selectedCompany} />
+                <CompanyIntelligence
+                  insight={insight}
+                  isLoading={isDetailLoading}
+                  isGenerating={isGenerating}
+                  error={detailError}
+                  onGenerate={() => generateProfile(selectedCompany.id)}
+                />
+              </section>
+
+              <section className="grid gap-6 lg:grid-cols-3">
+                <LeadScoreCard score={score} isLoading={isDetailLoading} />
+                <RecommendationList insight={insight} isLoading={isDetailLoading} />
+              </section>
+            </>
+          ) : null}
+        </>
+      )}
     </div>
   )
 }

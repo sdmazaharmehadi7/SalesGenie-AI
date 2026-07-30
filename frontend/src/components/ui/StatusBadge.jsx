@@ -3,6 +3,11 @@ const statusClasses = {
   Contacted: 'bg-slate-100 text-slate-700 ring-slate-200',
   Qualified: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
   Nurturing: 'bg-amber-50 text-amber-700 ring-amber-100',
+  // Matches the backend's LeadStatus enum labels (app/models/pipeline_enums.py)
+  Proposal: 'bg-indigo-50 text-indigo-700 ring-indigo-100',
+  Negotiation: 'bg-amber-50 text-amber-700 ring-amber-100',
+  'Closed Won': 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+  'Closed Lost': 'bg-rose-50 text-rose-700 ring-rose-100',
 }
 
 function StatusBadge({ status }) {
