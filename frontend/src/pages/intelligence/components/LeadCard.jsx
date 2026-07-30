@@ -2,12 +2,9 @@ import { useState } from 'react'
 import {
   Sparkles,
   Building2,
-  MapPin,
   Mail,
-  Phone,
   Calendar,
   Clock,
-  DollarSign,
   UserCheck,
   UserX,
   ChevronDown,
@@ -15,25 +12,34 @@ import {
   Eye,
   Send,
   FilePlus,
-  MessageSquare,
   TrendingUp,
   Target,
   Zap,
   CheckCircle2,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react'
 
 export function LeadCard({
   lead,
+  isGenerating,
   onViewProfile,
   onGenerateEmail,
   onScheduleMeeting,
   onAddNote,
+  onGenerateInsights,
 }) {
   const [expandedInsights, setExpandedInsights] = useState(true)
-  const [activeTab, setActiveTab] = useState('summary') // 'summary' | 'painPoints' | 'strategy'
 
   // Score color logic
   const getScoreColor = (score) => {
+    if (score === null || score === undefined)
+      return {
+        badge: 'bg-slate-100 text-slate-600 ring-slate-200 border-slate-300',
+        ring: 'stroke-slate-300',
+        bg: 'bg-slate-300',
+        text: 'text-slate-400',
+      }
     if (score >= 85)
       return {
         badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200 border-emerald-300',
@@ -63,12 +69,15 @@ export function LeadCard({
         return 'bg-emerald-100 text-emerald-800 border-emerald-200'
       case 'Medium':
         return 'bg-amber-100 text-amber-800 border-amber-200'
-      default:
+      case 'Low':
         return 'bg-slate-100 text-slate-700 border-slate-200'
+      default:
+        return 'bg-slate-50 text-slate-500 border-slate-200 border-dashed'
     }
   }
 
   const scoreStyle = getScoreColor(lead.score)
+  const hasAnyIntelligence = lead.hasScore || lead.hasInsight
 
   return (
     <article className="card-interactive group overflow-hidden border border-line-default bg-surface-default hover:shadow-floating transition-all duration-200">
@@ -81,7 +90,10 @@ export function LeadCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base font-semibold text-ink-primary truncate hover:text-brand-600 transition-colors cursor-pointer" onClick={() => onViewProfile(lead)}>
+              <h3
+                className="text-base font-semibold text-ink-primary truncate hover:text-brand-600 transition-colors cursor-pointer"
+                onClick={() => onViewProfile(lead)}
+              >
                 {lead.name}
               </h3>
               <span
@@ -90,30 +102,32 @@ export function LeadCard({
                 )}`}
               >
                 <Zap className="size-3 mr-1 fill-current" />
-                {lead.buyingIntent} Intent
+                {lead.buyingIntent === 'Unscored' ? 'Not Scored' : `${lead.buyingIntent} Intent`}
               </span>
             </div>
 
             <p className="text-xs text-ink-muted mt-0.5 flex items-center gap-1.5 flex-wrap">
-              <span className="font-medium text-ink-secondary">{lead.title}</span>
-              <span>•</span>
               <span className="flex items-center gap-1 text-ink-primary font-medium">
                 <Building2 className="size-3 text-ink-muted" />
                 {lead.company}
               </span>
+              {lead.email && (
+                <>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Mail className="size-3" />
+                    {lead.email}
+                  </span>
+                </>
+              )}
             </p>
 
             <div className="mt-2 flex items-center gap-3 text-xs text-ink-muted flex-wrap">
-              <span className="flex items-center gap-1">
-                <MapPin className="size-3" />
-                {lead.location}
-              </span>
-              <span>•</span>
               <span className="inline-flex items-center gap-1 rounded bg-surface-muted px-1.5 py-0.5 text-ink-secondary">
                 {lead.industry}
               </span>
               <span>•</span>
-              <span className="text-ink-secondary">{lead.companySize} employees</span>
+              <span className="text-ink-secondary">{lead.statusLabel}</span>
             </div>
           </div>
         </div>
@@ -131,7 +145,7 @@ export function LeadCard({
                 />
                 <path
                   className={`${scoreStyle.ring} transition-all duration-500`}
-                  strokeDasharray={`${lead.score}, 100`}
+                  strokeDasharray={`${lead.score ?? 0}, 100`}
                   strokeWidth="3.5"
                   strokeLinecap="round"
                   fill="none"
@@ -139,13 +153,19 @@ export function LeadCard({
                 />
               </svg>
               <span className={`absolute text-xs font-extrabold ${scoreStyle.text}`}>
-                {lead.score}
+                {lead.score ?? '—'}
               </span>
             </div>
             <div className="text-right sm:text-left">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">AI Score</p>
               <p className="text-xs font-bold text-ink-primary">
-                {lead.score >= 80 ? 'Hot Lead' : lead.score >= 50 ? 'Warm Lead' : 'Cold Lead'}
+                {lead.score === null
+                  ? 'Not scored yet'
+                  : lead.score >= 80
+                    ? 'Hot Lead'
+                    : lead.score >= 50
+                      ? 'Warm Lead'
+                      : 'Cold Lead'}
               </p>
             </div>
           </div>
@@ -160,22 +180,23 @@ export function LeadCard({
       {/* Attributes Strip */}
       <div className="mx-5 my-1 grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-card bg-surface-muted/70 p-2.5 text-xs">
         <div>
-          <span className="text-ink-muted block text-[10px]">Decision Maker</span>
+          <span className="text-ink-muted block text-[10px]">Conversion Prob.</span>
           <span className="font-semibold text-ink-primary flex items-center gap-1">
-            {lead.isDecisionMaker ? (
+            {lead.hasScore ? (
               <>
-                <UserCheck className="size-3.5 text-emerald-600" /> Yes
+                <UserCheck className="size-3.5 text-emerald-600" />
+                {Math.round(lead.conversionProbability * 100)}%
               </>
             ) : (
               <>
-                <UserX className="size-3.5 text-slate-400" /> No
+                <UserX className="size-3.5 text-slate-400" /> N/A
               </>
             )}
           </span>
         </div>
 
         <div>
-          <span className="text-ink-muted block text-[10px]">Last Contact</span>
+          <span className="text-ink-muted block text-[10px]">Last Updated</span>
           <span className="font-medium text-ink-primary flex items-center gap-1">
             <Clock className="size-3 text-ink-muted" />
             {lead.lastInteraction}
@@ -184,13 +205,13 @@ export function LeadCard({
 
         <div>
           <span className="text-ink-muted block text-[10px]">Status</span>
-          <span className="font-semibold text-brand-700">{lead.status}</span>
+          <span className="font-semibold text-brand-700">{lead.statusLabel}</span>
         </div>
 
         <div>
-          <span className="text-ink-muted block text-[10px]">Best Time</span>
-          <span className="font-medium text-ink-secondary truncate block" title={lead.aiInsights.bestTimeToContact}>
-            {lead.aiInsights.bestTimeToContact.split(',')[0]}
+          <span className="text-ink-muted block text-[10px]">Phone</span>
+          <span className="font-medium text-ink-secondary truncate block" title={lead.phone || 'N/A'}>
+            {lead.phone || 'N/A'}
           </span>
         </div>
       </div>
@@ -203,71 +224,101 @@ export function LeadCard({
               <Sparkles className="size-3.5" />
             </div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-brand-700">
-              AI Insights & Action Plan
+              AI Insights & Lead Score
             </h4>
           </div>
 
-          <button
-            onClick={() => setExpandedInsights(!expandedInsights)}
-            className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-800 transition-colors"
-          >
-            {expandedInsights ? 'Collapse' : 'Expand'}
-            {expandedInsights ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-          </button>
+          {hasAnyIntelligence && (
+            <button
+              onClick={() => setExpandedInsights(!expandedInsights)}
+              className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-800 transition-colors"
+            >
+              {expandedInsights ? 'Collapse' : 'Expand'}
+              {expandedInsights ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+            </button>
+          )}
         </div>
 
-        {expandedInsights && (
+        {!hasAnyIntelligence && !isGenerating && (
+          <div className="mt-3 flex flex-col items-start gap-2 pt-2 border-t border-brand-200/60 text-xs">
+            <p className="text-ink-secondary">
+              No AI score or company insight has been generated for this lead yet.
+            </p>
+            <button
+              onClick={() => onGenerateInsights(lead)}
+              className="btn btn-primary btn-sm gap-1.5"
+            >
+              <Sparkles className="size-3.5" />
+              Generate AI Insights
+            </button>
+          </div>
+        )}
+
+        {isGenerating && (
+          <div className="mt-3 flex items-center gap-2 pt-2 border-t border-brand-200/60 text-xs text-brand-700">
+            <Loader2 className="size-3.5 animate-spin" />
+            Generating AI score & insights…
+          </div>
+        )}
+
+        {hasAnyIntelligence && expandedInsights && (
           <div className="mt-3 space-y-3 pt-2 border-t border-brand-200/60 text-xs">
-            {/* Why Promising */}
-            <div>
-              <p className="font-semibold text-ink-primary flex items-center gap-1.5 text-xs mb-1">
-                <Target className="size-3.5 text-brand-600" /> Why this lead is promising:
-              </p>
-              <p className="text-ink-secondary leading-relaxed pl-5">
-                {lead.aiInsights.whyPromising}
-              </p>
-            </div>
+            {lead.insight?.industryAnalysis && (
+              <div>
+                <p className="font-semibold text-ink-primary flex items-center gap-1.5 text-xs mb-1">
+                  <Target className="size-3.5 text-brand-600" /> Industry analysis:
+                </p>
+                <p className="text-ink-secondary leading-relaxed pl-5">
+                  {lead.insight.industryAnalysis}
+                </p>
+              </div>
+            )}
 
             {/* Sub-tabs or key callouts */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* Pain points */}
+              {/* Business needs */}
               <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1">
                 <p className="font-semibold text-ink-primary flex items-center gap-1">
-                  <TrendingUp className="size-3.5 text-amber-600" /> Key Pain Points
-                </p>
-                <ul className="space-y-1 pl-1">
-                  {lead.aiInsights.painPoints.map((point, idx) => (
-                    <li key={idx} className="text-ink-secondary flex items-start gap-1.5">
-                      <span className="size-1 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Recommended Approach */}
-              <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1">
-                <p className="font-semibold text-ink-primary flex items-center gap-1">
-                  <CheckCircle2 className="size-3.5 text-emerald-600" /> Recommended Strategy
+                  <TrendingUp className="size-3.5 text-amber-600" /> Business Needs
                 </p>
                 <p className="text-ink-secondary leading-relaxed">
-                  {lead.aiInsights.recommendedApproach}
+                  {lead.insight?.businessNeeds || 'Not yet generated.'}
                 </p>
-                <div className="pt-1.5 border-t border-line-default/60 flex items-center justify-between text-[11px]">
-                  <span className="text-ink-muted">Channel:</span>
-                  <span className="font-medium text-brand-700">{lead.aiInsights.recommendedChannel}</span>
-                </div>
+              </div>
+
+              {/* Opportunities */}
+              <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1">
+                <p className="font-semibold text-ink-primary flex items-center gap-1">
+                  <CheckCircle2 className="size-3.5 text-emerald-600" /> Opportunities
+                </p>
+                <p className="text-ink-secondary leading-relaxed">
+                  {lead.insight?.opportunities || 'Not yet generated.'}
+                </p>
               </div>
             </div>
 
-            {/* Suggested Next Action */}
+            {/* Lead score summary */}
             <div className="rounded-card bg-emerald-50/80 border border-emerald-200/80 p-2.5 flex items-start gap-2 text-emerald-900">
               <Zap className="size-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-xs uppercase tracking-wider text-emerald-800">Suggested Next Action: </span>
-                <span className="text-xs font-medium text-emerald-900">{lead.aiInsights.suggestedNextAction}</span>
+                <span className="font-bold text-xs uppercase tracking-wider text-emerald-800">
+                  AI Score:{' '}
+                </span>
+                <span className="text-xs font-medium text-emerald-900">
+                  {lead.hasScore
+                    ? `${lead.score}/100, ${Math.round(lead.conversionProbability * 100)}% conversion probability.`
+                    : 'Not yet generated.'}
+                </span>
               </div>
             </div>
+
+            <button
+              onClick={() => onGenerateInsights(lead)}
+              className="btn btn-secondary btn-sm gap-1.5 text-xs"
+            >
+              <RefreshCw className="size-3.5" />
+              Regenerate AI Insights
+            </button>
           </div>
         )}
       </div>

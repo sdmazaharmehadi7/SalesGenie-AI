@@ -4,7 +4,13 @@ import { Building2, Search } from '@/components/ui/icons'
 
 function CompanySearch({ companies, onSelect, selectedCompanyId }) {
   const [query, setQuery] = useState('')
-  const filteredCompanies = useMemo(() => companies.filter((company) => `${company.name} ${company.domain} ${company.industry}`.toLowerCase().includes(query.toLowerCase())), [companies, query])
+  const filteredCompanies = useMemo(
+    () =>
+      companies.filter((company) =>
+        `${company.name} ${company.domain || ''} ${company.industry}`.toLowerCase().includes(query.toLowerCase())
+      ),
+    [companies, query]
+  )
   const selectedCompany = companies.find((company) => company.id === selectedCompanyId)
 
   function selectCompany(company) {
@@ -30,7 +36,7 @@ function CompanySearch({ companies, onSelect, selectedCompanyId }) {
             {filteredCompanies.length > 0 ? filteredCompanies.map((company) => (
               <button className="flex w-full items-center gap-3 rounded-control px-3 py-2.5 text-left hover:bg-surface-muted" key={company.id} onClick={() => selectCompany(company)} type="button">
                 <span className="grid size-8 shrink-0 place-items-center rounded-control bg-surface-muted text-ink-muted"><Building2 className="size-4" /></span>
-                <span className="min-w-0"><span className="block truncate text-sm font-medium text-ink-primary">{company.name}</span><span className="block truncate text-xs text-ink-muted">{company.domain} · {company.industry}</span></span>
+                <span className="min-w-0"><span className="block truncate text-sm font-medium text-ink-primary">{company.name}</span><span className="block truncate text-xs text-ink-muted">{company.domain ? `${company.domain} · ` : ''}{company.industry}</span></span>
               </button>
             )) : <p className="px-3 py-4 text-sm text-ink-muted">No companies found.</p>}
           </div>
