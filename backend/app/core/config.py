@@ -112,12 +112,14 @@ class Settings(BaseSettings):
     # default so the app boots and is fully testable out of the box;
     # switch AI_PROVIDER to "openai" in production and set OPENAI_API_KEY.
     # ------------------------------------------------------------------
-    AI_PROVIDER: str = "mock"  # mock | openai
+    AI_PROVIDER: str = "mock"  # mock | openai | gemini
     OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_TIMEOUT_SECONDS: int = 30
     OPENAI_MAX_RETRIES: int = 2
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # ------------------------------------------------------------------
     # Email integration (Outreach Automation Engine)

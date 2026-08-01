@@ -44,7 +44,7 @@ from app.ai.services import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api",
+    prefix="/api/v1",
     tags=["SalesGenie AI"],
     responses={
         500: {"model": ErrorResponse, "description": "Internal Server Error"},
