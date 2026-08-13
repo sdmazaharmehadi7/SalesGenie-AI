@@ -101,7 +101,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex items-center gap-3 text-sm text-ink-secondary">
                 <Building2 className="size-4 shrink-0 text-amber-500" />
-                <span>{user?.department || 'SalesGenie AI'}</span>
+                <span>{user?.department || 'AI-Powered Sales Forecasting Platform Using Predictive Analytics'}</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-ink-secondary">
                 <User className="size-4 shrink-0 text-slate-400" />

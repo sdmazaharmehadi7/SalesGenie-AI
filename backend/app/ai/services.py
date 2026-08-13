@@ -1,10 +1,10 @@
 """
-services.py — Shared Service Layer for SalesGenie AI Module
+services.py — Service Layer for AI-Powered Sales Forecasting Platform Using Predictive Analytics
 ================================================================
-Contains core business logic for interacting with AI models (Gemini / OpenAI).
+Contains core business logic for interacting with Google Gemini.
 
 Architecture:
-  - Single shared function `get_ai_response()` communicates with the active provider,
+  - Single shared function `get_ai_response()` communicates with Gemini,
     parses JSON safely with `json.loads()`, validates structure, retries once on invalid JSON,
     and logs performance/errors cleanly.
   - Dedicated capability wrapper functions inject structured prompts and return typed dicts.
@@ -19,9 +19,8 @@ from typing import Any
 
 import google.generativeai as genai
 from google.api_core.exceptions import GoogleAPICallError, RetryError
-from openai import APIConnectionError, APIStatusError, APITimeoutError
 
-from app.ai.client import PROVIDER, PRIMARY_MODEL, gemini_client, openai_client
+from app.ai.client import gemini_client, PRIMARY_MODEL
 from app.ai.prompts import (
     SALES_SYSTEM_PROMPT,
     EMAIL_PROMPT,
@@ -59,44 +58,33 @@ def _call_raw_provider(
     temperature: float,
     max_tokens: int,
 ) -> str:
-    """Invokes the active AI provider (Gemini or OpenAI) and returns the raw string response."""
-    if gemini_client:
-        full_prompt = f"{system_prompt}\n\nUser Request: {user_message.strip()}"
-        generation_config = genai.types.GenerationConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-            response_mime_type="application/json",  # Force Gemini JSON mode if supported
+    """Invokes the Gemini provider and returns the raw string response.
+
+    Raises AIServiceError if the client is not initialized or the API call fails.
+    """
+    if not gemini_client:
+        raise AIServiceError(
+            "Gemini client is not initialized. Please check GEMINI_API_KEY in .env."
         )
-        try:
-            response = gemini_client.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-            )
-            return response.text or ""
-        except (RetryError, GoogleAPICallError, Exception) as exc:
-            logger.error("Gemini provider error: %s", exc)
-            raise AIServiceError(f"Gemini API error: {exc}") from exc
 
-    elif openai_client:
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message.strip()},
-        ]
-        try:
-            completion = openai_client.chat.completions.create(
-                model=PRIMARY_MODEL,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format={"type": "json_object"},  # Force OpenAI JSON mode
-            )
-            return completion.choices[0].message.content or ""
-        except (APITimeoutError, APIConnectionError, APIStatusError, Exception) as exc:
-            logger.error("OpenAI provider error: %s", exc)
-            raise AIServiceError(f"OpenAI API error: {exc}") from exc
-
-    else:
-        raise AIServiceError("No AI provider is initialized. Please check API keys in .env.")
+    full_prompt = f"{system_prompt}\n\nUser Request: {user_message.strip()}"
+    generation_config = genai.types.GenerationConfig(
+        temperature=temperature,
+        max_output_tokens=max_tokens,
+        response_mime_type="application/json",
+    )
+    try:
+        response = gemini_client.generate_content(
+            full_prompt,
+            generation_config=generation_config,
+        )
+        return response.text or ""
+    except (RetryError, GoogleAPICallError) as exc:
+        logger.error("Gemini API error: %s", exc)
+        raise AIServiceError(f"Gemini API error: {exc}") from exc
+    except Exception as exc:
+        logger.error("Unexpected error calling Gemini: %s", exc)
+        raise AIServiceError(f"Gemini provider error: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +98,7 @@ def get_ai_response(
     temperature: float = 0.7,
     max_tokens: int = 2048,
 ) -> tuple[dict[str, Any], str]:
-    """Single shared function that calls the AI provider, parses JSON safely,
+    """Single shared function that calls Gemini, parses JSON safely,
     retries once if JSON is invalid, and logs performance.
 
     Returns:
@@ -241,7 +229,7 @@ def generate_email(
         data["signature"] = {
             "name": "[Your Name]",
             "designation": "Sales Consultant",
-            "company": "SalesGenie AI",
+            "company": "AI-Powered Sales Forecasting Platform Using Predictive Analytics",
         }
 
     return data, model

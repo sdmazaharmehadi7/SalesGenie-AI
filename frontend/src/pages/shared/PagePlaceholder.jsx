@@ -2,7 +2,7 @@ function PagePlaceholder({ description, title }) {
   return (
     <section className="flex min-h-[calc(100vh-10rem)] items-center justify-center" aria-labelledby="page-title">
       <div className="max-w-md text-center">
-        <p className="text-sm font-medium text-brand-600">SalesGenie</p>
+        <p className="text-sm font-medium text-brand-600">AI-Powered Sales Forecasting Platform Using Predictive Analytics</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink-primary" id="page-title">
           {title}
         </h1>

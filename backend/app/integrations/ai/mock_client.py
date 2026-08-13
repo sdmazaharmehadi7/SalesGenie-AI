@@ -1,11 +1,10 @@
 """
 Mock implementation of `AIProvider`.
 
-Deterministic (seeded off the company name, not `random`), so the same
-input always produces the same output — useful for tests and for local
-development without an OpenAI API key. This is the default provider
-(`AI_PROVIDER=mock`) so the backend is fully runnable and demoable with
-zero external credentials.
+Provides canned, schema-valid JSON responses for local testing and
+development without an API key. This is the default provider
+when `AI_PROVIDER=mock`, so the backend is fully runnable and
+demoable with zero external credentials.
 """
 
 import hashlib
@@ -75,7 +74,7 @@ class MockAIProvider:
                 "We've helped similar companies streamline this with measurable results "
                 "in weeks, not quarters.\n\n"
                 "Worth a quick 15-minute call this week to see if it's a fit?\n\n"
-                "Best,\nSalesGenie AI"
+                "Best,\nAI-Powered Sales Forecasting Platform Using Predictive Analytics"
             ),
         }
 

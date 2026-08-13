@@ -1,4 +1,4 @@
-# SalesGenie AI — Backend
+# AI-Powered Sales Forecasting Platform Using Predictive Analytics — Backend
 
 FastAPI backend for the AI Sales Assistant & Lead Intelligence Platform —
 a **complete, production-ready implementation** of every module described

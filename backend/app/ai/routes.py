@@ -1,5 +1,5 @@
 """
-routes.py — FastAPI Router for SalesGenie AI Capabilities
+routes.py — FastAPI Router for AI-Powered Sales Forecasting Platform Using Predictive Analytics Capabilities
 ===========================================================
 Exposes REST endpoints for all AI capabilities under the /api prefix.
 All endpoints return structured JSON objects — no raw Markdown parsing required by frontend.
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1",
-    tags=["SalesGenie AI"],
+    tags=["AI-Powered Sales Forecasting Platform Using Predictive Analytics"],
     responses={
         500: {"model": ErrorResponse, "description": "Internal Server Error"},
         502: {"model": ErrorResponse, "description": "AI Provider Gateway Error"},
@@ -61,7 +61,7 @@ router = APIRouter(
     response_model=ChatResponse,
     status_code=status.HTTP_200_OK,
     summary="Chat with General AI Sales Assistant",
-    description="Send any sales query or request to SalesGenie AI and receive a structured JSON response.",
+    description="Send any sales query or request to AI-Powered Sales Forecasting Platform Using Predictive Analytics and receive a structured JSON response.",
     responses={
         200: {"description": "Successful AI chat response."},
         400: {"model": ErrorResponse, "description": "Invalid message parameter."},
@@ -112,7 +112,7 @@ async def email_endpoint(request: EmailRequest) -> EmailResponse:
             call_to_action=data.get("call_to_action", ""),
             signature=data.get(
                 "signature",
-                {"name": "[Your Name]", "designation": "Sales Consultant", "company": "SalesGenie AI"},
+                {"name": "[Your Name]", "designation": "Sales Consultant", "company": "AI-Powered Sales Forecasting Platform Using Predictive Analytics"},
             ),
             email_type=request.email_type or "cold_outreach",
             model=model,

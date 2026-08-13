@@ -1,4 +1,4 @@
-// Mock conversations and AI response generator for SalesGenie AI Assistant
+// Mock conversations and AI response generator for Predictive Sales AI Assistant
 
 export const MOCK_CONVERSATIONS = [
   {
@@ -21,7 +21,7 @@ export const MOCK_CONVERSATIONS = [
 **Company Profile**
 * **Industry:** Enterprise Cloud Infrastructure & SaaS
 * **Employee Count:** 1,200+
-* **SalesGenie Lead Score:** **92 / 100** (High Priority Intent 🔥)
+* **Predictive Lead Score:** **92 / 100** (High Priority Intent 🔥)
 
 ---
 
@@ -70,7 +70,7 @@ Acme Corp recently raised a **$45M Series C round** and expanded their engineeri
 >
 > Noticed {{company_name}} expanded your AE team recently. Usually when fintech sales teams scale, manual lead scoring cuts SDR dial capacity by ~35%.
 >
-> We built **SalesGenie AI** to automate lead enrichment in real-time.
+> We built the **AI-Powered Sales Forecasting Platform** to automate lead enrichment in real-time.
 >
 > Open to a 5-minute preview of how we helped PayPulse boost demo bookings by 42%?
 >
@@ -134,7 +134,7 @@ export function generateAiResponse(promptText) {
   const lower = promptText.toLowerCase()
 
   if (lower.includes('lead') || lower.includes('score') || lower.includes('prospect')) {
-    return `### SalesGenie AI Lead Analysis
+    return `### Predictive Sales AI Lead Analysis
 
 Here is the intelligence summary for your query:
 
@@ -157,7 +157,7 @@ def process_high_intent_lead(lead):
   }
 
   if (lower.includes('email') || lower.includes('draft') || lower.includes('outreach') || lower.includes('sequence')) {
-    return `Here is a custom email sequence drafted by SalesGenie AI:
+    return `Here is a custom email sequence drafted by Predictive Sales AI:
 
 **Subject:** Automated prospect intelligence for {{company_name}}
 
@@ -165,7 +165,7 @@ def process_high_intent_lead(lead):
 >
 > I noticed {{company_name}} is scaling its sales team. Most sales leaders cite manual prospect research as their single largest time sink.
 >
-> **SalesGenie AI** automates lead enrichment and drafts targeted follow-ups in seconds.
+> **Predictive Analytics** automates lead enrichment and drafts targeted follow-ups in seconds.
 >
 > Are you open to a brief 10-minute preview this week?
 >
@@ -194,7 +194,7 @@ def process_high_intent_lead(lead):
 - [ ] Schedule pricing review with CTO`
   }
 
-  return `### SalesGenie AI Assistance
+  return `### Predictive Sales AI Assistance
 
 Thank you for your prompt: "${promptText}"
 

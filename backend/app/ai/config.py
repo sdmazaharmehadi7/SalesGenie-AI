@@ -1,11 +1,10 @@
 """
 config.py — AI Service Configuration
 =====================================
-Loads and validates environment variables required by the AI provider(s)
-(Google Gemini and OpenAI).
+Loads and validates environment variables required by the Google Gemini provider.
 
 Usage:
-    from app.ai.config import GEMINI_API_KEY, GEMINI_MODEL, OPENAI_API_KEY, OPENAI_MODEL
+    from app.ai.config import GEMINI_API_KEY, GEMINI_MODEL
 """
 
 import os
@@ -18,13 +17,9 @@ load_dotenv(override=False)
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-# OpenAI Configuration (Fallback / Alternative)
-OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5")
-
-# Ensure at least one provider API key is present
-if not GEMINI_API_KEY and not OPENAI_API_KEY:
+# Ensure the Gemini API key is present
+if not GEMINI_API_KEY:
     raise ValueError(
-        "Missing required environment variable: GEMINI_API_KEY or OPENAI_API_KEY. "
-        "Please set at least one API key in your .env file or environment variables."
+        "Missing required environment variable: GEMINI_API_KEY. "
+        "Please set it in your .env file or environment variables."
     )

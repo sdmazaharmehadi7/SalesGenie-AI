@@ -1,7 +1,7 @@
 """
 schemas.py — Pydantic Request & Response Schemas for AI Module
 ================================================================
-Defines strict data contracts for all SalesGenie AI capabilities.
+Defines strict data contracts for all AI-Powered Sales Forecasting Platform Using Predictive Analytics capabilities.
 All AI responses return structured JSON objects — no raw Markdown parsing required by the frontend.
 """
 
@@ -54,7 +54,7 @@ class EmailSignature(BaseModel):
     """Signature block within generated email."""
     name: str = Field(..., description="Sender's name or placeholder.", examples=["[Your Name]"])
     designation: str = Field(..., description="Sender's job title.", examples=["Sales Consultant"])
-    company: str = Field(..., description="Sender's company name.", examples=["SalesGenie AI"])
+    company: str = Field(..., description="Sender's company name.", examples=["AI-Powered Sales Forecasting Platform Using Predictive Analytics"])
 
 
 class EmailResponse(BaseModel):

@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # General application settings
     # ------------------------------------------------------------------
-    PROJECT_NAME: str = "SalesGenie AI"
+    PROJECT_NAME: str = "AI-Powered Sales Forecasting Platform Using Predictive Analytics"
     ENVIRONMENT: str = "development"  # development | staging | production | test
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
@@ -110,14 +110,9 @@ class Settings(BaseSettings):
     # AI integration (Lead Intelligence, Scoring, Outreach, Conversation
     # Summarization). "mock" requires no external credentials and is the
     # default so the app boots and is fully testable out of the box;
-    # switch AI_PROVIDER to "openai" in production and set OPENAI_API_KEY.
+    # switch AI_PROVIDER to "gemini" in production and set GEMINI_API_KEY.
     # ------------------------------------------------------------------
-    AI_PROVIDER: str = "mock"  # mock | openai | gemini
-    OPENAI_API_KEY: str | None = None
-    OPENAI_MODEL: str = "gpt-4o-mini"
-    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_TIMEOUT_SECONDS: int = 30
-    OPENAI_MAX_RETRIES: int = 2
+    AI_PROVIDER: str = "mock"  # mock | gemini
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
@@ -126,7 +121,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     EMAIL_PROVIDER: str = "console"  # console | smtp
     EMAIL_FROM_ADDRESS: str = "noreply@salesgenie.ai"
-    EMAIL_FROM_NAME: str = "SalesGenie AI"
+    EMAIL_FROM_NAME: str = "AI-Powered Sales Forecasting Platform Using Predictive Analytics"
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None

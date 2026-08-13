@@ -63,7 +63,7 @@ function SignupPage() {
 
       // Registration returns tokens — log the user in immediately
       await login(data.access_token)
-      showToast('Account created! Welcome to SalesGenie.', 'success')
+      showToast('Account created! Welcome to AI-Powered Sales Forecasting Platform Using Predictive Analytics.', 'success')
       navigate('/dashboard', { replace: true })
     } catch (err) {
       const msg = extractErrorMessage(err, 'Registration failed. Please try again.')

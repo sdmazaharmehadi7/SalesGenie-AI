@@ -114,7 +114,7 @@ export function ConversationHistory({
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-1">
                 <span className="text-xs font-semibold text-ink-primary truncate">
-                  SalesGenie GPT-4o
+                  Predictive Sales AI
                 </span>
                 <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
               </div>

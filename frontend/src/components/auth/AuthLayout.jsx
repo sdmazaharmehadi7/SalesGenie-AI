@@ -8,8 +8,8 @@ function AuthLayout({ children, subtitle, title }) {
       <section className="relative hidden overflow-hidden bg-slate-950 p-10 text-ink-inverse lg:flex lg:flex-col">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,110,234,0.45),_transparent_46%)]" />
         <Link className="relative flex items-center gap-2.5 self-start text-sm font-semibold" to="/login">
-          <span className="grid size-8 place-items-center rounded-control bg-brand-500 text-sm font-bold">S</span>
-          SalesGenie
+          <span className="grid size-8 place-items-center rounded-control bg-brand-500 text-xs font-bold">AI</span>
+          AI-Powered Sales Forecasting Platform
         </Link>
 
         <div className="relative my-auto max-w-md">
@@ -20,18 +20,18 @@ function AuthLayout({ children, subtitle, title }) {
             Build stronger pipelines with every customer interaction.
           </p>
           <p className="mt-5 max-w-sm text-sm leading-6 text-slate-300">
-            SalesGenie brings leads, conversations, and actionable intelligence into one focused workspace.
+            Predictive Analytics brings leads, conversations, and actionable sales forecasting intelligence into one focused workspace.
           </p>
         </div>
 
-        <p className="relative text-xs text-slate-400">© {new Date().getFullYear()} SalesGenie. All rights reserved.</p>
+        <p className="relative text-xs text-slate-400">© {new Date().getFullYear()} AI-Powered Sales Forecasting Platform Using Predictive Analytics. All rights reserved.</p>
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
         <div className="w-full max-w-[26rem]">
           <Link className="mb-10 flex items-center gap-2.5 text-sm font-semibold text-ink-primary lg:hidden" to="/login">
-            <span className="grid size-8 place-items-center rounded-control bg-brand-600 text-sm font-bold text-ink-inverse">S</span>
-            SalesGenie
+            <span className="grid size-8 place-items-center rounded-control bg-brand-600 text-xs font-bold text-ink-inverse">AI</span>
+            AI-Powered Sales Forecasting Platform
           </Link>
           <div className="mb-8">
             <h1 className="text-3xl font-semibold tracking-tight text-ink-primary">{title}</h1>

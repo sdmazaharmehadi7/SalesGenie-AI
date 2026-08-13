@@ -1,12 +1,5 @@
 """
-Prompt templates for the OpenAI-backed `AIProvider` implementation.
-
-Kept separate from `openai_client.py` so prompts can be reviewed, tuned,
-and version-controlled independently of the HTTP/parsing plumbing around
-them. Every prompt instructs the model to respond with a single JSON
-object matching a specific shape, since `openai_client.py` calls the API
-with `response_format={"type": "json_object"}` and parses the result
-directly into the corresponding Pydantic schema.
+Prompt templates for the `AIProvider` implementation.
 """
 
 COMPANY_INSIGHT_SYSTEM_PROMPT = (

@@ -8,7 +8,7 @@ export function TypingIndicator() {
       </div>
 
       <div className="flex items-center space-x-2 rounded-card border border-line-default bg-surface-default px-4 py-3 shadow-xs">
-        <span className="text-xs font-medium text-ink-muted">SalesGenie AI is thinking</span>
+        <span className="text-xs font-medium text-ink-muted">Predictive Sales AI is thinking</span>
         <div className="flex space-x-1 items-center">
           <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-bounce [animation-delay:-0.3s]" />
           <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-bounce [animation-delay:-0.15s]" />

@@ -2,7 +2,7 @@
 
 ## Repository
 
-SalesGenie AI
+AI-Powered Sales Forecasting Platform Using Predictive Analytics
 
 ---
 

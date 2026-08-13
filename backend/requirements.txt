@@ -22,7 +22,6 @@ bcrypt==4.2.1
 python-multipart==0.0.20   # required by FastAPI for OAuth2PasswordRequestForm (Auth module)
 
 # --- AI Providers & External Integrations ---
-openai>=1.30.0
 google-generativeai>=0.7.0
 httpx==0.28.1
 aiosmtplib==3.0.2   # async SMTP client for the Email integration layer

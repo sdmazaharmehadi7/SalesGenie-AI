@@ -1,7 +1,7 @@
 import api from './client'
 
 /**
- * All SalesGenie AI-powered endpoints.
+ * All AI-Powered Sales Forecasting Platform endpoints.
  * Backend: /api/v1/chat, /api/v1/email, /api/v1/summarize,
  *          /api/v1/followup, /api/v1/lead-score, /api/v1/objection
  */

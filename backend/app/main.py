@@ -1,5 +1,5 @@
 """
-main.py — SalesGenie AI FastAPI Application Entry Point
+main.py — AI-Powered Sales Forecasting Platform Using Predictive Analytics FastAPI Application Entry Point
 =========================================================
 Creates and configures the FastAPI application instance.
 
@@ -106,7 +106,7 @@ app = create_app()
     description="Returns a simple status payload to confirm the API is running.",
 )
 async def health_check() -> dict:
-    return {"status": "ok", "service": "SalesGenie AI"}
+    return {"status": "ok", "service": settings.PROJECT_NAME}
 
 
-logger.info("SalesGenie AI application started.")
+logger.info("%s application started.", settings.PROJECT_NAME)

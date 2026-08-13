@@ -30,7 +30,7 @@ export const SAMPLE_PROSPECTS = [
     companyName: 'Acme Corp',
     industry: 'Enterprise SaaS',
     painPoint: 'Manual CRM lead enrichment and API synchronization delays cutting SDR velocity.',
-    valueProp: 'SalesGenie AI automates lead scoring in real-time with zero-latency webhooks.',
+    valueProp: 'Our AI-Powered Sales Forecasting Platform automates lead scoring in real-time with zero-latency webhooks.',
   },
   {
     prospectName: 'Marcus Vance',
@@ -70,13 +70,13 @@ export function generateOutreachEmail(formData) {
 
 Noticed ${companyName}'s recent growth in ${industry}. Usually when ${jobTitle}s scale their teams, ${painPoint} cuts rep output by ~35%.
 
-We built SalesGenie AI to deliver ${valueProp}.
+We built our AI-Powered Sales Forecasting Platform to deliver ${valueProp}.
 
 Would you be open to a brief 5-minute preview this Thursday?
 
 Best regards,
 [Your Name]
-SalesGenie AI Team`
+Sales Forecasting Platform Team`
   } else if (length === 'long') {
     body = `Hi ${firstName},
 
@@ -84,25 +84,25 @@ I hope this email finds you well. I've been following ${companyName}'s momentum 
 
 As ${jobTitle}, your top priority is likely maintaining high sales rep output. However, many sales leaders we consult with share that ${painPoint} significantly limits monthly quota attainment.
 
-At SalesGenie AI, we specialize in solving this exact challenge. Our platform delivers:
+At Predictive Sales AI, we specialize in solving this exact challenge. Our platform delivers:
 1. ${valueProp}
 2. Automated multi-touch email sequence generation
 3. Real-time win probability predictions and CRM synchronization
 
-In fact, a peer company in ${industry} recently automated their qualification process with SalesGenie AI and achieved a 3.2x faster response rate and 28% higher SQL conversion within 30 days.
+In fact, a peer company in ${industry} recently automated their qualification process with our platform and achieved a 3.2x faster response rate and 28% higher SQL conversion within 30 days.
 
 Would you have 15 minutes next Tuesday for a tailored walkthrough?
 
 Warm regards,
 [Your Name]
-Senior Sales Advisor | SalesGenie AI`
+Senior Sales Advisor | AI-Powered Sales Forecasting Platform`
   } else {
     // Medium (default)
     body = `Hi ${firstName},
 
 Noticed ${companyName} is expanding its footprint in ${industry}. Most ${jobTitle}s we speak with mention that ${painPoint} is one of their largest friction points.
 
-SalesGenie AI was built to fix this by enabling ${valueProp}.
+Our AI-Powered Sales Forecasting Platform was built to fix this by enabling ${valueProp}.
 
 Clients using our AI outreach platform have seen:
 • 3.2x faster response time to qualified inbound leads
@@ -112,7 +112,7 @@ Would you be open to a quick 10-minute discovery call this Thursday to see how t
 
 Best regards,
 [Your Name]
-SalesGenie AI`
+AI-Powered Sales Forecasting Platform`
   }
 
   return {

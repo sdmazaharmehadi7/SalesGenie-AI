@@ -1,11 +1,7 @@
 """
-AI provider abstraction.
-
-Every AI-powered feature in the platform — Lead Intelligence (Module 4),
-Lead Scoring (Module 6), Outreach Generation (Module 5), and Conversation
-Summarization (Module 7) — depends on this interface, never on a concrete
-provider (OpenAI, a mock, or anything else). This is the "Agentic AI
-Layer" / "Large Language Model (Gemini/OpenAI)" box in the architecture
+Abstract base class defining the contract for any LLM-backed intelligence
+provider (Gemini, a mock, or anything else). This is the "Agentic AI
+Layer" / "Large Language Model (Gemini)" box in the architecture
 diagram: swapping the underlying model or introducing a full LangGraph
 multi-agent graph later means implementing this one interface again,
 with zero changes to any service that consumes it.

@@ -101,7 +101,7 @@ function LoginPage() {
         </Button>
       </form>
       <p className="mt-8 text-center text-sm text-ink-muted">
-        New to SalesGenie?{' '}
+        New to AI-Powered Sales Forecasting Platform Using Predictive Analytics?{' '}
         <Link className="font-medium text-brand-600 hover:text-brand-700" to="/signup">
           Create an account
         </Link>

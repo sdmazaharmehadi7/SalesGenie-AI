@@ -135,7 +135,7 @@ export function useChat() {
             role: 'assistant',
             content: fullText,
             timestamp: timestamp(),
-            model: 'SalesGenie AI',
+            model: 'AI-Powered Sales Forecasting Platform Using Predictive Analytics',
           }
           updateConversations((prev) =>
             prev.map((c) =>

@@ -31,11 +31,11 @@ function SidebarContent({ isCollapsed, onClose }) {
     <>
       <div className="flex h-16 items-center border-b border-line-default px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid size-8 shrink-0 place-items-center rounded-control bg-brand-600 text-sm font-bold text-ink-inverse">
-            S
+          <span className="grid size-8 shrink-0 place-items-center rounded-control bg-brand-600 text-xs font-bold text-ink-inverse">
+            AI
           </span>
-          <span className={isCollapsed ? 'sr-only' : 'truncate text-sm font-semibold tracking-tight text-ink-primary'}>
-            SalesGenie
+          <span className={isCollapsed ? 'sr-only' : 'truncate text-xs font-semibold tracking-tight text-ink-primary'} title="AI-Powered Sales Forecasting Platform Using Predictive Analytics">
+            Sales Forecasting
           </span>
         </div>
         <button

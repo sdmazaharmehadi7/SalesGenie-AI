@@ -46,7 +46,7 @@ export function OutreachLayout() {
             <h1 className="text-xl font-bold text-ink-primary">AI Outreach Generator</h1>
             <span className="inline-flex items-center space-x-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 border border-brand-100">
               <Sparkles className="h-3 w-3 text-brand-500" />
-              <span>SalesGenie Engine v2.4</span>
+              <span>Predictive Outreach Engine v2.4</span>
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">

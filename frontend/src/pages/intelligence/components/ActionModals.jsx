@@ -164,7 +164,7 @@ export function EmailModal({ lead, onClose }) {
   if (!lead) return null
 
   const defaultSubject = `Quick question regarding ${lead.company}'s sales workflow`
-  const defaultBody = `Hi ${lead.name.split(' ')[0]},\n\nI noticed ${lead.company} is expanding rapidly in the ${lead.industry} space. Congrats on the growth!\n\nMany sales leaders we speak with mention that reps spend upwards of 14 hours a week manually drafting outreach emails and updating lead scores.\n\nWith SalesGenie AI, team leaders like yourself can automate 80% of routine outreach while increasing response rates by 35%.\n\nWould you be open to a brief 10-minute overview this Thursday morning?\n\nBest regards,\nSalesGenie AI Team`
+  const defaultBody = `Hi ${lead.name.split(' ')[0]},\n\nI noticed ${lead.company} is expanding rapidly in the ${lead.industry} space. Congrats on the growth!\n\nMany sales leaders we speak with mention that reps spend upwards of 14 hours a week manually drafting outreach emails and updating lead scores.\n\nWith our AI-Powered Sales Forecasting Platform, team leaders like yourself can automate 80% of routine outreach while increasing response rates by 35%.\n\nWould you be open to a brief 10-minute overview this Thursday morning?\n\nBest regards,\nSales Forecasting Platform Team`
 
   const [subject, setSubject] = useState(defaultSubject)
   const [body, setBody] = useState(defaultBody)
@@ -362,7 +362,7 @@ export function MeetingModal({ lead, onClose }) {
                 <label className="block text-xs font-medium text-ink-muted mb-1">Meeting Title</label>
                 <input
                   type="text"
-                  defaultValue={`Discovery Call — SalesGenie & ${lead.company}`}
+                  defaultValue={`Discovery Call — Sales Forecasting Platform & ${lead.company}`}
                   className="input"
                 />
               </div>

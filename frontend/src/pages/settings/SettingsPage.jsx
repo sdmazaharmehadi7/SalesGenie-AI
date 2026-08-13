@@ -326,12 +326,12 @@ function GeneralSection() {
 function WorkspaceSection() {
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState({
-    name: 'SalesGenie AI',
-    slug: 'salesgenie-ai',
-    website: 'https://salesgenie.io',
+    name: 'AI-Powered Sales Forecasting Platform Using Predictive Analytics',
+    slug: 'sales-forecasting-platform',
+    website: 'https://salesforecasting.ai',
     industry: 'saas',
     size: '11-50',
-    description: 'AI-powered CRM and sales automation platform for modern sales teams.',
+    description: 'AI-powered sales forecasting and lead intelligence platform using predictive analytics.',
   })
   const set = (key) => (val) => { setSaved(false); setForm((f) => ({ ...f, [key]: val })) }
 
@@ -342,7 +342,7 @@ function WorkspaceSection() {
         <div className="grid gap-4 sm:grid-cols-2">
           <SettingInput label="Workspace name" onChange={set('name')} value={form.name} />
           <SettingInput
-            hint="salesgenie.io/{slug}"
+            hint="salesforecasting.ai/{slug}"
             label="Workspace slug"
             onChange={set('slug')}
             value={form.slug}
@@ -645,7 +645,7 @@ function AppearanceSection() {
   return (
     <div className="space-y-4">
       <SectionCard>
-        <SectionTitle title="Theme" description="Choose how SalesGenie AI looks for you." />
+        <SectionTitle title="Theme" description="Choose how the platform looks for you." />
         <div className="grid grid-cols-3 gap-3">
           {themes.map((t) => (
             <button
@@ -871,10 +871,10 @@ function AccountSection() {
   const plan = { name: 'Pro', price: '$79/mo', renewDate: 'Aug 1, 2026', seats: 12, maxSeats: 20 }
 
   const members = [
-    { name: 'Sarah Mitchell', email: 'sarah@salesgenie.io',   role: 'Owner',  avatar: 'SM', active: true  },
-    { name: 'James Carter',   email: 'james@salesgenie.io',   role: 'Admin',  avatar: 'JC', active: true  },
-    { name: 'Priya Mehta',    email: 'priya@salesgenie.io',   role: 'Member', avatar: 'PM', active: true  },
-    { name: 'Dan Torres',     email: 'dan@salesgenie.io',     role: 'Member', avatar: 'DT', active: false },
+    { name: 'Sarah Mitchell', email: 'sarah@salesforecasting.ai',   role: 'Owner',  avatar: 'SM', active: true  },
+    { name: 'James Carter',   email: 'james@salesforecasting.ai',   role: 'Admin',  avatar: 'JC', active: true  },
+    { name: 'Priya Mehta',    email: 'priya@salesforecasting.ai',   role: 'Member', avatar: 'PM', active: true  },
+    { name: 'Dan Torres',     email: 'dan@salesforecasting.ai',     role: 'Member', avatar: 'DT', active: false },
   ]
 
   const roleColor = {
@@ -997,12 +997,12 @@ function AccountSection() {
 function EmailSection() {
   const [saved, setSaved] = useState(false)
   const [tracking, setTracking] = useState({ opens: true, clicks: true, unsubscribes: true })
-  const [signature, setSignature] = useState('Best regards,\nSarah Mitchell\nAccount Executive — SalesGenie AI\n📧 sarah@salesgenie.io | 📞 +1 (415) 555-0192')
-  const [defaultFrom, setDefaultFrom] = useState('sarah@salesgenie.io')
+  const [signature, setSignature] = useState('Best regards,\nSarah Mitchell\nAccount Executive — AI-Powered Sales Forecasting Platform Using Predictive Analytics\n📧 sarah@salesforecasting.ai | 📞 +1 (415) 555-0192')
+  const [defaultFrom, setDefaultFrom] = useState('sarah@salesforecasting.ai')
   const [delay, setDelay] = useState('5')
 
   const providers = [
-    { id: 'gmail',   label: 'Gmail',         icon: '✉️', connected: true,  email: 'sarah@salesgenie.io' },
+    { id: 'gmail',   label: 'Gmail',         icon: '✉️', connected: true,  email: 'sarah@salesforecasting.ai' },
     { id: 'outlook', label: 'Outlook',        icon: '📧', connected: false, email: null },
     { id: 'smtp',    label: 'Custom SMTP',    icon: '🔧', connected: false, email: null },
     { id: 'sendgrid',label: 'SendGrid',       icon: '⚡', connected: false, email: null },

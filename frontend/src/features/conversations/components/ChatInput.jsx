@@ -51,7 +51,7 @@ export function ChatInput({ onSendMessage, isGenerating, onStopGeneration }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message SalesGenie AI (e.g. analyze lead score, draft cold email)..."
+            placeholder="Message AI Assistant (e.g. analyze lead score, draft cold email)..."
             className="w-full resize-none bg-transparent px-2 py-1 text-xs sm:text-sm text-ink-primary placeholder:text-ink-muted focus:outline-hidden"
           />
 

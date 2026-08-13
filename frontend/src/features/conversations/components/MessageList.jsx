@@ -62,7 +62,7 @@ function SingleMessage({ message }) {
 
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold text-ink-primary">SalesGenie AI</span>
+          <span className="text-xs font-semibold text-ink-primary">Predictive Sales AI</span>
           <span className="text-[10px] text-ink-muted">{message.timestamp}</span>
         </div>
 

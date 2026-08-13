@@ -87,7 +87,7 @@ export function ChatInterface() {
               </h2>
               <span className="hidden sm:inline-flex items-center space-x-1.5 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 border border-brand-100">
                 <Sparkles className="h-3 w-3 text-brand-500" />
-                <span>SalesGenie GPT-4o</span>
+                <span>Predictive Sales AI</span>
               </span>
             </div>
           </div>
@@ -117,7 +117,7 @@ export function ChatInterface() {
                 <Sparkles className="h-7 w-7 animate-pulse" />
               </div>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink-primary mb-2">
-                How can SalesGenie AI assist your sales today?
+                How can our Predictive Sales AI assist your team today?
               </h1>
               <p className="text-xs sm:text-sm text-ink-muted max-w-md mb-8">
                 Ask any question or select a prompt suggestion below to analyze leads, draft cold emails, or forecast pipeline revenue.

@@ -1,8 +1,8 @@
-# SalesGenie AI
+# AI-Powered Sales Forecasting Platform Using Predictive Analytics
 
 ## Project Overview
 
-SalesGenie AI is an AI-powered Sales Assistant and Lead Intelligence Platform designed to help sales teams automate lead management, company analysis, outreach generation, lead scoring, and sales analytics.
+AI-Powered Sales Forecasting Platform Using Predictive Analytics is an AI-powered Sales Assistant and Lead Intelligence Platform designed to help sales teams automate lead management, company analysis, outreach generation, lead scoring, and sales analytics.
 
 This repository contains the complete source code and documentation for the project.
 

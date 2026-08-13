@@ -135,7 +135,7 @@ export function ProspectForm({
           type="text"
           value={formData.valueProp}
           onChange={(e) => onFieldChange('valueProp', e.target.value)}
-          placeholder="e.g. SalesGenie AI automates lead scoring and real-time email generation."
+          placeholder="e.g. Our Predictive Sales Platform automates lead scoring and real-time email generation."
           className="w-full rounded-control border border-line-default bg-surface-default px-3 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:border-brand-500 focus:outline-hidden focus:ring-1 focus:ring-brand-500"
         />
       </div>
