@@ -92,34 +92,40 @@ export function RightSidebar({ leads, onSelectLead }) {
         </div>
 
         <div className="space-y-2.5">
-          {hotLeads.map((lead) => (
-            <div
-              key={lead.id}
-              onClick={() => onSelectLead(lead)}
-              className="flex items-center justify-between gap-2 rounded-card border border-line-default p-2.5 hover:border-brand-300 hover:bg-brand-50/50 transition-all cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-indigo-700 text-white text-xs font-bold">
-                  {lead.avatar}
+          {hotLeads.length === 0 ? (
+            <p className="text-xs text-ink-muted text-center py-4">
+              No leads scored ≥ 80 yet. Run AI scoring on your leads to highlight top opportunities.
+            </p>
+          ) : (
+            hotLeads.map((lead) => (
+              <div
+                key={lead.id}
+                onClick={() => onSelectLead(lead)}
+                className="flex items-center justify-between gap-2 rounded-card border border-line-default p-2.5 hover:border-brand-300 hover:bg-brand-50/50 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-indigo-700 text-white text-xs font-bold">
+                    {lead.avatar}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-ink-primary truncate group-hover:text-brand-600 transition-colors">
+                      {lead.name}
+                    </p>
+                    <p className="text-[11px] text-ink-muted truncate">
+                      {lead.company}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-ink-primary truncate group-hover:text-brand-600 transition-colors">
-                    {lead.name}
-                  </p>
-                  <p className="text-[11px] text-ink-muted truncate">
-                    {lead.company}
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-xs px-2 py-0.5 ring-1 ring-emerald-200">
-                  {lead.score}
-                </span>
-                <ArrowUpRight className="size-3.5 text-ink-muted group-hover:text-brand-600" />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-xs px-2 py-0.5 ring-1 ring-emerald-200">
+                    {lead.score}
+                  </span>
+                  <ArrowUpRight className="size-3.5 text-ink-muted group-hover:text-brand-600" />
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

@@ -32,8 +32,8 @@ export function useLeadIntelligence() {
       const enriched = await Promise.all(
         rawLeads.map(async (lead) => {
           const [score, insight] = await Promise.all([
-            getLatestLeadScore(lead.id),
-            getLatestCompanyInsight(lead.id),
+            getLatestLeadScore(lead.id).catch(() => null),
+            getLatestCompanyInsight(lead.id).catch(() => null),
           ])
           return mapLeadIntelligence(lead, score, insight)
         })

@@ -79,8 +79,8 @@ export function useCompanyIntelligence() {
     setDetailError(null)
     try {
       const [latestScore, latestInsight] = await Promise.all([
-        getLatestLeadScore(leadId),
-        getLatestCompanyInsight(leadId),
+        getLatestLeadScore(leadId).catch(() => null),
+        getLatestCompanyInsight(leadId).catch(() => null),
       ])
       setScore(latestScore)
       setInsight(latestInsight)

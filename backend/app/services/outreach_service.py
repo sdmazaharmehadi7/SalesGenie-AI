@@ -17,10 +17,12 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.integrations.ai.base import AIProvider
 from app.integrations.email.base import EmailProvider
 from app.models.outreach_campaign import OutreachCampaign
-from app.models.pipeline_enums import CampaignStatus
+from app.models.pipeline_enums import CampaignStatus, InteractionType
 from app.repositories.company_insight_repository import CompanyInsightRepository
 from app.repositories.outreach_campaign_repository import OutreachCampaignRepository
+from app.repositories.sales_interaction_repository import SalesInteractionRepository
 from app.schemas.outreach_campaign import OutreachCampaignCreate, OutreachCampaignUpdate
+from app.schemas.sales_interaction import SalesInteractionCreate
 from app.services.lead_service import LeadService
 
 
@@ -32,6 +34,7 @@ class OutreachService:
         self.campaigns = OutreachCampaignRepository(db)
         self.insights = CompanyInsightRepository(db)
         self.lead_service = LeadService(db)
+        self.interactions = SalesInteractionRepository(db)
 
     async def generate_campaign(self, lead_id: uuid.UUID, current_user) -> OutreachCampaign:
         lead = await self.lead_service.get_lead(lead_id, current_user)
@@ -98,6 +101,17 @@ class OutreachService:
         updated = await self.campaigns.update(
             campaign, OutreachCampaignUpdate(campaign_status=CampaignStatus.SENT)
         )
+
+        # Log an EMAIL activity to the CRM timeline so the sent email
+        # appears in the lead's activity history automatically.
+        activity = SalesInteractionCreate(
+            interaction_type=InteractionType.EMAIL,
+            lead_id=lead.id,
+            summary=f"Outreach email sent: {campaign.email_subject}",
+            action_items=[],
+        )
+        await self.interactions.create(activity)
+
         await self.db.commit()
         return updated
 

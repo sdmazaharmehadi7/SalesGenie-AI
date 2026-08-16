@@ -3,7 +3,6 @@ import { getLeads } from '@/services/api/leads'
 import {
   generateCampaign,
   getCampaigns,
-  sendCampaign,
   updateCampaign,
 } from '@/services/api/outreach'
 
@@ -42,7 +41,9 @@ export function useOutreachGenerator() {
 
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isSending, setIsSending] = useState(false)
+  const [isOpeningGmail, setIsOpeningGmail] = useState(false)
+  const [gmailOpened, setGmailOpened] = useState(false)
+  const [gmailNotice, setGmailNotice] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
   const [error, setError] = useState(null)
 
@@ -97,12 +98,16 @@ export function useOutreachGenerator() {
   useEffect(() => {
     if (selectedLeadId) {
       loadCampaignHistory(selectedLeadId)
+      setGmailOpened(false)
+      setGmailNotice(null)
     }
   }, [selectedLeadId, loadCampaignHistory])
 
   const selectLead = useCallback((leadId) => {
     setSelectedLeadId(leadId)
     setError(null)
+    setGmailOpened(false)
+    setGmailNotice(null)
   }, [])
 
   // 3. Generate AI Outreach Email
@@ -110,6 +115,8 @@ export function useOutreachGenerator() {
     if (!selectedLeadId) return
     setIsGenerating(true)
     setError(null)
+    setGmailOpened(false)
+    setGmailNotice(null)
     try {
       const { data } = await generateCampaign(selectedLeadId)
       const mapped = mapCampaign(data)
@@ -153,39 +160,89 @@ export function useOutreachGenerator() {
     }
   }, [selectedLeadId, campaign])
 
-  // 6. Send Email
-  const sendEmail = useCallback(async () => {
+  // 6. Open in Gmail Compose (Synchronous window.open to prevent popup blocking)
+  const openInGmail = useCallback(() => {
     if (!selectedLeadId || !campaign) return
-    setIsSending(true)
     setError(null)
-    try {
-      if (campaign.status === 'draft') {
-        await updateCampaign(selectedLeadId, campaign.id, {
-          email_subject: campaign.subject,
-          email_content: campaign.body,
-        })
+    setGmailNotice(null)
+
+    const recipient = (selectedLead?.email || '').trim()
+    const subject = (campaign.subject || '').trim()
+    const body = (campaign.body || '').trim()
+
+    const encodedTo = encodeURIComponent(recipient)
+    const encodedSubject = encodeURIComponent(subject)
+    const encodedBody = encodeURIComponent(body)
+
+    const fullGmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&su=${encodedSubject}&body=${encodedBody}`
+
+    let targetUrl = fullGmailUrl
+    let openedWindow = null
+
+    // Check if URL length exceeds standard browser URL limit (~2000 chars)
+    if (fullGmailUrl.length > 2000) {
+      const shortUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&su=${encodedSubject}`
+      targetUrl = shortUrl
+
+      // Copy body to clipboard as fallback
+      const fullDraft = `To: ${recipient}\nSubject: ${subject}\n\n${body}`
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(body || fullDraft).catch((e) => console.warn('Clipboard write failed:', e))
       }
-      const { data } = await sendCampaign(selectedLeadId, campaign.id)
-      const mapped = mapCampaign(data)
-      setCampaign(mapped)
-      setHistory((prev) => prev.map((h) => (h.id === mapped.id ? mapped : h)))
-    } catch (err) {
-      console.error('Failed to send outreach email:', err)
-      setError(extractErrorMessage(err, 'Failed to send outreach email.'))
-    } finally {
-      setIsSending(false)
+
+      openedWindow = window.open(shortUrl, '_blank')
+      setGmailNotice({
+        type: 'warning',
+        url: shortUrl,
+        text: 'Due to length limits, the email body was copied to your clipboard. Paste (Ctrl+V / Cmd+V) directly into Gmail Compose.',
+      })
+    } else {
+      // Direct synchronous window.open within user gesture
+      openedWindow = window.open(fullGmailUrl, '_blank')
     }
-  }, [selectedLeadId, campaign])
+
+    // Check if popup was blocked by browser
+    if (!openedWindow || openedWindow.closed || typeof openedWindow.closed === 'undefined') {
+      const fullDraft = `To: ${recipient}\nSubject: ${subject}\n\n${body}`
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(fullDraft).catch((e) => console.warn('Clipboard write failed:', e))
+      }
+      setGmailNotice({
+        type: 'blocked',
+        url: targetUrl,
+        text: 'Gmail was blocked by your browser. Click the link below to open Gmail or use the copied email content from your clipboard.',
+      })
+    }
+
+    setGmailOpened(true)
+
+    // Background auto-save draft in PostgreSQL (non-blocking)
+    if (campaign.id) {
+      updateCampaign(selectedLeadId, campaign.id, {
+        email_subject: campaign.subject,
+        email_content: campaign.body,
+      })
+        .then(({ data }) => {
+          const mapped = mapCampaign(data)
+          setCampaign(mapped)
+          setHistory((prev) => prev.map((h) => (h.id === mapped.id ? mapped : h)))
+        })
+        .catch((saveErr) => console.warn('Background auto-save draft failed:', saveErr))
+    }
+  }, [selectedLeadId, selectedLead, campaign])
 
   // 7. Select campaign from history
   const selectCampaignFromHistory = useCallback((c) => {
     setCampaign(c)
+    setGmailOpened(false)
+    setGmailNotice(null)
   }, [])
 
   // 8. Copy to Clipboard
   const copyEmailToClipboard = useCallback(async () => {
     if (!campaign) return
-    const textToCopy = `Subject: ${campaign.subject}\n\n${campaign.body}`
+    const recipient = selectedLead?.email ? `To: ${selectedLead.email}\n` : ''
+    const textToCopy = `${recipient}Subject: ${campaign.subject}\n\n${campaign.body}`
     try {
       await navigator.clipboard.writeText(textToCopy)
       setCopySuccess(true)
@@ -193,12 +250,13 @@ export function useOutreachGenerator() {
     } catch (err) {
       console.error('Copy failed: ', err)
     }
-  }, [campaign])
+  }, [campaign, selectedLead])
 
   // 9. Download as .txt
   const downloadEmailAsTxt = useCallback(() => {
     if (!campaign) return
-    const content = `Subject: ${campaign.subject}\n\n${campaign.body}`
+    const recipient = selectedLead?.email ? `To: ${selectedLead.email}\n` : ''
+    const content = `${recipient}Subject: ${campaign.subject}\n\n${campaign.body}`
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -221,14 +279,16 @@ export function useOutreachGenerator() {
     campaign,
     isGenerating,
     isSaving,
-    isSending,
+    isOpeningGmail,
+    gmailOpened,
+    gmailNotice,
     error,
 
     generateEmail,
     updateSubject,
     updateBody,
     saveDraft,
-    sendEmail,
+    openInGmail,
 
     history,
     isHistoryLoading,

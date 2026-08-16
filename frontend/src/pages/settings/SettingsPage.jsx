@@ -995,63 +995,306 @@ function AccountSection() {
 
 // ─── Section: Email Integration ───────────────────────────────────────────────
 function EmailSection() {
-  const [saved, setSaved] = useState(false)
-  const [tracking, setTracking] = useState({ opens: true, clicks: true, unsubscribes: true })
-  const [signature, setSignature] = useState('Best regards,\nSarah Mitchell\nAccount Executive — AI-Powered Sales Forecasting Platform Using Predictive Analytics\n📧 sarah@salesforecasting.ai | 📞 +1 (415) 555-0192')
-  const [defaultFrom, setDefaultFrom] = useState('sarah@salesforecasting.ai')
-  const [delay, setDelay] = useState('5')
+  const { showToast } = useToast()
 
-  const providers = [
-    { id: 'gmail',   label: 'Gmail',         icon: '✉️', connected: true,  email: 'sarah@salesforecasting.ai' },
-    { id: 'outlook', label: 'Outlook',        icon: '📧', connected: false, email: null },
-    { id: 'smtp',    label: 'Custom SMTP',    icon: '🔧', connected: false, email: null },
-    { id: 'sendgrid',label: 'SendGrid',       icon: '⚡', connected: false, email: null },
-  ]
+  // ── SMTP Config state ──────────────────────────────────────────────────────
+  const [configLoading, setConfigLoading]   = useState(true)
+  const [configSaving,  setConfigSaving]    = useState(false)
+  const [testLoading,   setTestLoading]     = useState(false)
+  const [isConfigured,  setIsConfigured]    = useState(false)
+  const [testResult,    setTestResult]      = useState(null)   // { success, message }
+
+  const [smtpHost,      setSmtpHost]        = useState('smtp.gmail.com')
+  const [smtpPort,      setSmtpPort]        = useState('587')
+  const [smtpUsername,  setSmtpUsername]    = useState('')
+  const [smtpPassword,  setSmtpPassword]    = useState('')     // never pre-filled from API
+  const [smtpFromEmail, setSmtpFromEmail]   = useState('')
+  const [smtpFromName,  setSmtpFromName]    = useState('SalesGenie')
+  const [testAddress,   setTestAddress]     = useState('')
+  const [showPassword,  setShowPassword]    = useState(false)
+
+  // ── Tracking / Signature (UI-only for now) ─────────────────────────────────
+  const [saved,       setSaved]     = useState(false)
+  const [tracking, setTracking]     = useState({ opens: true, clicks: true, unsubscribes: true })
+  const [signature, setSignature]   = useState('')
+  const [delay, setDelay]           = useState('5')
+
+  // ── Load config on mount ───────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const { getEmailConfig } = await import('@/services/api/email')
+        const { data } = await getEmailConfig()
+        if (cancelled) return
+        setSmtpHost(data.smtp_host || 'smtp.gmail.com')
+        setSmtpPort(String(data.smtp_port || 587))
+        setSmtpUsername(data.smtp_username || '')
+        setSmtpFromEmail(data.smtp_from_email || data.smtp_username || '')
+        setSmtpFromName(data.smtp_from_name || 'SalesGenie')
+        setIsConfigured(data.is_configured || false)
+        setTestAddress(data.smtp_username || '')
+      } catch (err) {
+        console.error('Failed to load email config:', err)
+      } finally {
+        if (!cancelled) setConfigLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  // ── Save config ────────────────────────────────────────────────────────────
+  async function handleSaveConfig() {
+    setConfigSaving(true)
+    setTestResult(null)
+    try {
+      const { saveEmailConfig } = await import('@/services/api/email')
+      const payload = {
+        smtp_host:      smtpHost,
+        smtp_port:      parseInt(smtpPort, 10),
+        smtp_use_tls:   true,
+        smtp_username:  smtpUsername || null,
+        smtp_from_email: smtpFromEmail || smtpUsername || null,
+        smtp_from_name:  smtpFromName,
+      }
+      // Only send password if user actually typed something
+      if (smtpPassword.trim()) payload.smtp_password = smtpPassword
+      const { data } = await saveEmailConfig(payload)
+      setIsConfigured(data.is_configured)
+      setSmtpPassword('')   // clear after save — never persist in state
+      showToast('Gmail SMTP configuration saved successfully.', 'success')
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to save configuration.'
+      showToast(msg, 'error')
+    } finally {
+      setConfigSaving(false)
+    }
+  }
+
+  // ── Send test email ────────────────────────────────────────────────────────
+  async function handleTestEmail() {
+    setTestLoading(true)
+    setTestResult(null)
+    try {
+      const { sendTestEmail } = await import('@/services/api/email')
+      const payload = testAddress.trim() ? { to_address: testAddress.trim() } : {}
+      const { data } = await sendTestEmail(payload)
+      setTestResult(data)
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Test email request failed.'
+      setTestResult({ success: false, message: msg })
+    } finally {
+      setTestLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Connected accounts */}
+
+      {/* ── Gmail SMTP Configuration ── */}
       <SectionCard>
-        <SectionTitle title="Connected email accounts" description="Link email providers to send and track outreach campaigns." />
-        <div className="space-y-3">
-          {providers.map((p) => (
-            <div className="flex items-center gap-3 rounded-card border border-line-default p-3" key={p.id}>
-              <span className="text-xl">{p.icon}</span>
+        <SectionTitle
+          title="Gmail SMTP Configuration"
+          description="Connect your Gmail account to send real outreach emails. Use a Gmail App Password (not your regular password)."
+        />
+
+        {configLoading ? (
+          <div className="space-y-3 animate-pulse">
+            {[1, 2, 3].map((i) => (
+              <div className="h-10 rounded-control bg-surface-muted" key={i} />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {/* Connection status */}
+            <div className="flex items-center gap-3 rounded-card border border-line-default bg-surface-subtle p-3">
+              <span className="text-2xl">✉️</span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-ink-primary">{p.label}</p>
-                {p.connected
-                  ? <p className="text-xs text-ink-muted">{p.email}</p>
-                  : <p className="text-xs text-ink-disabled">Not connected</p>
-                }
+                <p className="text-sm font-medium text-ink-primary">Gmail via SMTP</p>
+                <p className="text-xs text-ink-muted">
+                  {isConfigured ? smtpUsername : 'Not configured — enter your Gmail address and App Password below.'}
+                </p>
               </div>
-              {p.connected
-                ? (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      Connected
-                    </span>
-                    <button className="btn btn-ghost btn-sm text-danger hover:bg-red-50" type="button">Disconnect</button>
-                  </div>
-                )
-                : <button className="btn btn-secondary btn-sm gap-1.5" type="button"><Icon className="size-3.5" d={ICONS.link} /> Connect</button>
-              }
+              <span
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1',
+                  isConfigured
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                    : 'bg-amber-50 text-amber-700 ring-amber-100',
+                ].join(' ')}
+              >
+                <span className={['size-1.5 rounded-full', isConfigured ? 'bg-emerald-500' : 'bg-amber-400'].join(' ')} />
+                {isConfigured ? 'Configured' : 'Not configured'}
+              </span>
             </div>
-          ))}
+
+            {/* SMTP fields */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <SettingInput
+                label="SMTP Host"
+                hint="Gmail: smtp.gmail.com"
+                value={smtpHost}
+                onChange={setSmtpHost}
+                placeholder="smtp.gmail.com"
+              />
+              <SettingInput
+                label="SMTP Port"
+                hint="587 for STARTTLS (recommended)"
+                value={smtpPort}
+                onChange={setSmtpPort}
+                type="number"
+                placeholder="587"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <SettingInput
+                label="Gmail Address (Username)"
+                hint="Your full Gmail address"
+                value={smtpUsername}
+                onChange={setSmtpUsername}
+                type="email"
+                placeholder="you@gmail.com"
+              />
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-ink-secondary">
+                  Gmail App Password
+                </label>
+                <div className="relative">
+                  <input
+                    className="input pr-10"
+                    type={showPassword ? 'text' : 'password'}
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder={isConfigured ? '••••••••••••••••  (leave blank to keep existing)' : 'Paste App Password here'}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-primary transition-colors"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <svg className="size-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                        <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ) : (
+                      <svg className="size-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-ink-muted">
+                  Not your Gmail password.{' '}
+                  <a
+                    className="text-brand-600 underline hover:text-brand-700"
+                    href="https://myaccount.google.com/apppasswords"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Generate an App Password ↗
+                  </a>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <SettingInput
+                label="From Email Address"
+                hint="Displayed in recipient's 'From' field"
+                value={smtpFromEmail}
+                onChange={setSmtpFromEmail}
+                type="email"
+                placeholder="you@gmail.com"
+              />
+              <SettingInput
+                label="From Name"
+                hint="Sender display name"
+                value={smtpFromName}
+                onChange={setSmtpFromName}
+                placeholder="SalesGenie"
+              />
+            </div>
+
+            <div className="flex items-center justify-end">
+              <button
+                className="btn btn-primary gap-2 disabled:opacity-60"
+                disabled={configSaving}
+                onClick={handleSaveConfig}
+                type="button"
+              >
+                <Icon className="size-4" d={ICONS.save} />
+                {configSaving ? 'Saving…' : 'Save Configuration'}
+              </button>
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── Send Test Email ── */}
+      <SectionCard>
+        <SectionTitle
+          title="Send Test Email"
+          description="Verify your Gmail SMTP configuration by sending a test message."
+        />
+        <div className="space-y-4">
+          <SettingInput
+            label="Send test to"
+            hint="Defaults to your Gmail address if left blank"
+            value={testAddress}
+            onChange={setTestAddress}
+            type="email"
+            placeholder="you@gmail.com"
+          />
+
+          {testResult && (
+            <div
+              className={[
+                'flex items-start gap-3 rounded-card border p-3.5 text-sm',
+                testResult.success
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-red-200 bg-red-50 text-red-800',
+              ].join(' ')}
+            >
+              <span className="mt-0.5 shrink-0 text-base">{testResult.success ? '✅' : '❌'}</span>
+              <span>{testResult.message}</span>
+            </div>
+          )}
+
+          <button
+            className="btn btn-secondary gap-2 disabled:opacity-60"
+            disabled={testLoading || !isConfigured}
+            onClick={handleTestEmail}
+            title={!isConfigured ? 'Save your SMTP configuration first' : undefined}
+            type="button"
+          >
+            {testLoading ? (
+              <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" />
+              </svg>
+            ) : (
+              <Icon className="size-4" d={ICONS.email} />
+            )}
+            {testLoading ? 'Sending…' : 'Send Test Email'}
+          </button>
+
+          {!isConfigured && (
+            <p className="text-xs text-ink-muted">
+              ⚠️ Configure and save your Gmail SMTP settings above before sending a test email.
+            </p>
+          )}
         </div>
       </SectionCard>
 
-      {/* Sending settings */}
+      {/* ── Sending settings (signature / delay) ── */}
       <SectionCard>
         <SectionTitle title="Sending settings" description="Configure how outreach emails are sent." />
         <div className="grid gap-4 sm:grid-cols-2">
-          <SettingInput
-            hint="The address that appears in the 'From' field."
-            label="Default from address"
-            onChange={setDefaultFrom}
-            type="email"
-            value={defaultFrom}
-          />
           <SettingSelect
             hint="Delay between emails in a sequence to avoid spam filters."
             label="Send delay between emails"
@@ -1077,7 +1320,7 @@ function EmailSection() {
         <SaveBar onSave={() => setSaved(true)} saved={saved} />
       </SectionCard>
 
-      {/* Tracking */}
+      {/* ── Tracking ── */}
       <SectionCard>
         <SectionTitle title="Email tracking" description="Monitor recipient engagement with your emails." />
         <div className="space-y-4">
@@ -1098,6 +1341,7 @@ function EmailSection() {
             </div>
           ))}
         </div>
+
       </SectionCard>
     </div>
   )

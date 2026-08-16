@@ -16,14 +16,16 @@ export function OutreachLayout() {
     campaign,
     isGenerating,
     isSaving,
-    isSending,
+    isOpeningGmail,
+    gmailOpened,
+    gmailNotice,
     error,
 
     generateEmail,
     updateSubject,
     updateBody,
     saveDraft,
-    sendEmail,
+    openInGmail,
 
     history,
     isHistoryLoading,
@@ -83,11 +85,13 @@ export function OutreachLayout() {
             campaign={campaign}
             isGenerating={isGenerating}
             isSaving={isSaving}
-            isSending={isSending}
+            isOpeningGmail={isOpeningGmail}
+            gmailOpened={gmailOpened}
+            gmailNotice={gmailNotice}
             onUpdateSubject={updateSubject}
             onUpdateBody={updateBody}
             onSaveDraft={saveDraft}
-            onSend={sendEmail}
+            onOpenGmail={openInGmail}
             onCopy={copyEmailToClipboard}
             copySuccess={copySuccess}
             onDownload={downloadEmailAsTxt}
