@@ -59,7 +59,16 @@ class Lead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
 
+    # CRM extension: link lead to a verified Account record.
+    account_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     owner: Mapped["User | None"] = relationship("User", lazy="joined")  # noqa: F821
+    account: Mapped["Account | None"] = relationship("Account", back_populates="leads", foreign_keys=[account_id])  # noqa: F821
     company_insights: Mapped[list["CompanyInsight"]] = relationship(  # noqa: F821
         back_populates="lead", cascade="all, delete-orphan"
     )
@@ -70,10 +79,19 @@ class Lead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="lead", cascade="all, delete-orphan"
     )
     sales_interactions: Mapped[list["SalesInteraction"]] = relationship(  # noqa: F821
-        back_populates="lead", cascade="all, delete-orphan"
+        back_populates="lead", foreign_keys="SalesInteraction.lead_id"
     )
     crm_sync_logs: Mapped[list["CRMSyncLog"]] = relationship(  # noqa: F821
         back_populates="lead", cascade="all, delete-orphan"
+    )
+    contacts: Mapped[list["Contact"]] = relationship(  # noqa: F821
+        "Contact", back_populates="lead", foreign_keys="Contact.lead_id"
+    )
+    opportunities: Mapped[list["Opportunity"]] = relationship(  # noqa: F821
+        "Opportunity", back_populates="lead", foreign_keys="Opportunity.lead_id"
+    )
+    tasks: Mapped[list["Task"]] = relationship(  # noqa: F821
+        "Task", back_populates="lead", foreign_keys="Task.lead_id"
     )
 
     def __repr__(self) -> str:

@@ -283,10 +283,10 @@ function LeadsPage() {
       key: "company",
       header: "Company",
       render: (lead) => (
-        <div>
-          <span className="block font-medium text-ink-primary">{lead.company_name}</span>
+        <a href={`/leads/${lead.id}`} className="group block">
+          <span className="block font-medium text-brand-600 group-hover:underline">{lead.company_name}</span>
           {lead.contact_name ? <span className="block text-xs text-ink-muted">{lead.contact_name}</span> : null}
-        </div>
+        </a>
       ),
     },
     {

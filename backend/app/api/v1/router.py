@@ -1,25 +1,25 @@
 """
 Top-level aggregator for all `/api/v1` routes.
-
-Each feature module contributes its own `APIRouter` and is included here
-with an explicit `prefix` and `tags`. `leads`, `company_insights`,
-`lead_scores`, `outreach`, `conversations`, and `crm` all share the
-`/leads` prefix (each contributing sub-paths like `/leads/{lead_id}/insights`)
-since every one of those resources is scoped to a lead.
 """
 
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    accounts,
+    activities,
     auth,
     company_insights,
+    contacts,
     conversations,
     crm,
+    crm_dashboard,
     dashboard,
     health,
     lead_scores,
     leads,
+    opportunities,
     outreach,
+    tasks,
     users,
 )
 
@@ -35,3 +35,11 @@ api_router.include_router(outreach.router, prefix="/leads", tags=["Outreach"])
 api_router.include_router(conversations.router, prefix="/leads", tags=["Conversations"])
 api_router.include_router(crm.router, prefix="/leads", tags=["CRM Integration"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+
+# New CRM Routes
+api_router.include_router(crm_dashboard.router, prefix="/crm", tags=["CRM Dashboard & Analytics"])
+api_router.include_router(accounts.router, prefix="/accounts", tags=["Accounts"])
+api_router.include_router(contacts.router, prefix="/contacts", tags=["Contacts"])
+api_router.include_router(opportunities.router, prefix="/opportunities", tags=["Opportunities & Deals"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
+api_router.include_router(activities.router, prefix="/activities", tags=["Activities & Timeline"])

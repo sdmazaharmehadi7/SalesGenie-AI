@@ -40,6 +40,9 @@ class InteractionType(str, enum.Enum):
     MEETING = "meeting"
     DEMO = "demo"
     OTHER = "other"
+    NOTE = "note"
+    FOLLOW_UP = "follow_up"
+    STAGE_CHANGE = "stage_change"
 
 
 class SyncStatus(str, enum.Enum):
@@ -48,3 +51,24 @@ class SyncStatus(str, enum.Enum):
     SUCCESS = "success"
     FAILED = "failed"
     PENDING = "pending"
+
+
+class OpportunityStage(str, enum.Enum):
+    """Salesforce-style opportunity pipeline stages (New → Qualified → Demo → Proposal → Negotiation → Won/Lost)."""
+
+    NEW = "new"
+    QUALIFIED = "qualified"
+    DEMO = "demo"
+    PROPOSAL = "proposal"
+    NEGOTIATION = "negotiation"
+    WON = "won"
+    LOST = "lost"
+
+
+class TaskPriority(str, enum.Enum):
+    """Priority level for CRM tasks."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"

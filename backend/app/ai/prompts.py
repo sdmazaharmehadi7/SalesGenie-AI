@@ -163,3 +163,93 @@ CRITICAL RULES:
 - Do NOT wrap JSON inside code fences (no ```json ... ```).
 - Never include preambles or notes outside the JSON object.
 """.strip()
+
+
+# ---------------------------------------------------------------------------
+# 7. DEAL RISK & OPPORTUNITY ANALYSIS PROMPT
+# ---------------------------------------------------------------------------
+DEAL_RISK_PROMPT: str = """
+You are AI-Powered Sales Forecasting Platform Using Predictive Analytics's Senior Deal Strategist.
+Analyze the opportunity context, deal stage, timeline, and interaction history to detect risks and recommend next steps.
+Return strictly valid JSON matching this exact structure:
+
+{
+  "risk_level": "Low / Medium / High / Critical",
+  "conversion_probability": 65,
+  "risk_factors": [
+    "Identified risk factor 1",
+    "Identified risk factor 2"
+  ],
+  "recommendations": [
+    "Recommended tactical action 1",
+    "Recommended tactical action 2"
+  ],
+  "next_best_action": "Specific concrete action the sales rep should take today.",
+  "forecast_contribution": "Likely to close this quarter based on current velocity."
+}
+
+CRITICAL RULES:
+- risk_level MUST be one of: Low, Medium, High, Critical.
+- conversion_probability MUST be an integer between 0 and 100.
+- Return ONLY valid raw JSON.
+- Do NOT wrap JSON inside code fences (no ```json ... ```).
+- Never include preambles or notes outside the JSON object.
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# 8. NEXT BEST ACTION PROMPT
+# ---------------------------------------------------------------------------
+NEXT_BEST_ACTION_PROMPT: str = """
+You are AI-Powered Sales Forecasting Platform Using Predictive Analytics's Sales Execution Coach.
+Evaluate the current lead/opportunity/contact status and recommend the immediate next-best action.
+Return strictly valid JSON matching this exact structure:
+
+{
+  "recommended_action": "Schedule Technical Deep Dive",
+  "rationale": "Clear rationale based on prospect engagement stage.",
+  "urgency": "Immediate / Within 48 Hours / Next Week",
+  "suggested_communication_channel": "Email / Phone / LinkedIn / Video Call",
+  "action_checklist": [
+    "Preparation step 1",
+    "Preparation step 2"
+  ]
+}
+
+CRITICAL RULES:
+- Return ONLY valid raw JSON.
+- Do NOT wrap JSON inside code fences (no ```json ... ```).
+- Never include preambles or notes outside the JSON object.
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# 9. ACCOUNT / COMPANY INSIGHT PROMPT
+# ---------------------------------------------------------------------------
+COMPANY_INSIGHT_PROMPT: str = """
+You are AI-Powered Sales Forecasting Platform Using Predictive Analytics's B2B Company Intelligence Analyst.
+Analyze the company profile, industry, size, and business landscape.
+Return strictly valid JSON matching this exact structure:
+
+{
+  "executive_summary": "Executive overview of the company and market position.",
+  "business_needs": [
+    "High priority business pain point 1",
+    "High priority business pain point 2"
+  ],
+  "sales_opportunities": [
+    "Key value proposition angle 1",
+    "Key value proposition angle 2"
+  ],
+  "industry_trends": [
+    "Industry trend or competitive dynamic 1",
+    "Industry trend or competitive dynamic 2"
+  ],
+  "recommended_pitch_angle": "Tailored pitch angle highlighting fast ROI."
+}
+
+CRITICAL RULES:
+- Return ONLY valid raw JSON.
+- Do NOT wrap JSON inside code fences (no ```json ... ```).
+- Never include preambles or notes outside the JSON object.
+""".strip()

@@ -28,6 +28,9 @@ from app.ai.prompts import (
     FOLLOWUP_PROMPT,
     LEAD_QUALITY_PROMPT,
     OBJECTION_PROMPT,
+    DEAL_RISK_PROMPT,
+    NEXT_BEST_ACTION_PROMPT,
+    COMPANY_INSIGHT_PROMPT,
 )
 
 logger = logging.getLogger(__name__)
@@ -326,3 +329,101 @@ def handle_objection(
         capability_name="objection",
     )
     return data, model
+
+
+def analyze_deal_risk(
+    deal_name: str,
+    stage: str,
+    amount: float | None = None,
+    expected_close_date: str | None = None,
+    recent_interactions: str | None = None,
+    notes: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Analyze deal risk & opportunity health using Gemini."""
+    prompt_parts = [
+        f"Deal Name: {deal_name}",
+        f"Stage: {stage}",
+    ]
+    if amount is not None:
+        prompt_parts.append(f"Deal Amount: ${amount:,.2f}")
+    if expected_close_date:
+        prompt_parts.append(f"Expected Close Date: {expected_close_date}")
+    if notes:
+        prompt_parts.append(f"Deal Notes: {notes}")
+    if recent_interactions:
+        prompt_parts.append(f"Recent Activities / Interactions:\n{recent_interactions}")
+
+    user_query = "\n".join(prompt_parts)
+    data, model = get_ai_response(
+        user_message=user_query,
+        system_prompt=DEAL_RISK_PROMPT,
+        capability_name="deal-risk",
+    )
+
+    if not isinstance(data.get("risk_factors"), list):
+        data["risk_factors"] = [str(data.get("risk_factors", ""))]
+    if not isinstance(data.get("recommendations"), list):
+        data["recommendations"] = [str(data.get("recommendations", ""))]
+
+    return data, model
+
+
+def get_next_best_action(
+    context_type: str,
+    entity_name: str,
+    current_status: str,
+    timeline_summary: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Get AI recommendation for next-best action on a lead/contact/deal."""
+    prompt_parts = [
+        f"Context: {context_type}",
+        f"Entity Name: {entity_name}",
+        f"Current Status / Stage: {current_status}",
+    ]
+    if timeline_summary:
+        prompt_parts.append(f"Recent Context / Timeline:\n{timeline_summary}")
+
+    user_query = "\n".join(prompt_parts)
+    data, model = get_ai_response(
+        user_message=user_query,
+        system_prompt=NEXT_BEST_ACTION_PROMPT,
+        capability_name="next-best-action",
+    )
+
+    if not isinstance(data.get("action_checklist"), list):
+        data["action_checklist"] = []
+
+    return data, model
+
+
+def generate_company_intelligence(
+    company_name: str,
+    industry: str | None = None,
+    website: str | None = None,
+    company_size: str | None = None,
+    description: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Generate in-depth B2B company intelligence and pain points."""
+    prompt_parts = [f"Company Name: {company_name}"]
+    if industry:
+        prompt_parts.append(f"Industry: {industry}")
+    if website:
+        prompt_parts.append(f"Website: {website}")
+    if company_size:
+        prompt_parts.append(f"Company Size: {company_size}")
+    if description:
+        prompt_parts.append(f"Company Description: {description}")
+
+    user_query = "\n".join(prompt_parts)
+    data, model = get_ai_response(
+        user_message=user_query,
+        system_prompt=COMPANY_INSIGHT_PROMPT,
+        capability_name="company-intelligence",
+    )
+
+    for list_field in ("business_needs", "sales_opportunities", "industry_trends"):
+        if not isinstance(data.get(list_field), list):
+            data[list_field] = [str(data.get(list_field, ""))]
+
+    return data, model
+
