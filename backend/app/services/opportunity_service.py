@@ -1,4 +1,4 @@
-"""Opportunity service — business logic for CRM Opportunities and Sales Pipeline."""
+"""Opportunity service — business logic for CRM Opportunities and Sales Pipeline with multi-user isolation."""
 
 import uuid
 from decimal import Decimal
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.models.opportunity import Opportunity
 from app.models.pipeline_enums import InteractionType, OpportunityStage
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.repositories.opportunity_repository import OpportunityRepository
 from app.repositories.sales_interaction_repository import SalesInteractionRepository
 from app.schemas.opportunity import (
@@ -31,6 +31,14 @@ STAGE_NAMES = {
     OpportunityStage.LOST: "Closed Lost",
 }
 
+UNRESTRICTED_ROLES = {UserRole.ADMIN, UserRole.SALES_MANAGER, UserRole.REVOPS}
+
+
+def _resolve_owner_id(current_user: User, requested_owner_id: uuid.UUID | None = None) -> uuid.UUID | None:
+    if current_user.role in UNRESTRICTED_ROLES:
+        return requested_owner_id
+    return current_user.id
+
 
 class OpportunityService:
     def __init__(self, db: AsyncSession) -> None:
@@ -41,7 +49,8 @@ class OpportunityService:
     async def create_opportunity(
         self, opp_in: OpportunityCreate, current_user: User
     ) -> Opportunity:
-        opp = await self.opportunities.create(opp_in, owner_id=opp_in.owner_id or current_user.id)
+        owner_id = opp_in.owner_id if (current_user.role in UNRESTRICTED_ROLES and opp_in.owner_id) else current_user.id
+        opp = await self.opportunities.create(opp_in, owner_id=owner_id)
         # Log initial creation activity
         await self.interactions.create(
             SalesInteractionCreate(
@@ -60,6 +69,11 @@ class OpportunityService:
         opp = await self.opportunities.get_by_id(opportunity_id)
         if opp is None:
             raise NotFoundError("Opportunity not found.", error_code="opportunity_not_found")
+
+        # Multi-user data isolation check
+        if current_user.role not in UNRESTRICTED_ROLES and opp.owner_id != current_user.id:
+            raise NotFoundError("Opportunity not found.", error_code="opportunity_not_found")
+
         return opp
 
     async def update_opportunity(
@@ -116,10 +130,11 @@ class OpportunityService:
         search: str | None = None,
         owner_id: uuid.UUID | None = None,
     ) -> tuple[list[Opportunity], int]:
+        effective_owner = _resolve_owner_id(current_user, owner_id)
         return await self.opportunities.list_opportunities(
             offset=offset,
             limit=limit,
-            owner_id=owner_id,
+            owner_id=effective_owner,
             account_id=account_id,
             contact_id=contact_id,
             stage=stage,
@@ -131,7 +146,8 @@ class OpportunityService:
         current_user: User,
         owner_id: uuid.UUID | None = None,
     ) -> PipelineBoardView:
-        all_deals = await self.opportunities.get_pipeline_deals(owner_id=owner_id)
+        effective_owner = _resolve_owner_id(current_user, owner_id)
+        all_deals = await self.opportunities.get_pipeline_deals(owner_id=effective_owner)
 
         # Group by stage
         stage_map: dict[OpportunityStage, list[OpportunityListItem]] = {

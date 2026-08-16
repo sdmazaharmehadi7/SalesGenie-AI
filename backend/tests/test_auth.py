@@ -63,3 +63,24 @@ async def test_refresh_rejects_garbage_token() -> None:
             "/api/v1/auth/refresh", json={"refresh_token": "not-a-real-token"}
         )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_google_config_endpoint() -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/auth/google/config")
+    assert response.status_code == 200
+    assert "client_id" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_google_auth_rejects_empty_payload() -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/auth/google",
+            json={},
+        )
+    assert response.status_code == 401
+

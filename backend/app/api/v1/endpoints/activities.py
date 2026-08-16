@@ -10,7 +10,11 @@ from app.schemas.sales_interaction import (
     SalesInteractionCreate,
     SalesInteractionRead,
 )
+from app.services.account_service import AccountService
 from app.services.activity_service import ActivityService
+from app.services.contact_service import ContactService
+from app.services.lead_service import LeadService
+from app.services.opportunity_service import OpportunityService
 
 router = APIRouter()
 
@@ -19,6 +23,16 @@ router = APIRouter()
 async def log_activity(
     activity_in: SalesInteractionCreate, db: DBSession, current_user: CurrentActiveUser
 ) -> SalesInteractionRead:
+    # Verify entity ownership if provided
+    if activity_in.lead_id:
+        await LeadService(db).get_lead(activity_in.lead_id, current_user)
+    if activity_in.account_id:
+        await AccountService(db).get_account(activity_in.account_id, current_user)
+    if activity_in.contact_id:
+        await ContactService(db).get_contact(activity_in.contact_id, current_user)
+    if activity_in.opportunity_id:
+        await OpportunityService(db).get_opportunity(activity_in.opportunity_id, current_user)
+
     activity = await ActivityService(db).log_activity(activity_in, current_user)
     return SalesInteractionRead.model_validate(activity)
 
@@ -33,7 +47,17 @@ async def list_activities(
     opportunity_id: uuid.UUID | None = None,
     limit: int = 50,
 ) -> list[ActivityListItem]:
+    if lead_id:
+        await LeadService(db).get_lead(lead_id, current_user)
+    if account_id:
+        await AccountService(db).get_account(account_id, current_user)
+    if contact_id:
+        await ContactService(db).get_contact(contact_id, current_user)
+    if opportunity_id:
+        await OpportunityService(db).get_opportunity(opportunity_id, current_user)
+
     activities = await ActivityService(db).get_timeline(
+        current_user,
         lead_id=lead_id,
         contact_id=contact_id,
         account_id=account_id,

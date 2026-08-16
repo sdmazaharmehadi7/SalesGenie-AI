@@ -1,4 +1,4 @@
-"""Contact service — business logic for CRM Contacts."""
+"""Contact service — business logic for CRM Contacts with multi-user data isolation."""
 
 import uuid
 
@@ -6,9 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models.contact import Contact
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.repositories.contact_repository import ContactRepository
 from app.schemas.contact import ContactCreate, ContactUpdate
+
+UNRESTRICTED_ROLES = {UserRole.ADMIN, UserRole.SALES_MANAGER, UserRole.REVOPS}
+
+
+def _resolve_owner_id(current_user: User, requested_owner_id: uuid.UUID | None = None) -> uuid.UUID | None:
+    if current_user.role in UNRESTRICTED_ROLES:
+        return requested_owner_id
+    return current_user.id
 
 
 class ContactService:
@@ -17,7 +25,8 @@ class ContactService:
         self.contacts = ContactRepository(db)
 
     async def create_contact(self, contact_in: ContactCreate, current_user: User) -> Contact:
-        contact = await self.contacts.create(contact_in, owner_id=contact_in.owner_id or current_user.id)
+        owner_id = contact_in.owner_id if (current_user.role in UNRESTRICTED_ROLES and contact_in.owner_id) else current_user.id
+        contact = await self.contacts.create(contact_in, owner_id=owner_id)
         await self.db.commit()
         return contact
 
@@ -25,6 +34,11 @@ class ContactService:
         contact = await self.contacts.get_by_id(contact_id)
         if contact is None:
             raise NotFoundError("Contact not found.", error_code="contact_not_found")
+
+        # Multi-user data isolation check
+        if current_user.role not in UNRESTRICTED_ROLES and contact.owner_id != current_user.id:
+            raise NotFoundError("Contact not found.", error_code="contact_not_found")
+
         return contact
 
     async def update_contact(
@@ -51,10 +65,11 @@ class ContactService:
         search: str | None = None,
         owner_id: uuid.UUID | None = None,
     ) -> tuple[list[Contact], int]:
+        effective_owner = _resolve_owner_id(current_user, owner_id)
         return await self.contacts.list_contacts(
             offset=offset,
             limit=limit,
-            owner_id=owner_id,
+            owner_id=effective_owner,
             account_id=account_id,
             lead_id=lead_id,
             search=search,

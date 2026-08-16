@@ -67,6 +67,7 @@ class TaskRepository:
         *,
         offset: int = 0,
         limit: int = 50,
+        user_id: uuid.UUID | None = None,
         assigned_to: uuid.UUID | None = None,
         is_completed: bool | None = None,
         priority: TaskPriority | None = None,
@@ -77,8 +78,12 @@ class TaskRepository:
         search: str | None = None,
     ) -> tuple[list[Task], int]:
         filters = []
-        if assigned_to is not None:
+        if user_id is not None:
+            # Match either assigned to or created by user
+            filters.append(or_(Task.assigned_to == user_id, Task.created_by == user_id))
+        elif assigned_to is not None:
             filters.append(Task.assigned_to == assigned_to)
+
         if is_completed is not None:
             filters.append(Task.is_completed == is_completed)
         if priority is not None:
@@ -123,10 +128,13 @@ class TaskRepository:
     async def list_upcoming(
         self,
         assigned_to: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
         limit: int = 10,
     ) -> list[Task]:
         query = select(Task).where(Task.is_completed == False)  # noqa: E712
-        if assigned_to is not None:
+        if user_id is not None:
+            query = query.where(or_(Task.assigned_to == user_id, Task.created_by == user_id))
+        elif assigned_to is not None:
             query = query.where(Task.assigned_to == assigned_to)
 
         result = await self.db.execute(

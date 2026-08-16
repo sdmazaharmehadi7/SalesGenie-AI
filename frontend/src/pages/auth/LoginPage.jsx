@@ -4,6 +4,7 @@ import api from '@/services/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import AuthLayout from '@/components/auth/AuthLayout'
+import GoogleAuthButton from '@/components/auth/GoogleAuthButton'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
@@ -58,7 +59,23 @@ function LoginPage() {
 
   return (
     <AuthLayout subtitle="Enter your details to access your workspace." title="Welcome back">
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      {/* Continue with Google */}
+      <div className="space-y-4">
+        <GoogleAuthButton
+          mode="signin"
+          redirectTo={from}
+          onError={(msg) => setError(msg)}
+        />
+
+        <div className="relative flex items-center justify-center">
+          <div className="w-full border-t border-line-default" />
+          <span className="relative bg-surface-canvas px-3 text-xs font-medium uppercase tracking-wider text-ink-muted">
+            Or continue with email
+          </span>
+        </div>
+      </div>
+
+      <form className="mt-5 space-y-5" onSubmit={handleSubmit}>
         <Input
           autoComplete="email"
           label="Work email"
@@ -97,7 +114,7 @@ function LoginPage() {
         )}
 
         <Button className="w-full" disabled={loading} type="submit">
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? 'Signing in…' : 'Sign in with Email'}
         </Button>
       </form>
       <p className="mt-8 text-center text-sm text-ink-muted">

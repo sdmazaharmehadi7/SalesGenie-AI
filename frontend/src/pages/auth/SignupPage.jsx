@@ -4,6 +4,7 @@ import api from '@/services/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import AuthLayout from '@/components/auth/AuthLayout'
+import GoogleAuthButton from '@/components/auth/GoogleAuthButton'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
@@ -75,7 +76,23 @@ function SignupPage() {
 
   return (
     <AuthLayout subtitle="Start organizing your sales work in one place." title="Create your account">
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      {/* Sign up with Google */}
+      <div className="space-y-4">
+        <GoogleAuthButton
+          mode="signup"
+          redirectTo="/dashboard"
+          onError={(msg) => setError(msg)}
+        />
+
+        <div className="relative flex items-center justify-center">
+          <div className="w-full border-t border-line-default" />
+          <span className="relative bg-surface-canvas px-3 text-xs font-medium uppercase tracking-wider text-ink-muted">
+            Or register with email
+          </span>
+        </div>
+      </div>
+
+      <form className="mt-5 space-y-5" onSubmit={handleSubmit}>
         <Input
           autoComplete="name"
           label="Full name"
@@ -123,7 +140,7 @@ function SignupPage() {
         )}
 
         <Button className="w-full" disabled={loading} type="submit">
-          {loading ? 'Creating account…' : 'Create account'}
+          {loading ? 'Creating account…' : 'Create account with Email'}
         </Button>
       </form>
       <p className="mt-8 text-center text-sm text-ink-muted">

@@ -65,3 +65,12 @@ class TokenRefreshRequest(BaseModel):
 class AccessTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class GoogleAuthRequest(BaseModel):
+    """Payload for Google OAuth 2.0 / OpenID Connect login."""
+    credential: str | None = Field(default=None, description="Google ID Token from Google Identity Services")
+    id_token: str | None = Field(default=None, description="Google ID Token alias")
+    code: str | None = Field(default=None, description="Google Authorization Code")
+    redirect_uri: str | None = Field(default=None, description="Redirect URI used for authorization code")
+

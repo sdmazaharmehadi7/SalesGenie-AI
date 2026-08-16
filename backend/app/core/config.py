@@ -129,8 +129,12 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
 
     # ------------------------------------------------------------------
-    # Calendar integration (meeting scheduling from a lead/interaction)
+    # Calendar & Google OAuth integration
     # ------------------------------------------------------------------
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str | None = "http://localhost:5173/auth/google/callback"
+
     CALENDAR_PROVIDER: str = "mock"  # mock | google
     GOOGLE_CALENDAR_ACCESS_TOKEN: str | None = None
     GOOGLE_CALENDAR_ID: str = "primary"

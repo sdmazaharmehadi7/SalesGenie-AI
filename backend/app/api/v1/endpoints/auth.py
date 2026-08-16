@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import CurrentActiveUser, DBSession
-from app.schemas.user import Token, TokenRefreshRequest, UserCreate, UserRead
+from app.core.config import settings
+from app.schemas.user import GoogleAuthRequest, Token, TokenRefreshRequest, UserCreate, UserRead
 from app.services.auth_service import AuthService
 
 router = APIRouter()
@@ -46,6 +47,29 @@ async def login(
 
 
 @router.post(
+    "/google",
+    response_model=Token,
+    summary="Authenticate or register using Google OAuth / OpenID Connect",
+)
+async def google_auth(
+    payload: GoogleAuthRequest,
+    db: DBSession,
+) -> Token:
+    """Verify Google token, log in existing user or create a new user account, return SalesGenie JWT tokens."""
+    return await AuthService(db).google_authenticate(payload)
+
+
+@router.get(
+    "/google/config",
+    summary="Get Google OAuth client configuration for frontend initialization",
+)
+async def get_google_config() -> dict[str, str | None]:
+    return {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+    }
+
+
+@router.post(
     "/refresh",
     response_model=Token,
     summary="Exchange a refresh token for a new access + refresh token pair",
@@ -61,3 +85,4 @@ async def refresh(payload: TokenRefreshRequest, db: DBSession) -> Token:
 )
 async def read_current_user(current_user: CurrentActiveUser) -> UserRead:
     return UserRead.model_validate(current_user)
+
