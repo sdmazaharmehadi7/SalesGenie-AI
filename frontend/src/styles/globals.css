@@ -2,6 +2,236 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design token CSS variables (light theme defaults) ─────────────────────
+   These are read by tailwind.config.js via var(--*) so all Tailwind utility
+   classes that reference surface/ink/line/accent automatically pick up the
+   right value at runtime.                                                    */
+:root {
+  /* Surface */
+  --surface-canvas:  #f8fafc;
+  --surface-default: #ffffff;
+  --surface-muted:   #f1f5f9;
+  --surface-subtle:  #f8fafc;
+  --surface-inverse: #111827;
+
+  /* Ink (text) */
+  --ink-primary:   #111827;
+  --ink-secondary: #475569;
+  --ink-muted:     #64748b;
+  --ink-disabled:  #94a3b8;
+  --ink-inverse:   #ffffff;
+
+  /* Lines / borders */
+  --line-default: #e2e8f0;
+  --line-strong:  #cbd5e1;
+  --line-focus:   #5c91f6;
+
+  /* Accent (brand) — default: blue. Overridden at runtime by AppearanceContext */
+  --accent-50:  #eef4ff;
+  --accent-100: #d9e6ff;
+  --accent-200: #bcd4ff;
+  --accent-300: #8eb8ff;
+  --accent-400: #5c91f6;
+  --accent-500: #3b6eea;
+  --accent-600: #2f56c9;
+  --accent-700: #2947a3;
+}
+
+/* ─── Dark theme token overrides (Isabel Moranta — Editorial Minimalism) ─────
+   Warm charcoal/dark editorial paper aesthetic: quiet, calm, sophisticated,
+   highly readable, and focused on the user's work.                            */
+.dark {
+  /* Surface — Warm near-black charcoal tones (editorial paper feel) */
+  --surface-canvas:  #131416; /* Main page paper background */
+  --surface-default: #1a1b1e; /* Cards, panels, sidebar, header */
+  --surface-muted:   #232428; /* Table headers, secondary rows, subtle controls */
+  --surface-subtle:  #161719; /* Inset areas, subdued viewports */
+  --surface-inverse: #f3f4f6; /* Inverted elements */
+
+  /* Ink (Typography) — Crisp, warm editorial hierarchy */
+  --ink-primary:   #ededef; /* Clean, calm, high readability */
+  --ink-secondary: #9ea0a8; /* Muted warm gray for secondary text */
+  --ink-muted:     #6f717b; /* Calm metadata, dates, labels */
+  --ink-disabled:  #474952; /* Disabled state */
+  --ink-inverse:   #131416; /* Text on inverted elements */
+
+  /* Lines & Dividers — Extremely subtle, quiet dividers */
+  --line-default: #26272c; /* Subtle card & row borders */
+  --line-strong:  #34363e; /* Active borders, input borders */
+  --line-focus:   #3b6eea; /* Clean SalesGenie blue focus outline */
+
+  /* Subtle minimal shadows in dark mode (no floating neon boxes) */
+  --shadow-xs:       0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-card:     0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-floating: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-overlay:  0 12px 32px rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
+}
+
+/* ─── Editorial Dark Mode Status Badges & Pills ──────────────────────────────
+   Ensures standard status badges become quiet, translucent editorial badges
+   in dark mode without needing page-by-page overrides.                        */
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: rgba(22, 163, 74, 0.12) !important;
+}
+.dark .text-emerald-600,
+.dark .text-emerald-700,
+.dark .text-emerald-800 {
+  color: #4ade80 !important;
+}
+.dark .ring-emerald-100,
+.dark .border-emerald-200 {
+  --tw-ring-color: rgba(74, 222, 128, 0.2) !important;
+  border-color: rgba(74, 222, 128, 0.2) !important;
+}
+
+.dark .bg-red-50,
+.dark .bg-red-100 {
+  background-color: rgba(220, 38, 38, 0.12) !important;
+}
+.dark .text-red-600,
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: #f87171 !important;
+}
+.dark .ring-red-100,
+.dark .border-red-100,
+.dark .border-red-200,
+.dark .border-red-300 {
+  --tw-ring-color: rgba(248, 113, 113, 0.2) !important;
+  border-color: rgba(248, 113, 113, 0.2) !important;
+}
+
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: rgba(217, 119, 6, 0.12) !important;
+}
+.dark .text-amber-600,
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  color: #fbbf24 !important;
+}
+.dark .ring-amber-100,
+.dark .border-amber-200 {
+  --tw-ring-color: rgba(251, 191, 36, 0.2) !important;
+  border-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+.dark .bg-violet-50,
+.dark .bg-violet-100 {
+  background-color: rgba(124, 58, 237, 0.12) !important;
+}
+.dark .text-violet-600,
+.dark .text-violet-700,
+.dark .text-violet-800 {
+  color: #a78bfa !important;
+}
+.dark .ring-violet-100,
+.dark .border-violet-200 {
+  --tw-ring-color: rgba(167, 139, 250, 0.2) !important;
+  border-color: rgba(167, 139, 250, 0.2) !important;
+}
+
+.dark .bg-sky-50,
+.dark .bg-sky-100 {
+  background-color: rgba(14, 165, 233, 0.12) !important;
+}
+.dark .text-sky-600,
+.dark .text-sky-700,
+.dark .text-sky-800 {
+  color: #38bdf8 !important;
+}
+.dark .ring-sky-100,
+.dark .border-sky-200 {
+  --tw-ring-color: rgba(56, 189, 248, 0.2) !important;
+  border-color: rgba(56, 189, 248, 0.2) !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: rgba(148, 163, 184, 0.1) !important;
+}
+.dark .text-slate-600,
+.dark .text-slate-700 {
+  color: #94a3b8 !important;
+}
+.dark .ring-slate-200 {
+  --tw-ring-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+/* ─── Dark Mode Charts (Recharts) ───────────────────────────────────────────
+   Editorial calm styling for chart axes, tooltips, and grid lines.            */
+.dark .recharts-cartesian-grid line {
+  stroke: #26272c !important;
+}
+.dark .recharts-text,
+.dark .recharts-label {
+  fill: #8a8c96 !important;
+}
+.dark .recharts-default-tooltip {
+  background-color: #1a1b1e !important;
+  border: 1px solid #282a30 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+  color: #ededef !important;
+}
+.dark .recharts-tooltip-item {
+  color: #d1d5db !important;
+}
+.dark .recharts-tooltip-label {
+  color: #9ea0a8 !important;
+}
+
+/* ─── Density spacing ─────────────────────────────────────────────────────────
+   Applied via data-density attribute on <html> by AppearanceContext.        */
+[data-density='compact'] {
+  --density-scale: 0.8;
+}
+[data-density='comfortable'] {
+  --density-scale: 1;
+}
+[data-density='spacious'] {
+  --density-scale: 1.2;
+}
+
+/* Compact: reduce main content padding and card padding */
+[data-density='compact'] #main-content {
+  padding: 0.75rem;
+}
+[data-density='compact'] .card {
+  padding: 0.875rem;
+}
+[data-density='spacious'] #main-content {
+  padding: 2rem;
+}
+[data-density='spacious'] .card {
+  padding: 1.75rem;
+}
+
+/* ─── Animation disabling ────────────────────────────────────────────────────
+   data-animations="false" or prefers-reduced-motion stops all transitions.  */
+[data-animations='false'] *,
+[data-animations='false'] *::before,
+[data-animations='false'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   *,
   ::before,
@@ -91,3 +321,4 @@
     @apply card border-transparent shadow-floating;
   }
 }
+

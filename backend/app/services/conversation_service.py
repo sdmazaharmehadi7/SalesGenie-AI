@@ -55,7 +55,7 @@ class ConversationService:
             action_items=raw_result.get("action_items", []),
         )
 
-        interaction = await self.interactions.create(lead.id, interaction_in)
+        interaction = await self.interactions.create(interaction_in, lead.id)
         await self.db.commit()
         return interaction
 
@@ -64,7 +64,7 @@ class ConversationService:
     ) -> SalesInteraction:
         """Log an interaction directly (summary/action items already known — no AI call)."""
         lead = await self.lead_service.get_lead(lead_id, current_user)
-        interaction = await self.interactions.create(lead.id, interaction_in)
+        interaction = await self.interactions.create(interaction_in, lead.id)
         await self.db.commit()
         return interaction
 

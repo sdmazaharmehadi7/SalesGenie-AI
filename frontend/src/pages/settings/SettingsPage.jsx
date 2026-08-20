@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAppearance } from '@/context/AppearanceContext'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 
@@ -191,17 +192,29 @@ function Divider() {
   return <div className="border-t border-line-default" />
 }
 
-function SaveBar({ onSave, saved }) {
+function SaveBar({ onSave, onDiscard, saved, hasUnsaved = true, disabled = false }) {
   return (
     <div className="flex items-center justify-between rounded-card border border-line-default bg-surface-default px-4 py-3 shadow-card">
       <p className="text-sm text-ink-muted">
         {saved
           ? <span className="flex items-center gap-1.5 text-emerald-600 font-medium"><Icon className="size-4" d={ICONS.check} /> Changes saved</span>
-          : 'You have unsaved changes'}
+          : (hasUnsaved ? 'You have unsaved changes' : 'All changes saved')}
       </p>
       <div className="flex gap-2">
-        <button className="btn btn-secondary btn-sm" type="button">Discard</button>
-        <button className="btn btn-primary btn-sm" onClick={onSave} type="button">
+        <button
+          className="btn btn-secondary btn-sm"
+          disabled={!hasUnsaved && !saved}
+          onClick={onDiscard}
+          type="button"
+        >
+          Discard
+        </button>
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={(!hasUnsaved && !saved) || disabled}
+          onClick={onSave}
+          type="button"
+        >
           <Icon className="size-4" d={ICONS.save} /> Save changes
         </button>
       </div>
@@ -614,12 +627,31 @@ function SecuritySection() {
 
 // ─── Section: Appearance ──────────────────────────────────────────────────────
 function AppearanceSection() {
-  const [theme, setTheme] = useState('light')
-  const [density, setDensity] = useState('comfortable')
-  const [accent, setAccent] = useState('blue')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [animationsEnabled, setAnimationsEnabled] = useState(true)
-  const [saved, setSaved] = useState(false)
+  const {
+    theme,
+    accent,
+    density,
+    sidebarCollapsed,
+    animations,
+    hasUnsaved,
+    change,
+    saveAll,
+    discard,
+  } = useAppearance()
+  const { showToast } = useToast()
+  const [justSaved, setJustSaved] = useState(false)
+
+  const handleSave = () => {
+    saveAll()
+    setJustSaved(true)
+    showToast('Appearance settings saved!', 'success')
+    setTimeout(() => setJustSaved(false), 2500)
+  }
+
+  const handleDiscard = () => {
+    discard()
+    showToast('Appearance changes discarded', 'info')
+  }
 
   const themes = [
     { id: 'light', label: 'Light', icon: 'sun' },
@@ -635,11 +667,11 @@ function AppearanceSection() {
 
   const accents = [
     { id: 'blue',   color: '#3b6eea', label: 'Blue'   },
-    { id: 'violet', color: '#7c3aed', label: 'Violet' },
-    { id: 'emerald',color: '#16a36a', label: 'Emerald'},
-    { id: 'rose',   color: '#e11d48', label: 'Rose'   },
-    { id: 'amber',  color: '#d97706', label: 'Amber'  },
-    { id: 'slate',  color: '#64748b', label: 'Slate'  },
+    { id: 'purple', color: '#7c3aed', label: 'Purple' },
+    { id: 'green',  color: '#16a34a', label: 'Green'  },
+    { id: 'red',    color: '#e11d48', label: 'Red'    },
+    { id: 'orange', color: '#ea580c', label: 'Orange' },
+    { id: 'gray',   color: '#64748b', label: 'Gray'   },
   ]
 
   return (
@@ -652,15 +684,15 @@ function AppearanceSection() {
               className={[
                 'flex flex-col items-center gap-2 rounded-card border-2 p-4 transition-colors',
                 theme === t.id
-                  ? 'border-brand-500 bg-brand-50'
-                  : 'border-line-default bg-surface-default hover:border-line-strong',
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-line-default bg-surface-default text-ink-secondary hover:border-line-strong',
               ].join(' ')}
               key={t.id}
-              onClick={() => { setTheme(t.id); setSaved(false) }}
+              onClick={() => change('theme')(t.id)}
               type="button"
             >
-              <Icon className="size-5 text-ink-secondary" d={ICONS[t.icon]} />
-              <span className={['text-xs font-medium', theme === t.id ? 'text-brand-700' : 'text-ink-secondary'].join(' ')}>
+              <Icon className="size-5" d={ICONS[t.icon]} />
+              <span className="text-xs font-medium">
                 {t.label}
               </span>
               {theme === t.id && (
@@ -682,7 +714,7 @@ function AppearanceSection() {
                 accent === a.id ? 'ring-ink-primary scale-110' : 'ring-transparent hover:ring-ink-muted',
               ].join(' ')}
               key={a.id}
-              onClick={() => { setAccent(a.id); setSaved(false) }}
+              onClick={() => change('accent')(a.id)}
               style={{ backgroundColor: a.color }}
               title={a.label}
               type="button"
@@ -709,7 +741,7 @@ function AppearanceSection() {
                   : 'border-line-default text-ink-secondary hover:border-line-strong',
               ].join(' ')}
               key={d.id}
-              onClick={() => { setDensity(d.id); setSaved(false) }}
+              onClick={() => change('density')(d.id)}
               type="button"
             >
               {d.label}
@@ -724,20 +756,27 @@ function AppearanceSection() {
           description="Collapse the sidebar to icon-only mode by default."
           id="sidebar-collapsed"
           label="Collapsed sidebar by default"
-          onChange={() => { setSidebarCollapsed(!sidebarCollapsed); setSaved(false) }}
+          onChange={change('sidebarCollapsed')}
         />
 
         <Divider />
 
         <ToggleRow
-          checked={animationsEnabled}
+          checked={animations}
           description="Disable to improve performance on lower-end devices."
           id="animations"
           label="Enable animations"
-          onChange={() => { setAnimationsEnabled(!animationsEnabled); setSaved(false) }}
+          onChange={change('animations')}
         />
       </SectionCard>
-      <SaveBar onSave={() => setSaved(true)} saved={saved} />
+
+      <SaveBar
+        disabled={!hasUnsaved}
+        hasUnsaved={hasUnsaved}
+        onDiscard={handleDiscard}
+        onSave={handleSave}
+        saved={justSaved}
+      />
     </div>
   )
 }

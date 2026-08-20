@@ -16,12 +16,12 @@ from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import ConflictError, ServiceUnavailableError, UnauthorizedError
+from app.core.exceptions import ConflictError, ServiceUnavailableError, UnauthorizedError, ValidationAppError
 from app.core.logging import get_logger
 from app.core.security import TokenType, create_token, decode_token, hash_password, verify_password
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import GoogleAuthRequest, Token, UserCreate
+from app.schemas.user import ChangePasswordRequest, GoogleAuthRequest, Token, UserCreate
 
 logger = get_logger(__name__)
 
@@ -60,6 +60,32 @@ class AuthService:
     async def login(self, email: str, password: str) -> Token:
         user = await self.authenticate(email, password)
         return self._issue_tokens(user)
+
+    async def change_password(
+        self,
+        user: User,
+        payload: ChangePasswordRequest,
+    ) -> None:
+        """
+        Verify the user's current password, then replace it with a bcrypt hash
+        of the new password. Never stores plaintext; rejects incorrect current
+        passwords and same-as-current new passwords at the service layer.
+        """
+        if not verify_password(payload.current_password, user.hashed_password):
+            raise UnauthorizedError(
+                "Current password is incorrect.",
+                error_code="invalid_current_password",
+            )
+        # Guard: new password must differ from current (also enforced in schema)
+        if verify_password(payload.new_password, user.hashed_password):
+            raise ValidationAppError(
+                "New password must be different from your current password.",
+                error_code="same_password",
+            )
+        user.hashed_password = hash_password(payload.new_password)
+        await self.db.commit()
+        logger.info("Password changed for user %s", user.id)
+
 
     async def refresh_access_token(self, refresh_token: str) -> Token:
         try:

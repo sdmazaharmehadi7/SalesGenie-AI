@@ -29,3 +29,19 @@ export const getGoogleAuthConfig = async () => {
   const response = await api.get("/auth/google/config");
   return response.data;
 };
+
+/**
+ * Change the authenticated user's password.
+ * The bearer token is automatically injected by the Axios request interceptor.
+ *
+ * @param {{ currentPassword: string, newPassword: string, confirmPassword: string }} payload
+ * @returns {Promise<{ message: string }>}
+ */
+export const changePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+  const response = await api.post("/auth/change-password", {
+    current_password: currentPassword,
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  });
+  return response.data;
+};

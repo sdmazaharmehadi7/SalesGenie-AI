@@ -1,18 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Activity,
   Award,
   Briefcase,
   Building2,
+  Eye,
+  EyeOff,
+  Lock,
   Mail,
   ShieldCheck,
   User,
+  X,
 } from 'lucide-react'
 
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { getDashboardSummary } from '@/services/api/dashboard'
-import { useEffect } from 'react'
+import { changePassword } from '@/services/api/auth'
 
 /** Returns up to 2 uppercase initials from a name string. */
 function getInitials(name) {
@@ -29,9 +33,282 @@ const ROLE_LABELS = {
   manager: 'Manager',
 }
 
+// ─── Password field with show/hide toggle ────────────────────────────────────
+function PasswordField({ id, label, value, onChange, error, placeholder, autoComplete }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-ink-secondary" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          aria-describedby={error ? `${id}-error` : undefined}
+          aria-invalid={!!error}
+          autoComplete={autoComplete}
+          className={[
+            'input pr-10',
+            error ? 'border-danger focus:border-danger focus:ring-red-100' : '',
+          ].join(' ')}
+          id={id}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || ''}
+          type={show ? 'text' : 'password'}
+          value={value}
+        />
+        <button
+          aria-label={show ? 'Hide password' : 'Show password'}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary"
+          onClick={() => setShow((s) => !s)}
+          tabIndex={-1}
+          type="button"
+        >
+          {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
+      {error && (
+        <p className="text-xs text-danger" id={`${id}-error`} role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Change Password Modal ────────────────────────────────────────────────────
+function ChangePasswordModal({ onClose }) {
+  const { showToast } = useToast()
+  const [fields, setFields] = useState({ current: '', next: '', confirm: '' })
+  const [errors, setErrors] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const dialogRef = useRef(null)
+
+  // Trap focus / close on Escape
+  useEffect(() => {
+    const el = dialogRef.current
+    if (el) el.focus()
+    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  const set = (key) => (val) => {
+    setFields((f) => ({ ...f, [key]: val }))
+    setErrors((e) => ({ ...e, [key]: '', form: '' }))
+  }
+
+  function validate() {
+    const errs = {}
+    if (!fields.current) errs.current = 'Current password is required.'
+    if (!fields.next) {
+      errs.next = 'New password is required.'
+    } else if (fields.next.length < 8) {
+      errs.next = 'New password must be at least 8 characters.'
+    } else if (!/\d/.test(fields.next)) {
+      errs.next = 'New password must contain at least one digit.'
+    } else if (!/[a-zA-Z]/.test(fields.next)) {
+      errs.next = 'New password must contain at least one letter.'
+    } else if (fields.next === fields.current) {
+      errs.next = 'New password must differ from your current password.'
+    }
+    if (!fields.confirm) {
+      errs.confirm = 'Please confirm your new password.'
+    } else if (fields.confirm !== fields.next) {
+      errs.confirm = 'Passwords do not match.'
+    }
+    return errs
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+
+    setLoading(true)
+    setErrors({})
+    try {
+      await changePassword({
+        currentPassword: fields.current,
+        newPassword: fields.next,
+        confirmPassword: fields.confirm,
+      })
+      setSuccess(true)
+      showToast('Password changed successfully!', 'success')
+      setTimeout(onClose, 1200)
+    } catch (err) {
+      const detail = err?.response?.data?.detail
+      // detail can be a string or an array of Pydantic validation errors
+      let msg = 'Something went wrong. Please try again.'
+      if (typeof detail === 'string') {
+        msg = detail
+        // Map known error codes to field-level errors
+        if (err?.response?.data?.error_code === 'invalid_current_password') {
+          setErrors({ current: 'Current password is incorrect.' })
+          return
+        }
+        if (err?.response?.data?.error_code === 'same_password') {
+          setErrors({ next: msg })
+          return
+        }
+      } else if (Array.isArray(detail)) {
+        // Pydantic v2 validation errors
+        const fieldMap = { current_password: 'current', new_password: 'next', confirm_password: 'confirm' }
+        const mapped = {}
+        detail.forEach((d) => {
+          const loc = d.loc?.[d.loc.length - 1]
+          if (loc && fieldMap[loc]) mapped[fieldMap[loc]] = d.msg
+          else mapped.form = d.msg
+        })
+        setErrors(mapped)
+        return
+      }
+      setErrors({ form: msg })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    /* Backdrop */
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+      role="dialog"
+    >
+      <div
+        className="card w-full max-w-md p-6 shadow-overlay outline-none"
+        ref={dialogRef}
+        tabIndex={-1}
+      >
+        {/* Header */}
+        <div className="mb-5 flex items-start justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="grid size-9 place-items-center rounded-control bg-brand-50 text-brand-600">
+              <Lock className="size-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-ink-primary">Change Password</h2>
+              <p className="text-xs text-ink-muted">Enter your current password to continue.</p>
+            </div>
+          </div>
+          <button
+            aria-label="Close modal"
+            className="rounded-control p-1 text-ink-muted hover:bg-surface-muted hover:text-ink-primary"
+            disabled={loading}
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {success ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <div className="grid size-12 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+              <ShieldCheck className="size-6" />
+            </div>
+            <p className="font-medium text-ink-primary">Password changed!</p>
+            <p className="text-sm text-ink-muted">You're all set. Closing…</p>
+          </div>
+        ) : (
+          <form className="space-y-4" noValidate onSubmit={handleSubmit}>
+            <PasswordField
+              autoComplete="current-password"
+              error={errors.current}
+              id="cp-current"
+              label="Current Password"
+              onChange={set('current')}
+              placeholder="Your current password"
+              value={fields.current}
+            />
+            <PasswordField
+              autoComplete="new-password"
+              error={errors.next}
+              id="cp-new"
+              label="New Password"
+              onChange={set('next')}
+              placeholder="At least 8 characters"
+              value={fields.next}
+            />
+            <PasswordField
+              autoComplete="new-password"
+              error={errors.confirm}
+              id="cp-confirm"
+              label="Confirm New Password"
+              onChange={set('confirm')}
+              placeholder="Repeat new password"
+              value={fields.confirm}
+            />
+
+            {/* Strength hint */}
+            {fields.next && !errors.next && (
+              <p className="text-xs text-ink-muted">
+                Password strength is good — contains letters and a digit.
+              </p>
+            )}
+
+            {/* Form-level error */}
+            {errors.form && (
+              <p className="rounded-control bg-red-50 px-3 py-2 text-xs text-danger" role="alert">
+                {errors.form}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={loading}
+                onClick={onClose}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={loading}
+                type="submit"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-1.5">
+                    <svg
+                      className="size-3.5 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                    Changing…
+                  </span>
+                ) : (
+                  'Change Password'
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Profile Page ─────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { user } = useAuth()
   const { showToast } = useToast()
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
 
   // Live pipeline stats from the dashboard
   const [stats, setStats] = useState(null)
@@ -56,6 +333,10 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 p-2">
+
+      {showPasswordModal && (
+        <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
+      )}
 
       {/* Header */}
       <div>
@@ -170,39 +451,26 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* Security */}
+          {/* Security — password only, no 2FA */}
           <div className="card p-6">
             <div className="flex items-center gap-2.5">
               <ShieldCheck className="size-5 text-emerald-600" />
               <h2 className="text-base font-semibold text-ink-primary">Security</h2>
             </div>
-            <div className="mt-5 divide-y divide-line-default">
+            <div className="mt-5">
               <div className="flex items-center justify-between py-4">
                 <div>
                   <h3 className="text-sm font-medium text-ink-primary">Password</h3>
                   <p className="mt-0.5 text-xs text-ink-muted">
-                    Your password is managed via the login system.
+                    Keep your account secure with a strong password.
                   </p>
                 </div>
                 <button
-                  className="rounded-control border border-line-strong px-4 py-2 text-sm hover:bg-surface-muted"
-                  onClick={() => showToast('Password reset is not available in this version.', 'warning')}
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowPasswordModal(true)}
                   type="button"
                 >
                   Change
-                </button>
-              </div>
-              <div className="flex items-center justify-between py-4">
-                <div>
-                  <h3 className="text-sm font-medium text-ink-primary">Two-Factor Authentication</h3>
-                  <p className="mt-0.5 text-xs text-ink-muted">Add an extra layer of security.</p>
-                </div>
-                <button
-                  className="rounded-control bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700"
-                  onClick={() => showToast('2FA setup is not available in this version.', 'warning')}
-                  type="button"
-                >
-                  Enable
                 </button>
               </div>
             </div>

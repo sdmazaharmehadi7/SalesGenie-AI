@@ -14,7 +14,15 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import CurrentActiveUser, DBSession
 from app.core.config import settings
-from app.schemas.user import GoogleAuthRequest, Token, TokenRefreshRequest, UserCreate, UserRead
+from app.schemas.user import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
+    GoogleAuthRequest,
+    Token,
+    TokenRefreshRequest,
+    UserCreate,
+    UserRead,
+)
 from app.services.auth_service import AuthService
 
 router = APIRouter()
@@ -86,3 +94,21 @@ async def refresh(payload: TokenRefreshRequest, db: DBSession) -> Token:
 async def read_current_user(current_user: CurrentActiveUser) -> UserRead:
     return UserRead.model_validate(current_user)
 
+
+@router.post(
+    "/change-password",
+    response_model=ChangePasswordResponse,
+    summary="Change the authenticated user's password",
+    description=(
+        "Verifies the current password, then replaces it with a bcrypt hash of "
+        "the new password. Requires a valid bearer token. Returns 401 if the "
+        "current password is wrong and 422 if validation fails."
+    ),
+)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: CurrentActiveUser,
+    db: DBSession,
+) -> ChangePasswordResponse:
+    await AuthService(db).change_password(current_user, payload)
+    return ChangePasswordResponse()

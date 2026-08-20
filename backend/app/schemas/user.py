@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.models.user import UserRole
 from app.schemas.common import ORMBaseModel
@@ -73,4 +73,36 @@ class GoogleAuthRequest(BaseModel):
     id_token: str | None = Field(default=None, description="Google ID Token alias")
     code: str | None = Field(default=None, description="Google Authorization Code")
     redirect_uri: str | None = Field(default=None, description="Redirect URI used for authorization code")
+
+
+class ChangePasswordRequest(BaseModel):
+    """Payload for authenticated change-password flow."""
+    current_password: str = Field(min_length=1, max_length=128, description="The user's current password")
+    new_password: str = Field(min_length=8, max_length=128, description="The desired new password")
+    confirm_password: str = Field(min_length=8, max_length=128, description="Must match new_password")
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_strength(cls, v: str) -> str:
+        if not any(c.isdigit() for c in v):
+            raise ValueError("New password must contain at least one digit.")
+        if not any(c.isalpha() for c in v):
+            raise ValueError("New password must contain at least one letter.")
+        return v
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "ChangePasswordRequest":
+        if self.new_password != self.confirm_password:
+            raise ValueError("New password and confirmation do not match.")
+        return self
+
+    @model_validator(mode="after")
+    def new_differs_from_current(self) -> "ChangePasswordRequest":
+        if self.current_password == self.new_password:
+            raise ValueError("New password must be different from your current password.")
+        return self
+
+
+class ChangePasswordResponse(BaseModel):
+    message: str = "Password changed successfully."
 

@@ -3,17 +3,18 @@ import { Outlet } from 'react-router-dom'
 
 import Sidebar from '@/components/layout/Sidebar'
 import TopNavbar from '@/components/layout/TopNavbar'
+import { useAppearance } from '@/context/AppearanceContext'
 
 function Layout() {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const { sidebarCollapsed, toggleSidebar } = useAppearance()
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-canvas text-ink-primary">
       <Sidebar
-        isCollapsed={isSidebarCollapsed}
+        isCollapsed={sidebarCollapsed}
         isMobileOpen={isMobileSidebarOpen}
-        onCollapse={() => setIsSidebarCollapsed((isCollapsed) => !isCollapsed)}
+        onCollapse={toggleSidebar}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
 
@@ -31,3 +32,4 @@ function Layout() {
 }
 
 export default Layout
+
