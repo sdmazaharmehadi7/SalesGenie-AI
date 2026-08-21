@@ -39,23 +39,23 @@ export function RightSidebar({ leads, onSelectLead }) {
 
         <div className="grid grid-cols-2 gap-3">
           {/* Average Lead Score */}
-          <div className="rounded-card bg-brand-50/80 border border-brand-100 p-3">
-            <div className="flex items-center justify-between text-brand-700">
+          <div className="rounded-card bg-brand-50/80 border border-brand-100 p-3 dark:bg-brand-500/10 dark:border-brand-500/20">
+            <div className="flex items-center justify-between text-brand-700 dark:text-brand-300">
               <span className="text-[11px] font-medium">Avg Lead Score</span>
               <Award className="size-4" />
             </div>
-            <p className="text-2xl font-extrabold text-brand-700 mt-1">{avgScore}</p>
-            <p className="text-[10px] text-brand-600 mt-0.5">out of 100 max</p>
+            <p className="text-2xl font-extrabold text-brand-700 mt-1 dark:text-brand-300">{avgScore}</p>
+            <p className="text-[10px] text-brand-600 mt-0.5 dark:text-brand-400">out of 100 max</p>
           </div>
 
           {/* Qualified Leads */}
-          <div className="rounded-card bg-emerald-50/80 border border-emerald-100 p-3">
-            <div className="flex items-center justify-between text-emerald-700">
+          <div className="rounded-card bg-emerald-50/80 border border-emerald-100 p-3 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+            <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
               <span className="text-[11px] font-medium">Qualified Leads</span>
               <CheckCircle className="size-4" />
             </div>
-            <p className="text-2xl font-extrabold text-emerald-700 mt-1">{totalQualified}</p>
-            <p className="text-[10px] text-emerald-600 mt-0.5">High opportunity</p>
+            <p className="text-2xl font-extrabold text-emerald-700 mt-1 dark:text-emerald-400">{totalQualified}</p>
+            <p className="text-[10px] text-emerald-600 mt-0.5 dark:text-emerald-400">High opportunity</p>
           </div>
         </div>
 
@@ -130,13 +130,13 @@ export function RightSidebar({ leads, onSelectLead }) {
       </div>
 
       {/* AI Recommendations Card */}
-      <div className="rounded-card border border-indigo-200 bg-gradient-to-br from-indigo-50 to-brand-50 p-4 space-y-2 text-xs">
-        <div className="flex items-center gap-1.5 font-bold text-indigo-900">
-          <Zap className="size-4 text-indigo-600" />
+      <div className="rounded-card border border-indigo-200 bg-gradient-to-br from-indigo-50 to-brand-50 p-4 space-y-2 text-xs dark:border-indigo-500/20 dark:from-indigo-500/10 dark:to-brand-500/10">
+        <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-200">
+          <Zap className="size-4 text-indigo-600 dark:text-indigo-400" />
           <span>Smart Assistant Tip</span>
         </div>
-        <p className="text-indigo-800 leading-relaxed">
-          Leads with buying intent <span className="font-semibold text-emerald-700">"High"</span> respond 3.2x faster to direct executive emails sent between 10:00 AM and 11:30 AM.
+        <p className="text-indigo-800 leading-relaxed dark:text-indigo-300">
+          Leads with buying intent <span className="font-semibold text-emerald-700 dark:text-emerald-400">"High"</span> respond 3.2x faster to direct executive emails sent between 10:00 AM and 11:30 AM.
         </p>
       </div>
     </aside>

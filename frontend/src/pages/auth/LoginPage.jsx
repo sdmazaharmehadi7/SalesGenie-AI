@@ -10,6 +10,9 @@ import Input from '@/components/ui/Input'
 
 function extractErrorMessage(err, fallback) {
   const data = err?.response?.data
+  const errorCode = data?.error?.error_code || data?.error_code
+  // Expected credential failure — show a friendly, consistent message
+  if (errorCode === 'invalid_credentials') return 'Incorrect email or password'
   if (typeof data?.detail === 'string') return data.detail
   if (Array.isArray(data?.detail)) {
     return data.detail.map((d) => d.msg || d.message).filter(Boolean).join(' ') || fallback
@@ -50,8 +53,10 @@ function LoginPage() {
       showToast('Signed in successfully!', 'success')
       navigate(from, { replace: true })
     } catch (err) {
-      const msg = extractErrorMessage(err, 'Invalid email or password. Please try again.')
+      const msg = extractErrorMessage(err, 'Incorrect email or password')
       setError(msg)
+      // Keep the email filled in; clear only the password field
+      setPassword('')
     } finally {
       setLoading(false)
     }

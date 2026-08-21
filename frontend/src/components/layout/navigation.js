@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/icons'
 
 export const primaryNavigation = [
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { label: 'CRM Overview', icon: Sparkles, to: '/crm' },
   { label: 'Pipeline', icon: TrendingUp, to: '/pipeline' },
   { label: 'Opportunities', icon: Briefcase, to: '/opportunities' },

@@ -31,7 +31,18 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status
-    if (status === 401) {
+    const url = error?.config?.url || ''
+    const method = (error?.config?.method || '').toLowerCase()
+
+    // Credential-check endpoints return 401 for expected user errors
+    // (wrong password / wrong current password), NOT for session expiry.
+    // Let those errors bubble up to the calling component so it can show
+    // an inline message instead of redirecting to /login.
+    const isCredentialCheck =
+      (method === 'post' && url.includes('/auth/login')) ||
+      (method === 'post' && url.includes('/auth/change-password'))
+
+    if (status === 401 && !isCredentialCheck) {
       // Token expired or invalid — clear auth state and redirect to login
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')

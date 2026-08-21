@@ -178,18 +178,18 @@ export default function CRMDashboardPage() {
         </Link>
 
         {/* Won Revenue */}
-        <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-xs">
+        <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-xs dark:border-emerald-500/20 dark:bg-emerald-500/10">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-emerald-800">Won Revenue</span>
-            <div className="grid size-9 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+            <span className="text-xs font-medium uppercase tracking-wider text-emerald-800 dark:text-emerald-400">Won Revenue</span>
+            <div className="grid size-9 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
               <TrendingUp className="size-4.5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-emerald-950">
+            <span className="text-2xl font-bold tracking-tight text-emerald-950 dark:text-emerald-300">
               {formatCurrency(summary?.won_revenue)}
             </span>
-            <span className="text-xs font-semibold text-emerald-700">
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
               {summary?.win_rate || 0}% win rate
             </span>
           </div>
@@ -219,18 +219,18 @@ export default function CRMDashboardPage() {
         </div>
 
         {!forecast?.has_sufficient_data ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-500/20 dark:bg-amber-500/10">
             <div className="flex items-start gap-3">
-              <ShieldAlert className="size-5 shrink-0 text-amber-600 mt-0.5" />
+              <ShieldAlert className="size-5 shrink-0 text-amber-600 mt-0.5 dark:text-amber-400" />
               <div>
-                <h4 className="text-sm font-semibold text-amber-900">Insufficient Historical Data for Reliable AI Forecasting</h4>
-                <p className="mt-1 text-xs text-amber-800 leading-relaxed">
+                <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-300">Insufficient Historical Data for Reliable AI Forecasting</h4>
+                <p className="mt-1 text-xs text-amber-800 leading-relaxed dark:text-amber-300">
                   {forecast?.message || 'We need at least 3 active or closed opportunities in your pipeline to calculate reliable statistical win rates and projected revenue curves. Currently found ' + (forecast?.data_points_count || 0) + ' deals.'}
                 </p>
                 <div className="mt-3">
                   <Link
                     to="/opportunities"
-                    className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 underline hover:text-amber-950"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 underline hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-200"
                   >
                     Create and qualify deals to activate predictive models &rarr;
                   </Link>
@@ -241,13 +241,13 @@ export default function CRMDashboardPage() {
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* High Potential Deals */}
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-4">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Flame className="size-4 text-emerald-600" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900">High-Probability Deals</h3>
+                  <Flame className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">High-Probability Deals</h3>
                 </div>
-                <span className="text-xs text-emerald-700 font-medium">{forecast.high_potential_deals?.length || 0} active</span>
+                <span className="text-xs text-emerald-700 font-medium dark:text-emerald-400">{forecast.high_potential_deals?.length || 0} active</span>
               </div>
               <div className="space-y-2">
                 {forecast.high_potential_deals?.length === 0 ? (
@@ -257,14 +257,14 @@ export default function CRMDashboardPage() {
                     <Link
                       key={deal.id}
                       to={`/opportunities/${deal.id}`}
-                      className="flex items-center justify-between rounded-lg bg-surface-default p-3 shadow-2xs border border-emerald-100 hover:border-emerald-300 transition-colors"
+                      className="flex items-center justify-between rounded-lg bg-surface-default p-3 shadow-2xs border border-emerald-100 hover:border-emerald-300 transition-colors dark:border-emerald-500/20 dark:hover:border-emerald-500/40"
                     >
                       <div>
                         <p className="text-xs font-semibold text-ink-primary">{deal.name}</p>
                         <p className="text-[11px] text-ink-muted capitalize">Stage: {deal.stage}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-emerald-600">{formatCurrency(deal.amount)}</p>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(deal.amount)}</p>
                         <p className="text-[11px] font-semibold text-ink-secondary">{deal.probability || 60}% Prob.</p>
                       </div>
                     </Link>
@@ -274,13 +274,13 @@ export default function CRMDashboardPage() {
             </div>
 
             {/* At-Risk Deals */}
-            <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-4">
+            <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-4 dark:border-rose-500/20 dark:bg-rose-500/10">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="size-4 text-rose-600" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-900">At-Risk Opportunities</h3>
+                  <ShieldAlert className="size-4 text-rose-600 dark:text-rose-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-900 dark:text-rose-300">At-Risk Opportunities</h3>
                 </div>
-                <span className="text-xs text-rose-700 font-medium">{forecast.at_risk_deals?.length || 0} detected</span>
+                <span className="text-xs text-rose-700 font-medium dark:text-rose-400">{forecast.at_risk_deals?.length || 0} detected</span>
               </div>
               <div className="space-y-2">
                 {forecast.at_risk_deals?.length === 0 ? (
@@ -290,15 +290,15 @@ export default function CRMDashboardPage() {
                     <Link
                       key={deal.id}
                       to={`/opportunities/${deal.id}`}
-                      className="flex items-center justify-between rounded-lg bg-surface-default p-3 shadow-2xs border border-rose-100 hover:border-rose-300 transition-colors"
+                      className="flex items-center justify-between rounded-lg bg-surface-default p-3 shadow-2xs border border-rose-100 hover:border-rose-300 transition-colors dark:border-rose-500/20 dark:hover:border-rose-500/40"
                     >
                       <div>
                         <p className="text-xs font-semibold text-ink-primary">{deal.name}</p>
-                        <p className="text-[11px] text-rose-600 capitalize">Stage: {deal.stage}</p>
+                        <p className="text-[11px] text-rose-600 capitalize dark:text-rose-400">Stage: {deal.stage}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-bold text-ink-primary">{formatCurrency(deal.amount)}</p>
-                        <p className="text-[11px] font-semibold text-rose-600">{deal.probability || 20}% Prob.</p>
+                        <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">{deal.probability || 20}% Prob.</p>
                       </div>
                     </Link>
                   ))

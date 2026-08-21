@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI-Powered Sales Forecasting Platform Using Predictive Analytics</title>
+    <script>
+      // Prevent FOUC: apply theme class synchronously before first paint.
+      (function () {
+        try {
+          var raw = localStorage.getItem('sg_appearance')
+          var theme = raw ? (JSON.parse(raw).theme || 'light') : 'light'
+          if (theme === 'auto') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark')
+          }
+        } catch (e) {
+          // Fallback to system preference if localStorage is unavailable/corrupt
+          if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark')
+          }
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

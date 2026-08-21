@@ -72,6 +72,7 @@ export const router = createBrowserRouter([
       { path: '/conversation-summary', element: <ConversationSummaryPage /> },
       { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/settings', element: <SettingsPage /> },
+      { path: '/settings/:section', element: <SettingsPage /> },
       { path: '/profile', element: <ProfilePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

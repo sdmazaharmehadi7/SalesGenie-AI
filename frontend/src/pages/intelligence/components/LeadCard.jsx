@@ -277,34 +277,34 @@ export function LeadCard({
             {/* Sub-tabs or key callouts */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               {/* Business needs */}
-              <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1">
-                <p className="font-semibold text-ink-primary flex items-center gap-1">
+              <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1 dark:bg-surface-muted">
+                <p className="font-semibold text-ink-primary flex items-center gap-1 dark:text-neutral-100">
                   <TrendingUp className="size-3.5 text-amber-600" /> Business Needs
                 </p>
-                <p className="text-ink-secondary leading-relaxed">
+                <p className="text-ink-secondary leading-relaxed dark:text-neutral-200">
                   {lead.insight?.businessNeeds || 'Not yet generated.'}
                 </p>
               </div>
 
               {/* Opportunities */}
-              <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1">
-                <p className="font-semibold text-ink-primary flex items-center gap-1">
+              <div className="rounded bg-white/80 p-2.5 border border-line-default space-y-1 dark:bg-surface-muted">
+                <p className="font-semibold text-ink-primary flex items-center gap-1 dark:text-neutral-100">
                   <CheckCircle2 className="size-3.5 text-emerald-600" /> Opportunities
                 </p>
-                <p className="text-ink-secondary leading-relaxed">
+                <p className="text-ink-secondary leading-relaxed dark:text-neutral-200">
                   {lead.insight?.opportunities || 'Not yet generated.'}
                 </p>
               </div>
             </div>
 
             {/* Lead score summary */}
-            <div className="rounded-card bg-emerald-50/80 border border-emerald-200/80 p-2.5 flex items-start gap-2 text-emerald-900">
-              <Zap className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="rounded-card bg-emerald-50/80 border border-emerald-200/80 p-2.5 flex items-start gap-2 text-emerald-900 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-300">
+              <Zap className="size-4 text-emerald-600 shrink-0 mt-0.5 dark:text-emerald-400" />
               <div>
-                <span className="font-bold text-xs uppercase tracking-wider text-emerald-800">
+                <span className="font-bold text-xs uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
                   AI Score:{' '}
                 </span>
-                <span className="text-xs font-medium text-emerald-900">
+                <span className="text-xs font-medium text-emerald-900 dark:text-emerald-300">
                   {lead.hasScore
                     ? `${lead.score}/100, ${Math.round(lead.conversionProbability * 100)}% conversion probability.`
                     : 'Not yet generated.'}
