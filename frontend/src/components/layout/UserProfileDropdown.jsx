@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { ChevronDown, LogOut, Settings, User } from '@/components/ui/icons'
+import { Building2, ChevronDown, LogOut, Settings, User } from '@/components/ui/icons'
 
 /** Returns up to 2 uppercase initials from a name string. */
 function getInitials(name) {
