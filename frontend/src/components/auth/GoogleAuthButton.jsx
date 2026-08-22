@@ -35,10 +35,9 @@ function GoogleIcon({ className = 'size-5' }) {
  *
  * @param {Object} props
  * @param {'signin'|'signup'} [props.mode='signin']
- * @param {string} [props.redirectTo='/dashboard']
  * @param {Function} [props.onError]
  */
-export default function GoogleAuthButton({ mode = 'signin', redirectTo = '/dashboard', onError }) {
+export default function GoogleAuthButton({ mode = 'signin', onError }) {
   const { login } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -110,7 +109,8 @@ export default function GoogleAuthButton({ mode = 'signin', redirectTo = '/dashb
           : 'Signed in with Google successfully!',
         'success'
       )
-      navigate(redirectTo, { replace: true })
+      // Always land on the dashboard after auth — ignore any stale redirect state
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       console.error('Google login failed:', err)
       const data = err?.response?.data
@@ -205,7 +205,8 @@ export default function GoogleAuthButton({ mode = 'signin', redirectTo = '/dashb
                 })
                 await login(tokenData.access_token)
                 showToast('Signed in with Google successfully!', 'success')
-                navigate(redirectTo, { replace: true })
+                // Always land on the dashboard after auth
+                navigate('/dashboard', { replace: true })
               } catch (err) {
                 const msg = err?.response?.data?.detail || 'Google authentication failed.'
                 if (onError) onError(msg)

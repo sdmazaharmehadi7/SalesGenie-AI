@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import Layout from '@/components/layout/Layout'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
+import ScrollToTop from '@/components/common/ScrollToTop'
 import AiAssistantPage from '@/pages/ai-assistant/AiAssistantPage'
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage'
 import CompaniesPage from '@/pages/companies/CompaniesPage'
@@ -28,53 +29,59 @@ import SignupPage from '@/pages/auth/SignupPage'
 
 export const router = createBrowserRouter([
   {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/signup',
-    element: <SignupPage />,
-  },
-  {
-    path: '/forgot-password',
-    element: <ForgotPasswordPage />,
-  },
-  {
-    element: (
-      <ProtectedRoute>
-        <Layout />
-      </ProtectedRoute>
-    ),
+    // Reset scroll to top whenever the route pathname changes
+    element: <ScrollToTop />,
     children: [
-      { index: true, element: <Navigate replace to="/crm" /> },
       {
-        path: '/dashboard',
-        lazy: async () => {
-          const { default: Component } = await import('@/pages/dashboard/DashboardPage')
-          return { Component }
-        },
+        path: '/login',
+        element: <LoginPage />,
       },
-      { path: '/crm', element: <CRMDashboardPage /> },
-      { path: '/pipeline', element: <PipelinePage /> },
-      { path: '/opportunities', element: <OpportunitiesPage /> },
-      { path: '/opportunities/:id', element: <OpportunityDetailPage /> },
-      { path: '/accounts', element: <AccountsPage /> },
-      { path: '/accounts/:id', element: <AccountDetailPage /> },
-      { path: '/contacts', element: <ContactsPage /> },
-      { path: '/contacts/:id', element: <ContactDetailPage /> },
-      { path: '/tasks', element: <TasksPage /> },
-      { path: '/leads', element: <LeadsPage /> },
-      { path: '/leads/:id', element: <LeadDetailPage /> },
-      { path: '/companies', element: <CompaniesPage /> },
-      { path: '/lead-intelligence', element: <LeadIntelligencePage /> },
-      { path: '/ai-assistant', element: <AiAssistantPage /> },
-      { path: '/outreach-generator', element: <OutreachGeneratorPage /> },
-      { path: '/conversation-summary', element: <ConversationSummaryPage /> },
-      { path: '/analytics', element: <AnalyticsPage /> },
-      { path: '/settings', element: <SettingsPage /> },
-      { path: '/settings/:section', element: <SettingsPage /> },
-      { path: '/profile', element: <ProfilePage /> },
-      { path: '*', element: <NotFoundPage /> },
+      {
+        path: '/signup',
+        element: <SignupPage />,
+      },
+      {
+        path: '/forgot-password',
+        element: <ForgotPasswordPage />,
+      },
+      {
+        element: (
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        ),
+        children: [
+          { index: true, element: <Navigate replace to="/crm" /> },
+          {
+            path: '/dashboard',
+            lazy: async () => {
+              const { default: Component } = await import('@/pages/dashboard/DashboardPage')
+              return { Component }
+            },
+          },
+          { path: '/crm', element: <CRMDashboardPage /> },
+          { path: '/pipeline', element: <PipelinePage /> },
+          { path: '/opportunities', element: <OpportunitiesPage /> },
+          { path: '/opportunities/:id', element: <OpportunityDetailPage /> },
+          { path: '/accounts', element: <AccountsPage /> },
+          { path: '/accounts/:id', element: <AccountDetailPage /> },
+          { path: '/contacts', element: <ContactsPage /> },
+          { path: '/contacts/:id', element: <ContactDetailPage /> },
+          { path: '/tasks', element: <TasksPage /> },
+          { path: '/leads', element: <LeadsPage /> },
+          { path: '/leads/:id', element: <LeadDetailPage /> },
+          { path: '/companies', element: <CompaniesPage /> },
+          { path: '/lead-intelligence', element: <LeadIntelligencePage /> },
+          { path: '/ai-assistant', element: <AiAssistantPage /> },
+          { path: '/outreach-generator', element: <OutreachGeneratorPage /> },
+          { path: '/conversation-summary', element: <ConversationSummaryPage /> },
+          { path: '/analytics', element: <AnalyticsPage /> },
+          { path: '/settings', element: <SettingsPage /> },
+          { path: '/settings/:section', element: <SettingsPage /> },
+          { path: '/profile', element: <ProfilePage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
+      },
     ],
   },
 ])

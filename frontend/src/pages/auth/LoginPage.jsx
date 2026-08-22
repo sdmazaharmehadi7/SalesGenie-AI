@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '@/services/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
@@ -23,7 +23,6 @@ function extractErrorMessage(err, fallback) {
 
 function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { login } = useAuth()
   const { showToast } = useToast()
 
@@ -31,9 +30,6 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-
-  // Redirect to the page the user was trying to visit, or /dashboard
-  const from = location.state?.from?.pathname || '/dashboard'
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -51,7 +47,8 @@ function LoginPage() {
 
       await login(data.access_token)
       showToast('Signed in successfully!', 'success')
-      navigate(from, { replace: true })
+      // Always land on the dashboard after login — ignore any stale redirect state
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       const msg = extractErrorMessage(err, 'Incorrect email or password')
       setError(msg)
@@ -68,7 +65,6 @@ function LoginPage() {
       <div className="space-y-4">
         <GoogleAuthButton
           mode="signin"
-          redirectTo={from}
           onError={(msg) => setError(msg)}
         />
 
