@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAppearance } from '@/context/AppearanceContext'
 import { useAuth } from '@/context/AuthContext'
+import { useWorkspace } from '@/context/WorkspaceContext'
 import { useToast } from '@/context/ToastContext'
 import { changePassword } from '@/services/api/auth'
 
@@ -1634,9 +1635,18 @@ const SECTION_CONTENT = {
 function SettingsPage() {
   const navigate = useNavigate()
   const { section } = useParams()
-  const validSection = NAV_SECTIONS.some((s) => s.id === section) ? section : 'general'
+  const { isManager, isPersonal } = useWorkspace()
+
+  const showWorkspaceManagement = isManager && !isPersonal
+
+  const visibleSections = NAV_SECTIONS.filter((s) => {
+    if (s.id === 'workspace') return showWorkspaceManagement
+    return true
+  })
+
+  const validSection = visibleSections.some((s) => s.id === section) ? section : 'general'
   const [active, setActive] = useState(validSection)
-  const current = NAV_SECTIONS.find((s) => s.id === active)
+  const current = visibleSections.find((s) => s.id === active) || visibleSections[0]
 
   // Sync active section with the URL param (e.g. /settings/security)
   useEffect(() => {
@@ -1653,7 +1663,13 @@ function SettingsPage() {
       {/* Header */}
       <header className="mb-6">
         <h1 className="text-3xl font-semibold tracking-tight text-ink-primary">Settings</h1>
-        <p className="mt-1.5 text-sm text-ink-muted">Manage your account, workspace, and preferences.</p>
+        <p className="mt-1.5 text-sm text-ink-muted">
+          {isPersonal
+            ? 'Manage your personal account, security, and preferences.'
+            : isManager
+            ? 'Manage your account, team members, and workspace configuration.'
+            : 'Manage your personal preferences and account settings.'}
+        </p>
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -1663,7 +1679,7 @@ function SettingsPage() {
           className="shrink-0 lg:w-52 xl:w-56"
         >
           <div className="card p-2 lg:sticky lg:top-6">
-            {NAV_SECTIONS.map((sectionItem) => (
+            {visibleSections.map((sectionItem) => (
               <NavItem
                 active={active === sectionItem.id}
                 icon={sectionItem.icon}

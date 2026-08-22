@@ -88,6 +88,15 @@ function UserProfileDropdown() {
               <Settings className="size-4" />
               Account settings
             </NavLink>
+            <NavLink
+              className="flex w-full items-center gap-2.5 rounded-control px-3 py-2 text-sm text-brand-600 hover:bg-brand-50"
+              onClick={() => setIsOpen(false)}
+              role="menuitem"
+              to="/onboarding"
+            >
+              <Building2 className="size-4" />
+              Workspace Hub
+            </NavLink>
           </div>
           <div className="border-t border-line-default pt-1">
             <button

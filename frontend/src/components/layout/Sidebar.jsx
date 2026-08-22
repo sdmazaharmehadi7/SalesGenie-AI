@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom'
 
 import { ChevronLeft, X } from '@/components/ui/icons'
-import { primaryNavigation, secondaryNavigation } from '@/components/layout/navigation'
+import { managerNavigation, primaryNavigation, secondaryNavigation } from '@/components/layout/navigation'
+import { useWorkspace } from '@/context/WorkspaceContext'
+import WorkspaceContextSwitcher from '@/components/layout/WorkspaceContextSwitcher'
 
 function NavigationItem({ isCollapsed, item, onClick }) {
   const Icon = item.icon
@@ -22,11 +24,19 @@ function NavigationItem({ isCollapsed, item, onClick }) {
     >
       <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
       <span className={isCollapsed ? 'sr-only' : 'truncate'}>{item.label}</span>
+      {!isCollapsed && item.badge && (
+        <span className="ml-auto rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+          {item.badge}
+        </span>
+      )}
     </NavLink>
   )
 }
 
 function SidebarContent({ isCollapsed, onClose }) {
+  const { isManager, isPersonal } = useWorkspace()
+  const showManagerNav = isManager && !isPersonal
+
   return (
     <>
       <div className="flex h-16 items-center border-b border-line-default px-4">
@@ -48,10 +58,29 @@ function SidebarContent({ isCollapsed, onClose }) {
         </button>
       </div>
 
-      <nav aria-label="Primary navigation" className="flex flex-1 flex-col gap-1 p-3">
+      {/* Workspace Context Switcher & Indicator */}
+      <WorkspaceContextSwitcher isCollapsed={isCollapsed} />
+
+      <nav aria-label="Primary navigation" className="flex flex-1 flex-col gap-1 p-3 overflow-y-auto">
         {primaryNavigation.map((item) => (
           <NavigationItem isCollapsed={isCollapsed} item={item} key={item.label} onClick={onClose} />
         ))}
+
+        {/* Manager-only Team & Workspace Management */}
+        {showManagerNav && (
+          <>
+            <div className="my-2 border-t border-line-default" />
+            <div className="px-3 py-1">
+              <span className={isCollapsed ? 'sr-only' : 'text-[10px] font-bold uppercase tracking-wider text-indigo-700'}>
+                Management
+              </span>
+            </div>
+            {managerNavigation.map((item) => (
+              <NavigationItem isCollapsed={isCollapsed} item={item} key={item.label} onClick={onClose} />
+            ))}
+          </>
+        )}
+
         <div className="my-3 border-t border-line-default" />
         {secondaryNavigation.map((item) => (
           <NavigationItem isCollapsed={isCollapsed} item={item} key={item.label} onClick={onClose} />

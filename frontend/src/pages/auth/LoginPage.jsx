@@ -47,8 +47,12 @@ function LoginPage() {
 
       await login(data.access_token)
       showToast('Signed in successfully!', 'success')
-      // Always land on the dashboard after login — ignore any stale redirect state
-      navigate('/dashboard', { replace: true })
+      const hasWorkspace = localStorage.getItem('sg_active_workspace')
+      if (hasWorkspace) {
+        navigate('/dashboard', { replace: true })
+      } else {
+        navigate('/onboarding', { replace: true })
+      }
     } catch (err) {
       const msg = extractErrorMessage(err, 'Incorrect email or password')
       setError(msg)

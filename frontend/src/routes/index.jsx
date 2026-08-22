@@ -23,6 +23,7 @@ import LoginPage from '@/pages/auth/LoginPage'
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OutreachGeneratorPage from '@/pages/outreach/OutreachGeneratorPage'
+import OnboardingPage from '@/pages/onboarding/OnboardingPage'
 import ProfilePage from '@/pages/profile/ProfilePage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import SignupPage from '@/pages/auth/SignupPage'
@@ -43,6 +44,14 @@ export const router = createBrowserRouter([
       {
         path: '/forgot-password',
         element: <ForgotPasswordPage />,
+      },
+      {
+        path: '/onboarding',
+        element: (
+          <ProtectedRoute>
+            <OnboardingPage />
+          </ProtectedRoute>
+        ),
       },
       {
         element: (

@@ -29,6 +29,11 @@ export const primaryNavigation = [
   { label: 'Analytics', icon: BarChart3, to: '/analytics' },
 ]
 
+export const managerNavigation = [
+  { label: 'Team Management', icon: Users, to: '/settings/workspace', badge: 'Manager' },
+  { label: 'Workspace Management', icon: Building2, to: '/settings/general', badge: 'Manager' },
+]
+
 export const secondaryNavigation = [
   { label: 'Settings', icon: Settings, to: '/settings' },
 ]

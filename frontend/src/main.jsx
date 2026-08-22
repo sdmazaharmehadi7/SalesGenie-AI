@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import App from '@/App'
 import { AppearanceProvider } from '@/context/AppearanceContext'
 import { AuthProvider } from '@/context/AuthContext'
+import { WorkspaceProvider } from '@/context/WorkspaceContext'
 import { ToastProvider } from '@/context/ToastContext'
 import '@/styles/globals.css'
 
@@ -13,9 +14,11 @@ root.render(
   <StrictMode>
     <AppearanceProvider>
       <AuthProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
+        <WorkspaceProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </WorkspaceProvider>
       </AuthProvider>
     </AppearanceProvider>
   </StrictMode>,

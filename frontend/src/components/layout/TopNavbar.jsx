@@ -1,6 +1,7 @@
 import { Bell, Menu } from '@/components/ui/icons'
 import Breadcrumb from '@/components/layout/Breadcrumb'
 import UserProfileDropdown from '@/components/layout/UserProfileDropdown'
+import WorkspaceContextSwitcher from '@/components/layout/WorkspaceContextSwitcher'
 
 function TopNavbar({ onMenuClick }) {
   return (
@@ -16,7 +17,10 @@ function TopNavbar({ onMenuClick }) {
 
       <Breadcrumb />
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {/* Workspace context switcher in top navbar */}
+        <WorkspaceContextSwitcher inNavbar />
+
         <button
           aria-label="View notifications"
           className="relative rounded-control p-2 text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-focus"

@@ -109,8 +109,12 @@ export default function GoogleAuthButton({ mode = 'signin', onError }) {
           : 'Signed in with Google successfully!',
         'success'
       )
-      // Always land on the dashboard after auth — ignore any stale redirect state
-      navigate('/dashboard', { replace: true })
+      const hasWorkspace = localStorage.getItem('sg_active_workspace')
+      if (hasWorkspace) {
+        navigate('/dashboard', { replace: true })
+      } else {
+        navigate('/onboarding', { replace: true })
+      }
     } catch (err) {
       console.error('Google login failed:', err)
       const data = err?.response?.data
@@ -205,8 +209,12 @@ export default function GoogleAuthButton({ mode = 'signin', onError }) {
                 })
                 await login(tokenData.access_token)
                 showToast('Signed in with Google successfully!', 'success')
-                // Always land on the dashboard after auth
-                navigate('/dashboard', { replace: true })
+                const hasWorkspace = localStorage.getItem('sg_active_workspace')
+                if (hasWorkspace) {
+                  navigate('/dashboard', { replace: true })
+                } else {
+                  navigate('/onboarding', { replace: true })
+                }
               } catch (err) {
                 const msg = err?.response?.data?.detail || 'Google authentication failed.'
                 if (onError) onError(msg)
