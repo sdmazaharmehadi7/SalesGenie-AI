@@ -44,15 +44,33 @@ class Lead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     # Addition beyond the ER diagram: estimated/actual deal value in USD.
-    # Needed for the Sales Analytics dashboard's pipeline-value figures
-    # (e.g. "$2.4M" pipeline value, per-stage dollar totals) shown in the
-    # platform mockup — the ER diagram has no monetary column on Leads.
     deal_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
 
-    # Addition beyond the ER diagram: the sales rep this lead is assigned
-    # to, needed for RBAC-scoped queries ("show me my leads") and for the
-    # sales analytics dashboard's per-rep pipeline breakdown.
+    # -----------------------------------------------------------------------
+    # Ownership / assignment columns
+    # -----------------------------------------------------------------------
+
+    # Legacy V1 field — kept for backward compatibility.
+    # New code should prefer `created_by` and `assigned_to`.
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Who originally created this lead.
+    # Populated at creation time and never changed thereafter.
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Who the lead is currently assigned to (workspace member).
+    # Managers can reassign; team members cannot change this to another user.
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -67,8 +85,37 @@ class Lead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
 
-    owner: Mapped["User | None"] = relationship("User", lazy="joined")  # noqa: F821
-    account: Mapped["Account | None"] = relationship("Account", back_populates="leads", foreign_keys=[account_id])  # noqa: F821
+    # Workspace extension: partitions data by workspace. NULL = Personal Area.
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # -----------------------------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------------------------
+
+    # Legacy owner relationship (maps to owner_id)
+    owner: Mapped["User | None"] = relationship(  # noqa: F821
+        "User", foreign_keys=[owner_id], lazy="joined"
+    )
+    # Creator: the user who originally created the lead
+    creator: Mapped["User | None"] = relationship(  # noqa: F821
+        "User", foreign_keys=[created_by]
+    )
+    # Assignee: the user the lead is currently assigned to
+    assignee: Mapped["User | None"] = relationship(  # noqa: F821
+        "User", foreign_keys=[assigned_to]
+    )
+
+    workspace: Mapped["Workspace | None"] = relationship(  # noqa: F821
+        "Workspace", foreign_keys=[workspace_id]
+    )
+    account: Mapped["Account | None"] = relationship(  # noqa: F821
+        "Account", back_populates="leads", foreign_keys=[account_id]
+    )
     company_insights: Mapped[list["CompanyInsight"]] = relationship(  # noqa: F821
         back_populates="lead", cascade="all, delete-orphan"
     )

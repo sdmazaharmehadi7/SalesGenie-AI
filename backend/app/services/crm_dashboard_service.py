@@ -1,4 +1,4 @@
-"""CRM Dashboard service — metrics aggregation, KPI queries, and predictive calculations with multi-user isolation."""
+"""CRM Dashboard service — metrics aggregation, KPI queries, and predictive calculations with workspace isolation."""
 
 import uuid
 from decimal import Decimal
@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import WorkspaceContext
 from app.models.account import Account
 from app.models.contact import Contact
 from app.models.lead import Lead
@@ -25,12 +26,6 @@ from app.schemas.task import TaskListItem
 UNRESTRICTED_ROLES = {UserRole.ADMIN, UserRole.SALES_MANAGER, UserRole.REVOPS}
 
 
-def _resolve_owner_id(current_user: User, requested_owner_id: uuid.UUID | None = None) -> uuid.UUID | None:
-    if current_user.role in UNRESTRICTED_ROLES:
-        return requested_owner_id
-    return current_user.id
-
-
 class CRMDashboardService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -38,41 +33,90 @@ class CRMDashboardService:
         self.tasks = TaskRepository(db)
         self.interactions = SalesInteractionRepository(db)
 
+    def _resolve_context(
+        self,
+        ws_ctx: WorkspaceContext | None,
+        current_user: User,
+    ) -> tuple[bool, bool, uuid.UUID | None]:
+        """Returns (is_personal, is_manager, workspace_id)."""
+        if ws_ctx is not None:
+            return (
+                ws_ctx.is_personal,
+                ws_ctx.is_manager or current_user.role in UNRESTRICTED_ROLES,
+                ws_ctx.workspace_id if not ws_ctx.is_personal else None,
+            )
+        return True, current_user.role in UNRESTRICTED_ROLES, None
+
     async def get_summary(
         self,
         current_user: User,
+        ws_ctx: WorkspaceContext | None = None,
         owner_id: uuid.UUID | None = None,
     ) -> CRMDashboardSummary:
-        effective_owner = _resolve_owner_id(current_user, owner_id)
+        is_personal, is_manager, workspace_id = self._resolve_context(ws_ctx, current_user)
+
+        if is_personal:
+            effective_owner = owner_id if current_user.role in UNRESTRICTED_ROLES else current_user.id
+            ws_filter_lead = Lead.workspace_id.is_(None)
+            ws_filter_acc = Account.workspace_id.is_(None)
+            ws_filter_con = Contact.workspace_id.is_(None)
+        else:
+            effective_owner = owner_id if is_manager else current_user.id
+            ws_filter_lead = (Lead.workspace_id == workspace_id)
+            ws_filter_acc = (Account.workspace_id == workspace_id)
+            ws_filter_con = (Contact.workspace_id == workspace_id)
 
         # Leads count
-        lead_q = select(func.count(Lead.id))
+        lead_q = select(func.count(Lead.id)).where(ws_filter_lead)
         if effective_owner:
-            lead_q = lead_q.where(Lead.owner_id == effective_owner)
+            lead_q = lead_q.where(or_(Lead.assigned_to == effective_owner, Lead.owner_id == effective_owner))
         total_leads = (await self.db.execute(lead_q)).scalar_one() or 0
 
         # Accounts count
-        acc_q = select(func.count(Account.id))
+        acc_q = select(func.count(Account.id)).where(ws_filter_acc)
         if effective_owner:
             acc_q = acc_q.where(Account.owner_id == effective_owner)
         total_accounts = (await self.db.execute(acc_q)).scalar_one() or 0
 
         # Contacts count
-        con_q = select(func.count(Contact.id))
+        con_q = select(func.count(Contact.id)).where(ws_filter_con)
         if effective_owner:
             con_q = con_q.where(Contact.owner_id == effective_owner)
         total_contacts = (await self.db.execute(con_q)).scalar_one() or 0
 
         # Opportunity metrics
-        metrics = await self.opportunities.get_metrics(owner_id=effective_owner)
+        metrics = await self.opportunities.get_metrics(
+            owner_id=effective_owner,
+            workspace_id=workspace_id,
+            is_personal=is_personal,
+        )
 
         # Upcoming tasks
-        upcoming_tasks_models = await self.tasks.list_upcoming(user_id=effective_owner, limit=6)
+        upcoming_tasks_models = await self.tasks.list_upcoming(
+            user_id=effective_owner,
+            workspace_id=workspace_id,
+            is_personal=is_personal,
+            limit=6,
+        )
         upcoming_tasks = [TaskListItem.model_validate(t) for t in upcoming_tasks_models]
 
-        # Recent activities scoped to user's entities
-        if effective_owner:
-            user_lead_ids = select(Lead.id).where(Lead.owner_id == effective_owner)
+        # Recent activities
+        if not is_personal and workspace_id is not None:
+            if is_manager:
+                recent_interactions_models = await self.interactions.list_recent(
+                    workspace_id=workspace_id,
+                    is_personal=False,
+                    limit=10,
+                )
+            else:
+                recent_interactions_models = await self.interactions.list_recent(
+                    workspace_id=workspace_id,
+                    is_personal=False,
+                    user_id=effective_owner,
+                    limit=10,
+                )
+        elif effective_owner:
+            user_lead_ids = select(Lead.id).where(or_(Lead.assigned_to == effective_owner, Lead.owner_id == effective_owner))
             user_opp_ids = select(Opportunity.id).where(Opportunity.owner_id == effective_owner)
             user_acc_ids = select(Account.id).where(Account.owner_id == effective_owner)
             user_con_ids = select(Contact.id).where(Contact.owner_id == effective_owner)
@@ -81,6 +125,7 @@ class CRMDashboardService:
                 select(SalesInteraction)
                 .where(
                     or_(
+                        SalesInteraction.user_id == effective_owner,
                         SalesInteraction.lead_id.in_(user_lead_ids),
                         SalesInteraction.opportunity_id.in_(user_opp_ids),
                         SalesInteraction.account_id.in_(user_acc_ids),
@@ -113,10 +158,17 @@ class CRMDashboardService:
     async def get_predictive_analytics(
         self,
         current_user: User,
+        ws_ctx: WorkspaceContext | None = None,
         owner_id: uuid.UUID | None = None,
     ) -> PredictiveAnalytics:
-        effective_owner = _resolve_owner_id(current_user, owner_id)
-        all_deals = await self.opportunities.get_pipeline_deals(owner_id=effective_owner)
+        is_personal, is_manager, workspace_id = self._resolve_context(ws_ctx, current_user)
+        effective_owner = owner_id if (is_manager or current_user.role in UNRESTRICTED_ROLES) else current_user.id
+
+        all_deals = await self.opportunities.get_pipeline_deals(
+            owner_id=effective_owner,
+            workspace_id=workspace_id,
+            is_personal=is_personal,
+        )
         total_deals = len(all_deals)
 
         # Honest predictive analytics guard:
@@ -127,7 +179,11 @@ class CRMDashboardService:
                 message="Insufficient historical opportunity data for reliable AI predictive analytics. Add more deals to generate forecasts.",
             )
 
-        metrics = await self.opportunities.get_metrics(owner_id=effective_owner)
+        metrics = await self.opportunities.get_metrics(
+            owner_id=effective_owner,
+            workspace_id=workspace_id,
+            is_personal=is_personal,
+        )
         win_rate = metrics["win_rate"]
 
         # Calculate expected revenue based on actual probabilities or historical win rate

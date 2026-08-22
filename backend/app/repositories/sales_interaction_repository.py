@@ -4,7 +4,7 @@ SalesInteraction repository — data access for the `sales_interactions` (Activi
 
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sales_interaction import SalesInteraction
@@ -19,6 +19,8 @@ class SalesInteractionRepository:
         self,
         interaction_in: SalesInteractionCreate,
         lead_id: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
     ) -> SalesInteraction:
         interaction = SalesInteraction(
             lead_id=interaction_in.lead_id or lead_id,
@@ -28,6 +30,8 @@ class SalesInteractionRepository:
             interaction_type=interaction_in.interaction_type,
             summary=interaction_in.summary,
             action_items=interaction_in.action_items,
+            workspace_id=interaction_in.workspace_id if interaction_in.workspace_id is not None else workspace_id,
+            user_id=interaction_in.user_id if interaction_in.user_id is not None else user_id,
         )
         self.db.add(interaction)
         await self.db.flush()
@@ -44,21 +48,28 @@ class SalesInteractionRepository:
         contact_id: uuid.UUID | None = None,
         account_id: uuid.UUID | None = None,
         opportunity_id: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
         limit: int = 50,
     ) -> list[SalesInteraction]:
         query = select(SalesInteraction)
-        filters = []
+        entity_filters: list[ColumnElement[bool]] = []
         if lead_id:
-            filters.append(SalesInteraction.lead_id == lead_id)
+            entity_filters.append(SalesInteraction.lead_id == lead_id)
         if contact_id:
-            filters.append(SalesInteraction.contact_id == contact_id)
+            entity_filters.append(SalesInteraction.contact_id == contact_id)
         if account_id:
-            filters.append(SalesInteraction.account_id == account_id)
+            entity_filters.append(SalesInteraction.account_id == account_id)
         if opportunity_id:
-            filters.append(SalesInteraction.opportunity_id == opportunity_id)
+            entity_filters.append(SalesInteraction.opportunity_id == opportunity_id)
 
-        if filters:
-            query = query.where(or_(*filters))
+        if entity_filters:
+            query = query.where(or_(*entity_filters))
+
+        if is_personal:
+            query = query.where(SalesInteraction.workspace_id.is_(None))
+        elif workspace_id is not None:
+            query = query.where(SalesInteraction.workspace_id == workspace_id)
 
         query = query.order_by(SalesInteraction.interaction_date.desc()).limit(limit)
         result = await self.db.execute(query)
@@ -67,10 +78,24 @@ class SalesInteractionRepository:
     async def list_for_lead(self, lead_id: uuid.UUID) -> list[SalesInteraction]:
         return await self.list_for_entity(lead_id=lead_id)
 
-    async def list_recent(self, limit: int = 20) -> list[SalesInteraction]:
+    async def list_recent(
+        self,
+        *,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
+        user_id: uuid.UUID | None = None,
+        limit: int = 20,
+    ) -> list[SalesInteraction]:
+        query = select(SalesInteraction)
+        if is_personal:
+            query = query.where(SalesInteraction.workspace_id.is_(None))
+        elif workspace_id is not None:
+            query = query.where(SalesInteraction.workspace_id == workspace_id)
+
+        if user_id is not None:
+            query = query.where(SalesInteraction.user_id == user_id)
+
         result = await self.db.execute(
-            select(SalesInteraction)
-            .order_by(SalesInteraction.interaction_date.desc())
-            .limit(limit)
+            query.order_by(SalesInteraction.interaction_date.desc()).limit(limit)
         )
         return list(result.scalars().all())

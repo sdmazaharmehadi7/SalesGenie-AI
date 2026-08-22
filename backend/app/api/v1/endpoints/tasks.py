@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.api.deps import CurrentActiveUser, DBSession, Pagination
+from app.api.deps import CurrentActiveUser, DBSession, Pagination, WorkspaceContextDep
 from app.models.pipeline_enums import TaskPriority
 from app.schemas.task import (
     PaginatedTasks,
@@ -19,8 +19,13 @@ router = APIRouter()
 
 
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED, summary="Create a task")
-async def create_task(task_in: TaskCreate, db: DBSession, current_user: CurrentActiveUser) -> TaskRead:
-    task = await TaskService(db).create_task(task_in, current_user)
+async def create_task(
+    task_in: TaskCreate,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> TaskRead:
+    task = await TaskService(db).create_task(task_in, current_user, ws_ctx=ws_ctx)
     return TaskRead.model_validate(task)
 
 
@@ -29,6 +34,7 @@ async def list_tasks(
     db: DBSession,
     current_user: CurrentActiveUser,
     pagination: Pagination,
+    ws_ctx: WorkspaceContextDep,
     is_completed: bool | None = None,
     priority: TaskPriority | None = None,
     lead_id: uuid.UUID | None = None,
@@ -40,6 +46,7 @@ async def list_tasks(
 ) -> PaginatedTasks:
     tasks, total = await TaskService(db).list_tasks(
         current_user,
+        ws_ctx=ws_ctx,
         offset=pagination.offset,
         limit=pagination.page_size,
         is_completed=is_completed,
@@ -60,25 +67,44 @@ async def list_tasks(
 
 
 @router.get("/{task_id}", response_model=TaskRead, summary="Get task details")
-async def get_task(task_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser) -> TaskRead:
-    task = await TaskService(db).get_task(task_id, current_user)
+async def get_task(
+    task_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> TaskRead:
+    task = await TaskService(db).get_task(task_id, current_user, ws_ctx=ws_ctx)
     return TaskRead.model_validate(task)
 
 
 @router.patch("/{task_id}", response_model=TaskRead, summary="Update a task")
 async def update_task(
-    task_id: uuid.UUID, task_in: TaskUpdate, db: DBSession, current_user: CurrentActiveUser
+    task_id: uuid.UUID,
+    task_in: TaskUpdate,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
 ) -> TaskRead:
-    task = await TaskService(db).update_task(task_id, task_in, current_user)
+    task = await TaskService(db).update_task(task_id, task_in, current_user, ws_ctx=ws_ctx)
     return TaskRead.model_validate(task)
 
 
 @router.patch("/{task_id}/complete", response_model=TaskRead, summary="Toggle task completion")
-async def toggle_task_complete(task_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser) -> TaskRead:
-    task = await TaskService(db).toggle_complete(task_id, current_user)
+async def toggle_task_complete(
+    task_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> TaskRead:
+    task = await TaskService(db).toggle_complete(task_id, current_user, ws_ctx=ws_ctx)
     return TaskRead.model_validate(task)
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a task")
-async def delete_task(task_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser) -> None:
-    await TaskService(db).delete_task(task_id, current_user)
+async def delete_task(
+    task_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> None:
+    await TaskService(db).delete_task(task_id, current_user, ws_ctx=ws_ctx)

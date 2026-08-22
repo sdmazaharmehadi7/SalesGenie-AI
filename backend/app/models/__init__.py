@@ -33,6 +33,15 @@ from app.models.sales_interaction import SalesInteraction  # noqa: F401
 from app.models.crm_sync_log import CRMSyncLog  # noqa: F401
 from app.models.sales_analytics import SalesAnalytics  # noqa: F401
 from app.models.user_email_config import UserEmailConfig  # noqa: F401
+from app.models.workspace import (  # noqa: F401
+    InvitationStatus,
+    MembershipStatus,
+    Workspace,
+    WorkspaceInvitation,
+    WorkspaceMembership,
+    WorkspaceRole,
+    WorkspaceType,
+)
 
 __all__ = [
     "Base",
@@ -56,4 +65,11 @@ __all__ = [
     "CRMSyncLog",
     "SalesAnalytics",
     "UserEmailConfig",
+    "Workspace",
+    "WorkspaceMembership",
+    "WorkspaceInvitation",
+    "WorkspaceRole",
+    "WorkspaceType",
+    "MembershipStatus",
+    "InvitationStatus",
 ]

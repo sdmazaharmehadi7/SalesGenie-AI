@@ -14,6 +14,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import WorkspaceContext
 from app.core.exceptions import ConflictError
 from app.integrations.ai.base import AIProvider
 from app.integrations.calendar.base import CalendarEventResult, CalendarProvider
@@ -39,37 +40,57 @@ class ConversationService:
         transcript: str,
         interaction_type,
         current_user,
+        ws_ctx: WorkspaceContext | None = None,
     ) -> SalesInteraction:
         """
         Summarize a raw transcript with the AI provider and persist the
-        result as a `SalesInteraction`. The raw transcript itself is not
-        stored — only the summary + extracted action items — matching the
-        `Sales_Interactions` schema, which has no `transcript` column.
+        result as a `SalesInteraction`.
         """
-        lead = await self.lead_service.get_lead(lead_id, current_user)
+        lead = await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
 
         raw_result = await self.ai_provider.summarize_conversation(transcript=transcript)
         interaction_in = SalesInteractionCreate(
             interaction_type=interaction_type,
             summary=raw_result.get("summary"),
             action_items=raw_result.get("action_items", []),
+            workspace_id=lead.workspace_id,
+            user_id=current_user.id,
         )
 
-        interaction = await self.interactions.create(interaction_in, lead.id)
+        interaction = await self.interactions.create(
+            interaction_in,
+            lead_id=lead.id,
+            workspace_id=lead.workspace_id,
+            user_id=current_user.id,
+        )
         await self.db.commit()
         return interaction
 
     async def log_interaction(
-        self, lead_id: uuid.UUID, interaction_in: SalesInteractionCreate, current_user
+        self,
+        lead_id: uuid.UUID,
+        interaction_in: SalesInteractionCreate,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
     ) -> SalesInteraction:
         """Log an interaction directly (summary/action items already known — no AI call)."""
-        lead = await self.lead_service.get_lead(lead_id, current_user)
-        interaction = await self.interactions.create(interaction_in, lead.id)
+        lead = await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
+        interaction = await self.interactions.create(
+            interaction_in,
+            lead_id=lead.id,
+            workspace_id=lead.workspace_id,
+            user_id=current_user.id,
+        )
         await self.db.commit()
         return interaction
 
-    async def list_interactions(self, lead_id: uuid.UUID, current_user) -> list[SalesInteraction]:
-        await self.lead_service.get_lead(lead_id, current_user)
+    async def list_interactions(
+        self,
+        lead_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> list[SalesInteraction]:
+        await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         return await self.interactions.list_for_lead(lead_id)
 
     async def schedule_follow_up(
@@ -81,8 +102,9 @@ class ConversationService:
         start_time: datetime,
         end_time: datetime,
         current_user,
+        ws_ctx: WorkspaceContext | None = None,
     ) -> CalendarEventResult:
-        lead = await self.lead_service.get_lead(lead_id, current_user)
+        lead = await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
 
         if end_time <= start_time:
             raise ConflictError(

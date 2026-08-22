@@ -16,12 +16,17 @@ class LeadBase(BaseModel):
     contact_name: str | None = Field(default=None, max_length=150)
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=50)
-    deal_value: Decimal | None = Field(default=None, ge=0)
+    deal_value: Decimal | None = Field(default=None, ge=Decimal(0))
 
 
 class LeadCreate(LeadBase):
     lead_status: LeadStatus = LeadStatus.NEW
+    # Workspace context (resolved from query param by service layer)
+    workspace_id: uuid.UUID | None = None
+    # Legacy V1 field — still accepted; service layer also reads assigned_to
     owner_id: uuid.UUID | None = None
+    # Explicit workspace-aware fields
+    assigned_to: uuid.UUID | None = None  # who to assign; falls back to owner_id then creator
 
 
 class LeadUpdate(BaseModel):
@@ -30,9 +35,12 @@ class LeadUpdate(BaseModel):
     contact_name: str | None = Field(default=None, max_length=150)
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=50)
-    deal_value: Decimal | None = Field(default=None, ge=0)
+    deal_value: Decimal | None = Field(default=None, ge=Decimal(0))
     lead_status: LeadStatus | None = None
+    # Legacy V1 field — kept so existing clients don't break
     owner_id: uuid.UUID | None = None
+    # Explicit workspace-aware assignment field
+    assigned_to: uuid.UUID | None = None
 
 
 class LeadRead(ORMBaseModel):
@@ -44,7 +52,11 @@ class LeadRead(ORMBaseModel):
     phone: str | None
     deal_value: Decimal | None
     lead_status: LeadStatus
-    owner_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
+    # Ownership / assignment
+    owner_id: uuid.UUID | None          # legacy field, still returned
+    created_by: uuid.UUID | None = None # who created this lead
+    assigned_to: uuid.UUID | None = None # who it is currently assigned to
     created_at: datetime
     updated_at: datetime
 
@@ -60,7 +72,11 @@ class LeadListItem(ORMBaseModel):
     phone: str | None
     deal_value: Decimal | None
     lead_status: LeadStatus
+    workspace_id: uuid.UUID | None = None
+    # Ownership / assignment
     owner_id: uuid.UUID | None
+    created_by: uuid.UUID | None = None
+    assigned_to: uuid.UUID | None = None
     updated_at: datetime
 
 

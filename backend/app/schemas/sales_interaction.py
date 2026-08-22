@@ -17,6 +17,8 @@ class SalesInteractionCreate(BaseModel):
     contact_id: uuid.UUID | None = None
     account_id: uuid.UUID | None = None
     opportunity_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
 
 
 class SalesInteractionRead(ORMBaseModel):
@@ -25,6 +27,8 @@ class SalesInteractionRead(ORMBaseModel):
     contact_id: uuid.UUID | None
     account_id: uuid.UUID | None
     opportunity_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
     interaction_type: InteractionType
     summary: str | None
     action_items: list[str] | None
@@ -37,6 +41,8 @@ class ActivityListItem(ORMBaseModel):
     contact_id: uuid.UUID | None
     account_id: uuid.UUID | None
     opportunity_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
     interaction_type: InteractionType
     summary: str | None
     action_items: list[str] | None

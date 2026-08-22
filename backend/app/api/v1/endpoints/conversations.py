@@ -13,7 +13,13 @@ from datetime import datetime
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
-from app.api.deps import AIProviderDep, CalendarProviderDep, CurrentActiveUser, DBSession
+from app.api.deps import (
+    AIProviderDep,
+    CalendarProviderDep,
+    CurrentActiveUser,
+    DBSession,
+    WorkspaceContextDep,
+)
 from app.models.pipeline_enums import InteractionType
 from app.schemas.sales_interaction import SalesInteractionCreate, SalesInteractionRead
 from app.services.conversation_service import ConversationService
@@ -53,9 +59,10 @@ async def summarize_interaction(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     calendar_provider: CalendarProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> SalesInteractionRead:
     interaction = await ConversationService(db, ai_provider, calendar_provider).summarize_and_log(
-        lead_id, payload.transcript, payload.interaction_type, current_user
+        lead_id, payload.transcript, payload.interaction_type, current_user, ws_ctx=ws_ctx
     )
     return SalesInteractionRead.model_validate(interaction)
 
@@ -73,9 +80,10 @@ async def log_interaction(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     calendar_provider: CalendarProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> SalesInteractionRead:
     interaction = await ConversationService(db, ai_provider, calendar_provider).log_interaction(
-        lead_id, interaction_in, current_user
+        lead_id, interaction_in, current_user, ws_ctx=ws_ctx
     )
     return SalesInteractionRead.model_validate(interaction)
 
@@ -91,9 +99,10 @@ async def list_interactions(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     calendar_provider: CalendarProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> list[SalesInteractionRead]:
     interactions = await ConversationService(db, ai_provider, calendar_provider).list_interactions(
-        lead_id, current_user
+        lead_id, current_user, ws_ctx=ws_ctx
     )
     return [SalesInteractionRead.model_validate(interaction) for interaction in interactions]
 
@@ -111,6 +120,7 @@ async def schedule_follow_up(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     calendar_provider: CalendarProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> ScheduleFollowUpResponse:
     result = await ConversationService(db, ai_provider, calendar_provider).schedule_follow_up(
         lead_id,
@@ -119,6 +129,7 @@ async def schedule_follow_up(
         start_time=payload.start_time,
         end_time=payload.end_time,
         current_user=current_user,
+        ws_ctx=ws_ctx,
     )
     return ScheduleFollowUpResponse(
         event_id=result.event_id,

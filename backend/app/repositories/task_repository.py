@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.pipeline_enums import TaskPriority
@@ -18,7 +18,12 @@ class TaskRepository:
     async def get_by_id(self, task_id: uuid.UUID) -> Task | None:
         return await self.db.get(Task, task_id)
 
-    async def create(self, task_in: TaskCreate, created_by: uuid.UUID | None) -> Task:
+    async def create(
+        self,
+        task_in: TaskCreate,
+        created_by: uuid.UUID | None,
+        workspace_id: uuid.UUID | None = None,
+    ) -> Task:
         task = Task(
             title=task_in.title,
             description=task_in.description,
@@ -30,6 +35,7 @@ class TaskRepository:
             contact_id=task_in.contact_id,
             account_id=task_in.account_id,
             opportunity_id=task_in.opportunity_id,
+            workspace_id=task_in.workspace_id if task_in.workspace_id is not None else workspace_id,
         )
         self.db.add(task)
         await self.db.flush()
@@ -69,6 +75,8 @@ class TaskRepository:
         limit: int = 50,
         user_id: uuid.UUID | None = None,
         assigned_to: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
         is_completed: bool | None = None,
         priority: TaskPriority | None = None,
         lead_id: uuid.UUID | None = None,
@@ -77,7 +85,12 @@ class TaskRepository:
         opportunity_id: uuid.UUID | None = None,
         search: str | None = None,
     ) -> tuple[list[Task], int]:
-        filters = []
+        filters: list[ColumnElement[bool]] = []
+        if is_personal:
+            filters.append(Task.workspace_id.is_(None))
+        elif workspace_id is not None:
+            filters.append(Task.workspace_id == workspace_id)
+
         if user_id is not None:
             # Match either assigned to or created by user
             filters.append(or_(Task.assigned_to == user_id, Task.created_by == user_id))
@@ -129,14 +142,22 @@ class TaskRepository:
         self,
         assigned_to: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
         limit: int = 10,
     ) -> list[Task]:
-        query = select(Task).where(Task.is_completed == False)  # noqa: E712
-        if user_id is not None:
-            query = query.where(or_(Task.assigned_to == user_id, Task.created_by == user_id))
-        elif assigned_to is not None:
-            query = query.where(Task.assigned_to == assigned_to)
+        filters: list[ColumnElement[bool]] = [Task.is_completed == False]  # noqa: E712
+        if is_personal:
+            filters.append(Task.workspace_id.is_(None))
+        elif workspace_id is not None:
+            filters.append(Task.workspace_id == workspace_id)
 
+        if user_id is not None:
+            filters.append(or_(Task.assigned_to == user_id, Task.created_by == user_id))
+        elif assigned_to is not None:
+            filters.append(Task.assigned_to == assigned_to)
+
+        query = select(Task).where(*filters)
         result = await self.db.execute(
             query.order_by(Task.due_date.asc().nulls_last(), Task.created_at.desc()).limit(limit)
         )

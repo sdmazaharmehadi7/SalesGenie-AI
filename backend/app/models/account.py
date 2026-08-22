@@ -32,8 +32,15 @@ class Account(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     owner: Mapped["User | None"] = relationship("User", foreign_keys=[owner_id], lazy="joined")  # noqa: F821
+    workspace: Mapped["Workspace | None"] = relationship("Workspace", foreign_keys=[workspace_id])  # noqa: F821
     contacts: Mapped[list["Contact"]] = relationship(  # noqa: F821
         "Contact", back_populates="account", cascade="all, delete-orphan"
     )

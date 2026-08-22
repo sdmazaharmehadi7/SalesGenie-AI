@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CurrentActiveUser, DBSession
+from app.api.deps import CurrentActiveUser, DBSession, WorkspaceContextDep
 from app.schemas.crm_dashboard import CRMDashboardSummary, PredictiveAnalytics
 from app.services.crm_dashboard_service import CRMDashboardService
 
@@ -15,15 +15,17 @@ router = APIRouter()
 async def get_crm_summary(
     db: DBSession,
     current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
     owner_id: uuid.UUID | None = Query(default=None, description="Filter summary by owner (unrestricted roles only)"),
 ) -> CRMDashboardSummary:
-    return await CRMDashboardService(db).get_summary(current_user, owner_id=owner_id)
+    return await CRMDashboardService(db).get_summary(current_user, ws_ctx=ws_ctx, owner_id=owner_id)
 
 
 @router.get("/forecast", response_model=PredictiveAnalytics, summary="Get AI Predictive Sales Analytics & Forecast")
 async def get_crm_forecast(
     db: DBSession,
     current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
     owner_id: uuid.UUID | None = Query(default=None, description="Filter forecast by owner"),
 ) -> PredictiveAnalytics:
-    return await CRMDashboardService(db).get_predictive_analytics(current_user, owner_id=owner_id)
+    return await CRMDashboardService(db).get_predictive_analytics(current_user, ws_ctx=ws_ctx, owner_id=owner_id)

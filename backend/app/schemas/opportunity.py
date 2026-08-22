@@ -12,7 +12,7 @@ from app.schemas.common import ORMBaseModel
 
 class OpportunityBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    amount: Decimal | None = Field(default=None, ge=0)
+    amount: Decimal | None = Field(default=None, ge=Decimal(0))
     stage: OpportunityStage = OpportunityStage.NEW
     probability: int | None = Field(default=None, ge=0, le=100)
     expected_close_date: date | None = None
@@ -20,6 +20,7 @@ class OpportunityBase(BaseModel):
     account_id: uuid.UUID | None = None
     contact_id: uuid.UUID | None = None
     lead_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID | None = None
 
 
 class OpportunityCreate(OpportunityBase):
@@ -28,7 +29,7 @@ class OpportunityCreate(OpportunityBase):
 
 class OpportunityUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    amount: Decimal | None = Field(default=None, ge=0)
+    amount: Decimal | None = Field(default=None, ge=Decimal(0))
     stage: OpportunityStage | None = None
     probability: int | None = Field(default=None, ge=0, le=100)
     expected_close_date: date | None = None
@@ -39,6 +40,7 @@ class OpportunityUpdate(BaseModel):
     contact_id: uuid.UUID | None = None
     lead_id: uuid.UUID | None = None
     owner_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID | None = None
 
 
 class OpportunityStageUpdate(BaseModel):
@@ -59,6 +61,7 @@ class OpportunityRead(ORMBaseModel):
     contact_id: uuid.UUID | None
     lead_id: uuid.UUID | None
     owner_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -76,6 +79,7 @@ class OpportunityListItem(ORMBaseModel):
     contact_id: uuid.UUID | None
     lead_id: uuid.UUID | None
     owner_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
     updated_at: datetime
 
 

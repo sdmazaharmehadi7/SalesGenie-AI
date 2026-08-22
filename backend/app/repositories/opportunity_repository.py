@@ -3,7 +3,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.opportunity import Opportunity
@@ -18,7 +18,12 @@ class OpportunityRepository:
     async def get_by_id(self, opportunity_id: uuid.UUID) -> Opportunity | None:
         return await self.db.get(Opportunity, opportunity_id)
 
-    async def create(self, opp_in: OpportunityCreate, owner_id: uuid.UUID | None) -> Opportunity:
+    async def create(
+        self,
+        opp_in: OpportunityCreate,
+        owner_id: uuid.UUID | None,
+        workspace_id: uuid.UUID | None = None,
+    ) -> Opportunity:
         is_won = opp_in.stage == OpportunityStage.WON
         is_closed = opp_in.stage in (OpportunityStage.WON, OpportunityStage.LOST)
         opp = Opportunity(
@@ -34,6 +39,7 @@ class OpportunityRepository:
             contact_id=opp_in.contact_id,
             lead_id=opp_in.lead_id,
             owner_id=opp_in.owner_id if opp_in.owner_id is not None else owner_id,
+            workspace_id=opp_in.workspace_id if opp_in.workspace_id is not None else workspace_id,
         )
         self.db.add(opp)
         await self.db.flush()
@@ -68,12 +74,19 @@ class OpportunityRepository:
         offset: int = 0,
         limit: int = 50,
         owner_id: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
         account_id: uuid.UUID | None = None,
         contact_id: uuid.UUID | None = None,
         stage: OpportunityStage | None = None,
         search: str | None = None,
     ) -> tuple[list[Opportunity], int]:
-        filters = []
+        filters: list[ColumnElement[bool]] = []
+        if is_personal:
+            filters.append(Opportunity.workspace_id.is_(None))
+        elif workspace_id is not None:
+            filters.append(Opportunity.workspace_id == workspace_id)
+
         if owner_id is not None:
             filters.append(Opportunity.owner_id == owner_id)
         if account_id is not None:
@@ -105,15 +118,35 @@ class OpportunityRepository:
         opportunities = list(result.scalars().all())
         return opportunities, total
 
-    async def get_pipeline_deals(self, owner_id: uuid.UUID | None = None) -> list[Opportunity]:
+    async def get_pipeline_deals(
+        self,
+        owner_id: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
+    ) -> list[Opportunity]:
         query = select(Opportunity)
+        if is_personal:
+            query = query.where(Opportunity.workspace_id.is_(None))
+        elif workspace_id is not None:
+            query = query.where(Opportunity.workspace_id == workspace_id)
+
         if owner_id is not None:
             query = query.where(Opportunity.owner_id == owner_id)
         result = await self.db.execute(query.order_by(Opportunity.updated_at.desc()))
         return list(result.scalars().all())
 
-    async def get_metrics(self, owner_id: uuid.UUID | None = None) -> dict:
-        filters = []
+    async def get_metrics(
+        self,
+        owner_id: uuid.UUID | None = None,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
+    ) -> dict:
+        filters: list[ColumnElement[bool]] = []
+        if is_personal:
+            filters.append(Opportunity.workspace_id.is_(None))
+        elif workspace_id is not None:
+            filters.append(Opportunity.workspace_id == workspace_id)
+
         if owner_id is not None:
             filters.append(Opportunity.owner_id == owner_id)
 

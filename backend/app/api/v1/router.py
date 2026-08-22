@@ -22,6 +22,7 @@ from app.api.v1.endpoints import (
     outreach,
     tasks,
     users,
+    workspaces,
 )
 
 api_router = APIRouter()
@@ -29,6 +30,7 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
+api_router.include_router(workspaces.router, prefix="/workspaces", tags=["Workspaces"])
 api_router.include_router(leads.router, prefix="/leads", tags=["Leads"])
 api_router.include_router(company_insights.router, prefix="/leads", tags=["Company Intelligence"])
 api_router.include_router(lead_scores.router, prefix="/leads", tags=["Lead Scoring"])

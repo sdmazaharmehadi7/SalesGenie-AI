@@ -19,6 +19,7 @@ CRM entity. Existing rows that only reference `lead_id` are unaffected.
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -28,6 +29,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 from app.models.mixins import UUIDPrimaryKeyMixin, generated_at_column
 from app.models.pipeline_enums import InteractionType
+
+if TYPE_CHECKING:
+    from app.models.account import Account
+    from app.models.contact import Contact
+    from app.models.lead import Lead
+    from app.models.opportunity import Opportunity
+    from app.models.user import User
+    from app.models.workspace import Workspace
 
 
 class SalesInteraction(Base, UUIDPrimaryKeyMixin):
@@ -57,6 +66,18 @@ class SalesInteraction(Base, UUIDPrimaryKeyMixin):
         nullable=True,
         index=True,
     )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     interaction_type: Mapped[InteractionType] = mapped_column(
         Enum(
             InteractionType,
@@ -74,6 +95,8 @@ class SalesInteraction(Base, UUIDPrimaryKeyMixin):
     contact: Mapped["Contact | None"] = relationship("Contact", back_populates="sales_interactions", foreign_keys=[contact_id])  # noqa: F821
     account: Mapped["Account | None"] = relationship("Account", back_populates="sales_interactions", foreign_keys=[account_id])  # noqa: F821
     opportunity: Mapped["Opportunity | None"] = relationship("Opportunity", back_populates="sales_interactions", foreign_keys=[opportunity_id])  # noqa: F821
+    workspace: Mapped["Workspace | None"] = relationship("Workspace", foreign_keys=[workspace_id])  # noqa: F821
+    user: Mapped["User | None"] = relationship("User", foreign_keys=[user_id])  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<SalesInteraction id={self.id} type={self.interaction_type.value}>"

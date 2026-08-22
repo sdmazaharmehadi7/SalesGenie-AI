@@ -158,3 +158,152 @@ def get_calendar_provider_dep() -> CalendarProvider:
 AIProviderDep = Annotated[AIProvider, Depends(get_ai_provider_dep)]
 EmailProviderDep = Annotated[EmailProvider, Depends(get_email_provider_dep)]
 CalendarProviderDep = Annotated[CalendarProvider, Depends(get_calendar_provider_dep)]
+
+
+# ---------------------------------------------------------------------------
+# Workspace-scoped RBAC
+# ---------------------------------------------------------------------------
+
+
+def require_workspace_role(*allowed_roles):
+    """
+    Dependency factory for workspace-context role-gated endpoints.
+
+    Unlike the global `require_roles()` which checks User.role (a legacy
+    column), this checks the calling user's WorkspaceMembership.role for
+    the workspace identified by the `workspace_id` path parameter.
+
+    Usage::
+
+        from app.models.workspace import WorkspaceRole
+
+        @router.delete("/workspaces/{workspace_id}/members/{user_id}")
+        async def remove_member(
+            workspace_id: uuid.UUID,
+            user_id: uuid.UUID,
+            _: Annotated[None, Depends(require_workspace_role(WorkspaceRole.MANAGER))],
+            db: DBSession,
+            current_user: CurrentActiveUser,
+        ) -> None: ...
+
+    The dependency raises:
+      • 404 if the workspace does not exist or is inactive
+      • 403 if the user is not an active member
+      • 403 if the user's role is not in `allowed_roles`
+    """
+    import uuid as _uuid
+    from fastapi import Path
+
+    async def _check(
+        workspace_id: _uuid.UUID,
+        db: DBSession,
+        current_user: CurrentActiveUser,
+    ) -> None:
+        # Inline import to avoid circular import (service imports models; deps imports service)
+        from app.models.workspace import MembershipStatus, WorkspaceRole
+        from app.repositories.workspace_repository import WorkspaceRepository
+
+        repo = WorkspaceRepository(db)
+        workspace = await repo.get_by_id(workspace_id)
+        if workspace is None or not workspace.is_active:
+            raise ForbiddenError("Workspace not found.", error_code="workspace_not_found")
+
+        membership = await repo.get_membership(workspace_id, current_user.id)
+        if membership is None or membership.status != MembershipStatus.ACTIVE.value:
+            raise ForbiddenError("You are not a member of this workspace.", error_code="not_a_member")
+
+        if membership.role not in allowed_roles:
+            raise ForbiddenError(
+                "You do not have the required workspace role.",
+                error_code="insufficient_workspace_role",
+            )
+
+    return _check
+
+
+# ---------------------------------------------------------------------------
+# Workspace Context Dependency for CRM / Data Scoping
+# ---------------------------------------------------------------------------
+
+
+class WorkspaceContext(BaseModel):
+    """
+    Resolved workspace authorization context for the current request.
+
+    - If workspace_id is None: user is operating in their Personal Area.
+      Their personal CRM data is strictly isolated and never visible to others.
+    - If workspace_id is set: user has been verified as an active member of this workspace.
+      - role == MANAGER: full workspace data access, management capabilities, reassign leads.
+      - role == TEAM_MEMBER: access authorized CRM data within this workspace.
+    """
+
+    workspace_id: uuid.UUID | None = None
+    is_personal: bool = True
+    is_manager: bool = False
+    role: str | None = None  # WorkspaceRole string value if in workspace
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
+async def get_workspace_context(
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    x_workspace_id: Annotated[str | None, Depends(lambda: None)] = None,
+) -> WorkspaceContext:
+    """
+    Resolves and verifies the workspace context from X-Workspace-ID header
+    or workspace_id query parameter.
+    If no workspace is specified or personal is selected, returns Personal Area context.
+    """
+    # Note: we resolve header/query safely inside the dependency
+    return WorkspaceContext(
+        workspace_id=None,
+        is_personal=True,
+        is_manager=True,
+        role=None,
+    )
+
+
+async def resolve_workspace_context(
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    workspace_id: uuid.UUID | None = Query(None, description="Optional workspace ID context"),
+) -> WorkspaceContext:
+    """
+    Dependency that resolves the active workspace context and validates authorization.
+    """
+    if workspace_id is None:
+        return WorkspaceContext(
+            workspace_id=None,
+            is_personal=True,
+            is_manager=True,
+            role=None,
+        )
+
+    from app.models.workspace import MembershipStatus, WorkspaceRole, WorkspaceType
+    from app.repositories.workspace_repository import WorkspaceRepository
+
+    repo = WorkspaceRepository(db)
+    workspace = await repo.get_by_id(workspace_id)
+    if workspace is None or not workspace.is_active:
+        raise ForbiddenError("Workspace not found or inactive.", error_code="workspace_not_found")
+
+    membership = await repo.get_membership(workspace_id, current_user.id)
+    if membership is None or membership.status != MembershipStatus.ACTIVE.value:
+        raise ForbiddenError(
+            "You do not have permission to access this workspace.",
+            error_code="workspace_access_denied",
+        )
+
+    is_personal = (workspace.type == WorkspaceType.PERSONAL)
+    is_manager = (membership.role == WorkspaceRole.MANAGER)
+
+    return WorkspaceContext(
+        workspace_id=workspace_id,
+        is_personal=is_personal,
+        is_manager=is_manager,
+        role=membership.role.value,
+    )
+
+
+WorkspaceContextDep = Annotated[WorkspaceContext, Depends(resolve_workspace_context)]

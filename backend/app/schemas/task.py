@@ -19,6 +19,7 @@ class TaskBase(BaseModel):
     contact_id: uuid.UUID | None = None
     account_id: uuid.UUID | None = None
     opportunity_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID | None = None
 
 
 class TaskCreate(TaskBase):
@@ -36,6 +37,7 @@ class TaskUpdate(BaseModel):
     contact_id: uuid.UUID | None = None
     account_id: uuid.UUID | None = None
     opportunity_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID | None = None
 
 
 class TaskRead(ORMBaseModel):
@@ -52,6 +54,7 @@ class TaskRead(ORMBaseModel):
     contact_id: uuid.UUID | None
     account_id: uuid.UUID | None
     opportunity_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -69,6 +72,7 @@ class TaskListItem(ORMBaseModel):
     contact_id: uuid.UUID | None
     account_id: uuid.UUID | None
     opportunity_id: uuid.UUID | None
+    workspace_id: uuid.UUID | None = None
     updated_at: datetime
 
 

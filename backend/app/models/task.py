@@ -8,6 +8,7 @@ Salesforce Task object.
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -16,6 +17,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.pipeline_enums import TaskPriority
+
+if TYPE_CHECKING:
+    from app.models.account import Account
+    from app.models.contact import Contact
+    from app.models.lead import Lead
+    from app.models.opportunity import Opportunity
+    from app.models.user import User
+    from app.models.workspace import Workspace
 
 
 class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -75,9 +84,16 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     assignee: Mapped["User | None"] = relationship("User", foreign_keys=[assigned_to], lazy="joined")  # noqa: F821
     creator: Mapped["User | None"] = relationship("User", foreign_keys=[created_by])  # noqa: F821
+    workspace: Mapped["Workspace | None"] = relationship("Workspace", foreign_keys=[workspace_id])  # noqa: F821
     lead: Mapped["Lead | None"] = relationship("Lead", back_populates="tasks", foreign_keys=[lead_id])  # noqa: F821
     contact: Mapped["Contact | None"] = relationship("Contact", back_populates="tasks", foreign_keys=[contact_id])  # noqa: F821
     account: Mapped["Account | None"] = relationship("Account", back_populates="tasks", foreign_keys=[account_id])  # noqa: F821

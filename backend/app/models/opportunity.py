@@ -70,11 +70,18 @@ class Opportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     account: Mapped["Account | None"] = relationship("Account", back_populates="opportunities")  # noqa: F821
     contact: Mapped["Contact | None"] = relationship("Contact", back_populates="opportunities", foreign_keys=[contact_id])  # noqa: F821
     lead: Mapped["Lead | None"] = relationship("Lead", back_populates="opportunities", foreign_keys=[lead_id])  # noqa: F821
     owner: Mapped["User | None"] = relationship("User", foreign_keys=[owner_id], lazy="joined")  # noqa: F821
+    workspace: Mapped["Workspace | None"] = relationship("Workspace", foreign_keys=[workspace_id])  # noqa: F821
     sales_interactions: Mapped[list["SalesInteraction"]] = relationship(  # noqa: F821
         "SalesInteraction",
         back_populates="opportunity",
