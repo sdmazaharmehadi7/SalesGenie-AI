@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { getLeads } from '@/services/api/leads'
 import { listInteractions, summarizeInteraction } from '@/services/api/conversations'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 function initials(name) {
   if (!name) return '??'
@@ -33,17 +34,8 @@ function mapInteraction(interaction, lead) {
   }
 }
 
-/**
- * Loads every logged sales interaction (Module 4 — Conversation
- * Intelligence) across all leads owned/visible to the current user, and
- * exposes an action to summarize a new transcript with AI.
- *
- * The backend scopes interactions per-lead (`GET /leads/{id}/interactions`)
- * with no cross-lead listing endpoint, so this loads the lead list once and
- * fans out one request per lead, matching the pattern used by
- * `useLeadIntelligence`.
- */
 export function useConversationSummaries() {
+  const { workspaceKey } = useWorkspaceKey()
   const [leads, setLeads] = useState([])
   const [summaries, setSummaries] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -55,6 +47,8 @@ export function useConversationSummaries() {
   const loadAll = useCallback(async () => {
     setIsLoading(true)
     setError(null)
+    setLeads([])
+    setSummaries([])
     try {
       const leadsData = await getLeads()
       const leadItems = leadsData.items || []
@@ -80,7 +74,7 @@ export function useConversationSummaries() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [workspaceKey])
 
   useEffect(() => {
     loadAll()

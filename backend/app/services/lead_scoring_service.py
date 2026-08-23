@@ -11,6 +11,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import WorkspaceContext
 from app.integrations.ai.base import AIProvider
 from app.models.lead_score import LeadScore
 from app.repositories.company_insight_repository import CompanyInsightRepository
@@ -27,8 +28,13 @@ class LeadScoringService:
         self.insights = CompanyInsightRepository(db)
         self.lead_service = LeadService(db)
 
-    async def generate_score(self, lead_id: uuid.UUID, current_user) -> LeadScore:
-        lead = await self.lead_service.get_lead(lead_id, current_user)
+    async def generate_score(
+        self,
+        lead_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> LeadScore:
+        lead = await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         latest_insight = await self.insights.get_latest_for_lead(lead.id)
 
         insight_dict = None
@@ -50,10 +56,20 @@ class LeadScoringService:
         await self.db.commit()
         return score
 
-    async def get_latest_score(self, lead_id: uuid.UUID, current_user) -> LeadScore | None:
-        await self.lead_service.get_lead(lead_id, current_user)
+    async def get_latest_score(
+        self,
+        lead_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> LeadScore | None:
+        await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         return await self.scores.get_latest_for_lead(lead_id)
 
-    async def list_scores(self, lead_id: uuid.UUID, current_user) -> list[LeadScore]:
-        await self.lead_service.get_lead(lead_id, current_user)
+    async def list_scores(
+        self,
+        lead_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> list[LeadScore]:
+        await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         return await self.scores.list_for_lead(lead_id)

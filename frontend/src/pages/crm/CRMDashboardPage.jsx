@@ -19,8 +19,10 @@ import {
 } from '@/components/ui/icons'
 import { getCRMSummary, getCRMForecast } from '@/services/api/crmDashboard'
 import { toggleTaskComplete } from '@/services/api/tasks'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 export default function CRMDashboardPage() {
+  const { workspaceKey } = useWorkspaceKey()
   const [summary, setSummary] = useState(null)
   const [forecast, setForecast] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -43,8 +45,9 @@ export default function CRMDashboardPage() {
   }
 
   useEffect(() => {
+    setLoading(true)
     loadData()
-  }, [])
+  }, [workspaceKey])
 
   const handleRefresh = () => {
     setRefreshing(true)

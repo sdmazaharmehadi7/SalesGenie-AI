@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from '@/components/ui/icons'
 import { getOpportunities, createOpportunity } from '@/services/api/opportunities'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 const STAGE_ORDER = [
   'new',
@@ -23,6 +24,7 @@ const STAGE_ORDER = [
 ]
 
 export default function OpportunitiesPage() {
+  const { workspaceKey } = useWorkspaceKey()
   const [opportunities, setOpportunities] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -59,7 +61,7 @@ export default function OpportunitiesPage() {
 
   useEffect(() => {
     loadDeals()
-  }, [page, search, stageFilter])
+  }, [page, search, stageFilter, workspaceKey])
 
   const handleCreate = async (e) => {
     e.preventDefault()

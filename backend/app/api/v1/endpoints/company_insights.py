@@ -10,7 +10,7 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.api.deps import AIProviderDep, CurrentActiveUser, DBSession
+from app.api.deps import AIProviderDep, CurrentActiveUser, DBSession, WorkspaceContextDep
 from app.core.exceptions import NotFoundError
 from app.schemas.company_insight import CompanyInsightRead
 from app.services.company_intelligence_service import CompanyIntelligenceService
@@ -25,9 +25,13 @@ router = APIRouter()
     summary="Generate a new AI company-insight snapshot for a lead",
 )
 async def generate_insight(
-    lead_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser, ai_provider: AIProviderDep
+    lead_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ai_provider: AIProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> CompanyInsightRead:
-    insight = await CompanyIntelligenceService(db, ai_provider).generate_insight(lead_id, current_user)
+    insight = await CompanyIntelligenceService(db, ai_provider).generate_insight(lead_id, current_user, ws_ctx=ws_ctx)
     return CompanyInsightRead.model_validate(insight)
 
 
@@ -37,9 +41,13 @@ async def generate_insight(
     summary="Get the most recent company insight for a lead",
 )
 async def get_latest_insight(
-    lead_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser, ai_provider: AIProviderDep
+    lead_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ai_provider: AIProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> CompanyInsightRead:
-    insight = await CompanyIntelligenceService(db, ai_provider).get_latest_insight(lead_id, current_user)
+    insight = await CompanyIntelligenceService(db, ai_provider).get_latest_insight(lead_id, current_user, ws_ctx=ws_ctx)
     if insight is None:
         raise NotFoundError(
             "No insight has been generated for this lead yet.", error_code="insight_not_found"
@@ -53,7 +61,11 @@ async def get_latest_insight(
     summary="List all company-insight snapshots for a lead",
 )
 async def list_insights(
-    lead_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser, ai_provider: AIProviderDep
+    lead_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ai_provider: AIProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> list[CompanyInsightRead]:
-    insights = await CompanyIntelligenceService(db, ai_provider).list_insights(lead_id, current_user)
+    insights = await CompanyIntelligenceService(db, ai_provider).list_insights(lead_id, current_user, ws_ctx=ws_ctx)
     return [CompanyInsightRead.model_validate(insight) for insight in insights]

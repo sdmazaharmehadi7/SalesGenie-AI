@@ -5,6 +5,7 @@ Defines strict data contracts for all AI-Powered Sales Forecasting Platform Usin
 All AI responses return structured JSON objects — no raw Markdown parsing required by the frontend.
 """
 
+import uuid
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,8 @@ class ChatRequest(BaseModel):
         description="User sales query or request.",
         examples=["What is the best way to handle a price objection during a demo?"],
     )
+    lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional lead context")
+    opportunity_id: Optional[uuid.UUID] = Field(default=None, description="Optional opportunity context")
 
 
 class ChatResponse(BaseModel):
@@ -48,6 +51,8 @@ class EmailRequest(BaseModel):
     prospect_name: Optional[str] = Field(default=None, examples=["Sarah Miller"])
     company_name: Optional[str] = Field(default=None, examples=["TechScale"])
     pain_points: Optional[str] = Field(default=None, examples=["Slow software deployment velocity"])
+    lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Lead ID")
+    contact_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Contact ID")
 
 
 class EmailSignature(BaseModel):
@@ -95,6 +100,8 @@ class SummaryRequest(BaseModel):
         description="Source format: transcript, meeting_notes, email_thread.",
         examples=["transcript"],
     )
+    lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Lead ID")
+    opportunity_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Opportunity ID")
 
 
 class ActionItem(BaseModel):
@@ -128,6 +135,8 @@ class FollowupRequest(BaseModel):
     )
     deal_stage: Optional[str] = Field(default=None, examples=["Post-Demo / Proposal"])
     last_interaction: Optional[str] = Field(default=None, examples=["Product demonstration 3 days ago"])
+    lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Lead ID")
+    opportunity_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Opportunity ID")
 
 
 class FollowupResponse(BaseModel):
@@ -153,6 +162,7 @@ class LeadScoreRequest(BaseModel):
     company_size: Optional[str] = Field(default=None, examples=["1200 employees"])
     industry: Optional[str] = Field(default=None, examples=["Fintech"])
     budget_signals: Optional[str] = Field(default=None, examples=["$100k budget approved for Q3"])
+    lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Lead ID")
 
 
 class LeadScoreResponse(BaseModel):
@@ -183,6 +193,8 @@ class ObjectionRequest(BaseModel):
         examples=["pricing"],
     )
     competitor_name: Optional[str] = Field(default=None, examples=["Competitor X"])
+    lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Lead ID")
+    opportunity_id: Optional[uuid.UUID] = Field(default=None, description="Optional CRM Opportunity ID")
 
 
 class ObjectionResponse(BaseModel):

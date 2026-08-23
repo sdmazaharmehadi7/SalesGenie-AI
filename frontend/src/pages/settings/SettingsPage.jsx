@@ -5,6 +5,15 @@ import { useAuth } from '@/context/AuthContext'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import { useToast } from '@/context/ToastContext'
 import { changePassword } from '@/services/api/auth'
+import Button from '@/components/ui/Button'
+import {
+  listWorkspaceMembers,
+  inviteUserByEmail,
+  listWorkspaceInvitations,
+  cancelInvitation,
+  updateMemberRole,
+  removeWorkspaceMember,
+} from '@/services/api/workspaces'
 
 /**
  * Persist settings to localStorage so they survive page refreshes.
@@ -342,81 +351,227 @@ function GeneralSection() {
 
 // ─── Section: Workspace ───────────────────────────────────────────────────────
 function WorkspaceSection() {
-  const [saved, setSaved] = useState(false)
-  const [form, setForm] = useState({
-    name: 'AI-Powered Sales Forecasting Platform Using Predictive Analytics',
-    slug: 'sales-forecasting-platform',
-    website: 'https://salesforecasting.ai',
-    industry: 'saas',
-    size: '11-50',
-    description: 'AI-powered sales forecasting and lead intelligence platform using predictive analytics.',
-  })
-  const set = (key) => (val) => { setSaved(false); setForm((f) => ({ ...f, [key]: val })) }
+  const { activeWorkspace, isPersonal } = useWorkspace()
+  const { showToast } = useToast()
+  const [members, setMembers] = useState([])
+  const [invitations, setInvitations] = useState([])
+  const [loadingMembers, setLoadingMembers] = useState(true)
+
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('team_member')
+  const [isInviting, setIsInviting] = useState(false)
+  const [copiedToken, setCopiedToken] = useState(null)
+
+  const loadTeamData = useCallback(async () => {
+    if (!activeWorkspace?.id || isPersonal) return
+    setLoadingMembers(true)
+    try {
+      const [membersData, invitesData] = await Promise.all([
+        listWorkspaceMembers(activeWorkspace.id).catch(() => []),
+        listWorkspaceInvitations(activeWorkspace.id).catch(() => []),
+      ])
+      setMembers(membersData || [])
+      setInvitations(invitesData || [])
+    } catch (err) {
+      console.error('Failed to load workspace members:', err)
+    } finally {
+      setLoadingMembers(false)
+    }
+  }, [activeWorkspace?.id, isPersonal])
+
+  useEffect(() => {
+    loadTeamData()
+  }, [loadTeamData])
+
+  const handleInvite = async (e) => {
+    e.preventDefault()
+    if (!inviteEmail.trim()) return
+    setIsInviting(true)
+    try {
+      const inv = await inviteUserByEmail(activeWorkspace.id, {
+        email: inviteEmail.trim(),
+        role: inviteRole,
+      })
+      showToast(`Invitation created for ${inv.email}! Token: ${inv.token}`, 'success')
+      setInviteEmail('')
+      loadTeamData()
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to send invitation.'
+      showToast(msg, 'error')
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
+  const handleCancelInvite = async (invId) => {
+    try {
+      await cancelInvitation(activeWorkspace.id, invId)
+      showToast('Invitation cancelled.', 'info')
+      loadTeamData()
+    } catch (err) {
+      showToast('Failed to cancel invitation.', 'error')
+    }
+  }
+
+  const handleRemoveMember = async (userId, memberName) => {
+    if (!window.confirm(`Are you sure you want to remove ${memberName || 'this member'}?`)) return
+    try {
+      await removeWorkspaceMember(activeWorkspace.id, userId)
+      showToast('Member removed from workspace.', 'success')
+      loadTeamData()
+    } catch (err) {
+      showToast('Failed to remove member.', 'error')
+    }
+  }
+
+  const handleChangeRole = async (userId, newRole) => {
+    try {
+      await updateMemberRole(activeWorkspace.id, userId, newRole)
+      showToast('Member role updated.', 'success')
+      loadTeamData()
+    } catch (err) {
+      showToast('Failed to update role.', 'error')
+    }
+  }
 
   return (
     <div className="space-y-4">
+      {/* Workspace details card */}
       <SectionCard>
-        <SectionTitle title="Workspace settings" description="Manage your organization details and branding." />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SettingInput label="Workspace name" onChange={set('name')} value={form.name} />
-          <SettingInput
-            hint="salesforecasting.ai/{slug}"
-            label="Workspace slug"
-            onChange={set('slug')}
-            value={form.slug}
-          />
-          <SettingInput label="Website" onChange={set('website')} placeholder="https://yoursite.com" type="url" value={form.website} />
-          <SettingSelect
-            label="Industry"
-            onChange={set('industry')}
-            options={[
-              { value: 'saas',        label: 'SaaS / Software' },
-              { value: 'finance',     label: 'Finance' },
-              { value: 'healthcare',  label: 'Healthcare' },
-              { value: 'retail',      label: 'Retail & E-commerce' },
-              { value: 'marketing',   label: 'Marketing & Advertising' },
-              { value: 'other',       label: 'Other' },
-            ]}
-            value={form.industry}
-          />
-          <SettingSelect
-            label="Company size"
-            onChange={set('size')}
-            options={[
-              { value: '1-10',    label: '1–10 employees' },
-              { value: '11-50',   label: '11–50 employees' },
-              { value: '51-200',  label: '51–200 employees' },
-              { value: '201-500', label: '201–500 employees' },
-              { value: '500+',    label: '500+ employees' },
-            ]}
-            value={form.size}
-          />
+        <SectionTitle title="Workspace details" description="Current active workspace information." />
+        <div className="rounded-card border border-line-default bg-surface-muted/50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-base font-semibold text-ink-primary">{activeWorkspace?.name}</p>
+              <p className="text-xs text-ink-muted">{activeWorkspace?.description || 'No description provided.'}</p>
+            </div>
+            <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+              Workspace ID: {activeWorkspace?.id?.slice(0, 8)}…
+            </span>
+          </div>
         </div>
-        <SettingTextarea
-          hint="Short description of your company shown on shared reports."
-          label="Description"
-          onChange={set('description')}
-          placeholder="Describe your company…"
-          value={form.description}
-        />
-        <SaveBar onSave={() => setSaved(true)} saved={saved} />
       </SectionCard>
 
+      {/* Invite member form */}
       <SectionCard>
-        <SectionTitle title="Danger zone" description="These actions are irreversible. Proceed with caution." />
-        <div className="space-y-3">
-          <DangerRow
-            buttonLabel="Transfer"
-            description="Assign ownership to another admin in the workspace."
-            label="Transfer workspace ownership"
-          />
-          <DangerRow
-            buttonLabel="Delete workspace"
-            description="Permanently deletes all data, leads, and integrations. Cannot be undone."
-            label="Delete this workspace"
-          />
-        </div>
+        <SectionTitle title="Invite team member" description="Send an invitation by email to add a new member to this workspace." />
+        <form onSubmit={handleInvite} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-ink-secondary">Email address</label>
+            <input
+              type="email"
+              className="input w-full"
+              placeholder="colleague@company.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="w-40">
+            <label className="mb-1 block text-xs font-medium text-ink-secondary">Role</label>
+            <select
+              className="input w-full"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+            >
+              <option value="team_member">Team Member</option>
+              <option value="manager">Manager</option>
+            </select>
+          </div>
+          <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>
+            {isInviting ? 'Inviting…' : 'Send Invite'}
+          </Button>
+        </form>
       </SectionCard>
+
+      {/* Team members list */}
+      <SectionCard>
+        <SectionTitle title={`Workspace members (${members.length})`} description="Active members in this workspace." />
+        {loadingMembers ? (
+          <div className="py-4 text-center text-xs text-ink-muted">Loading members…</div>
+        ) : members.length === 0 ? (
+          <div className="py-4 text-center text-xs text-ink-muted">No members found.</div>
+        ) : (
+          <div className="space-y-2">
+            {members.map((m) => {
+              const isOwner = m.role === 'manager'
+              return (
+                <div className="flex items-center justify-between gap-3 rounded-card border border-line-default p-3" key={m.id}>
+                  <div className="flex items-center gap-3">
+                    <span className={`inline-grid size-8 place-items-center rounded-full text-xs font-bold ${
+                      isOwner ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {(m.user_name || m.user_email || 'U').slice(0, 2).toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-ink-primary">{m.user_name || m.user_email}</p>
+                      <p className="text-xs text-ink-muted">{m.user_email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="rounded border border-line-default bg-surface-default px-2 py-1 text-xs font-medium"
+                      value={m.role}
+                      onChange={(e) => handleChangeRole(m.user_id, e.target.value)}
+                    >
+                      <option value="manager">Manager</option>
+                      <option value="team_member">Team Member</option>
+                    </select>
+
+                    <button
+                      className="rounded p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600"
+                      onClick={() => handleRemoveMember(m.user_id, m.user_name)}
+                      title="Remove member"
+                      type="button"
+                    >
+                      <Icon className="size-4" d={ICONS.trash} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* Pending invitations */}
+      {invitations.length > 0 && (
+        <SectionCard>
+          <SectionTitle title={`Pending invitations (${invitations.length})`} description="Invitations sent that have not yet been accepted." />
+          <div className="space-y-2">
+            {invitations.map((inv) => (
+              <div className="flex items-center justify-between gap-3 rounded-card border border-amber-200 bg-amber-50/40 p-3" key={inv.id}>
+                <div>
+                  <p className="text-sm font-medium text-ink-primary">{inv.email}</p>
+                  <p className="text-xs text-ink-muted font-mono select-all">Token: {inv.token}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="rounded border border-line-default bg-white px-2 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-muted"
+                    onClick={() => {
+                      navigator.clipboard.writeText(inv.token)
+                      setCopiedToken(inv.id)
+                      setTimeout(() => setCopiedToken(null), 2000)
+                    }}
+                    type="button"
+                  >
+                    {copiedToken === inv.id ? 'Copied!' : 'Copy Token'}
+                  </button>
+                  <button
+                    className="rounded p-1 text-rose-600 hover:bg-rose-100"
+                    onClick={() => handleCancelInvite(inv.id)}
+                    title="Cancel invitation"
+                    type="button"
+                  >
+                    <Icon className="size-4" d={ICONS.trash} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
     </div>
   )
 }
@@ -1112,109 +1267,30 @@ function AISection() {
 
 // ─── Section: Account ─────────────────────────────────────────────────────────
 function AccountSection() {
-  const [saved, setSaved] = useState(false)
-  const plan = { name: 'Pro', price: '$79/mo', renewDate: 'Aug 1, 2026', seats: 12, maxSeats: 20 }
-
-  const members = [
-    { name: 'Sarah Mitchell', email: 'sarah@salesforecasting.ai',   role: 'Owner',  avatar: 'SM', active: true  },
-    { name: 'James Carter',   email: 'james@salesforecasting.ai',   role: 'Admin',  avatar: 'JC', active: true  },
-    { name: 'Priya Mehta',    email: 'priya@salesforecasting.ai',   role: 'Member', avatar: 'PM', active: true  },
-    { name: 'Dan Torres',     email: 'dan@salesforecasting.ai',     role: 'Member', avatar: 'DT', active: false },
-  ]
-
-  const roleColor = {
-    Owner:  'bg-brand-50 text-brand-700 ring-brand-100',
-    Admin:  'bg-violet-50 text-violet-700 ring-violet-100',
-    Member: 'bg-slate-100 text-slate-600 ring-slate-200',
-  }
+  const { user } = useAuth()
+  const { isPersonal, activeWorkspace } = useWorkspace()
 
   return (
     <div className="space-y-4">
-      {/* Plan */}
+      {/* User Profile Card */}
       <SectionCard>
-        <SectionTitle title="Subscription plan" description="Your current plan and billing information." />
-        <div className="flex flex-wrap items-start gap-4 rounded-card bg-gradient-to-br from-brand-50 to-brand-100 p-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-brand-700">{plan.name}</span>
-              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">Current</span>
-            </div>
-            <p className="mt-1 text-sm text-brand-800">{plan.price} · Renews {plan.renewDate}</p>
-            <p className="mt-0.5 text-xs text-brand-700">{plan.seats} of {plan.maxSeats} seats used</p>
-            <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-brand-200">
-              <div className="h-full rounded-full bg-brand-600" style={{ width: `${(plan.seats / plan.maxSeats) * 100}%` }} />
+        <SectionTitle title="Account profile" description="Your SalesGenie user profile and global credentials." />
+        <div className="flex items-center gap-4 rounded-card border border-line-default p-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">
+            {(user?.name || user?.email || 'U').slice(0, 2).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-semibold text-ink-primary">{user?.name || 'SalesGenie User'}</p>
+            <p className="text-sm text-ink-muted">{user?.email}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
+                User Role: {user?.role || 'sales_rep'}
+              </span>
+              <span className="text-xs text-ink-muted">
+                Current Context: {isPersonal ? 'Personal Area (Solo)' : activeWorkspace?.name}
+              </span>
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <button className="btn btn-primary btn-sm" type="button">Upgrade plan</button>
-            <button className="btn btn-ghost btn-sm" type="button">Manage billing</button>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Team members */}
-      <SectionCard>
-        <div className="flex items-center justify-between">
-          <SectionTitle title="Team members" description="Manage access and roles for your workspace." />
-          <button className="btn btn-secondary btn-sm shrink-0" type="button">Invite member</button>
-        </div>
-        <div className="space-y-2">
-          {members.map((m) => (
-            <div className="flex items-center gap-3 rounded-card border border-line-default p-3" key={m.email}>
-              <span className={['inline-grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold',
-                m.active ? 'bg-brand-100 text-brand-700' : 'bg-surface-muted text-ink-muted'].join(' ')}>
-                {m.avatar}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className={['text-sm font-medium', m.active ? 'text-ink-primary' : 'text-ink-muted'].join(' ')}>{m.name}</p>
-                <p className="text-xs text-ink-muted truncate">{m.email}</p>
-              </div>
-              <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', roleColor[m.role]].join(' ')}>
-                {m.role}
-              </span>
-              {!m.active && (
-                <span className="text-xs text-ink-disabled">Inactive</span>
-              )}
-              {m.role !== 'Owner' && (
-                <button className="btn btn-ghost btn-sm text-ink-muted" type="button">
-                  <Icon className="size-3.5" d={ICONS.trash} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-
-      {/* Billing history */}
-      <SectionCard>
-        <SectionTitle title="Billing history" />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line-default">
-                <th className="pb-2 text-left text-xs font-medium text-ink-muted">Date</th>
-                <th className="pb-2 text-left text-xs font-medium text-ink-muted">Description</th>
-                <th className="pb-2 text-left text-xs font-medium text-ink-muted">Amount</th>
-                <th className="pb-2 text-right text-xs font-medium text-ink-muted">Invoice</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line-default">
-              {[
-                { date: 'Jul 1, 2026', desc: 'Pro plan – July 2026', amount: '$79.00' },
-                { date: 'Jun 1, 2026', desc: 'Pro plan – June 2026', amount: '$79.00' },
-                { date: 'May 1, 2026', desc: 'Pro plan – May 2026',  amount: '$79.00' },
-              ].map((row) => (
-                <tr key={row.date}>
-                  <td className="py-2.5 text-ink-muted">{row.date}</td>
-                  <td className="py-2.5 text-ink-secondary">{row.desc}</td>
-                  <td className="py-2.5 font-medium text-ink-primary">{row.amount}</td>
-                  <td className="py-2.5 text-right">
-                    <button className="text-brand-600 hover:text-brand-700 text-xs font-medium" type="button">Download</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </SectionCard>
 
@@ -1224,8 +1300,8 @@ function AccountSection() {
         <div className="space-y-3">
           <DangerRow
             buttonLabel="Export"
-            description="Download a full archive of your data in CSV/JSON format."
-            label="Export all data"
+            description="Download an archive of your data in CSV format."
+            label="Export personal CRM data"
           />
           <DangerRow
             buttonLabel="Delete account"

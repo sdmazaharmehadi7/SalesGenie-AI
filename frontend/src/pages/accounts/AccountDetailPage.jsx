@@ -22,10 +22,12 @@ import {
   deleteAccount,
 } from '@/services/api/accounts'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 export default function AccountDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { workspaceKey } = useWorkspaceKey()
 
   const [account, setAccount] = useState(null)
   const [contacts, setContacts] = useState([])
@@ -57,7 +59,7 @@ export default function AccountDetailPage() {
 
   useEffect(() => {
     loadAll()
-  }, [id])
+  }, [id, workspaceKey])
 
   const handleGenerateAI = async () => {
     setGeneratingAi(true)

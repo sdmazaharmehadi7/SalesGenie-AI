@@ -1,21 +1,22 @@
 """
 routes.py — FastAPI Router for AI-Powered Sales Forecasting Platform Using Predictive Analytics Capabilities
 ===========================================================
-Exposes REST endpoints for all AI capabilities under the /api prefix.
+Exposes REST endpoints for all AI capabilities under the /api/v1 prefix with workspace authorization.
 All endpoints return structured JSON objects — no raw Markdown parsing required by frontend.
 
 Endpoints:
-  - POST /api/chat       : General sales assistant chat
-  - POST /api/email      : B2B sales email generation (structured JSON)
-  - POST /api/summarize  : Conversation & transcript summarization (structured JSON)
-  - POST /api/followup   : Follow-up strategy & recommendations (structured JSON)
-  - POST /api/lead-score : Lead qualification & scoring (structured JSON)
-  - POST /api/objection  : Objection handling strategies (structured JSON)
+  - POST /api/v1/chat       : General sales assistant chat with workspace CRM context
+  - POST /api/v1/email      : B2B sales email generation (structured JSON)
+  - POST /api/v1/summarize  : Conversation & transcript summarization (structured JSON)
+  - POST /api/v1/followup   : Follow-up strategy & recommendations (structured JSON)
+  - POST /api/v1/lead-score : Lead qualification & scoring (structured JSON)
+  - POST /api/v1/objection  : Objection handling strategies (structured JSON)
 """
 
 import logging
 from fastapi import APIRouter, HTTPException, status
 
+from app.api.deps import CurrentActiveUser, DBSession, WorkspaceContextDep
 from app.ai.schemas import (
     ChatRequest,
     ChatResponse,
@@ -40,6 +41,9 @@ from app.ai.services import (
     analyze_lead_quality,
     handle_objection,
 )
+from app.services.contact_service import ContactService
+from app.services.lead_service import LeadService
+from app.services.opportunity_service import OpportunityService
 
 logger = logging.getLogger(__name__)
 
@@ -54,35 +58,50 @@ router = APIRouter(
 
 
 # ---------------------------------------------------------------------------
-# 1. POST /api/chat
+# 1. POST /api/v1/chat
 # ---------------------------------------------------------------------------
 @router.post(
     "/chat",
     response_model=ChatResponse,
     status_code=status.HTTP_200_OK,
     summary="Chat with General AI Sales Assistant",
-    description="Send any sales query or request to AI-Powered Sales Forecasting Platform Using Predictive Analytics and receive a structured JSON response.",
-    responses={
-        200: {"description": "Successful AI chat response."},
-        400: {"model": ErrorResponse, "description": "Invalid message parameter."},
-        502: {"model": ErrorResponse, "description": "AI provider service error or invalid JSON."},
-    },
+    description="Send any sales query to the AI assistant with workspace authorization context.",
 )
-async def chat_endpoint(request: ChatRequest) -> ChatResponse:
-    logger.info("POST /api/chat | message_len=%d", len(request.message))
+async def chat_endpoint(
+    request: ChatRequest,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> ChatResponse:
+    logger.info("POST /api/v1/chat | user=%s | workspace=%s", current_user.email, ws_ctx.workspace_id)
+    
+    context_prefix = []
+    if request.lead_id:
+        lead = await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
+        context_prefix.append(
+            f"[CRM Lead Context: Company={lead.company_name}, Contact={lead.contact_name or 'N/A'}, Status={lead.lead_status.value}]"
+        )
+    if request.opportunity_id:
+        opp = await OpportunityService(db).get_opportunity(request.opportunity_id, current_user, ws_ctx=ws_ctx)
+        context_prefix.append(
+            f"[CRM Opportunity Context: Deal={opp.name}, Stage={opp.stage.value}, Amount={f'${opp.amount}' if opp.amount else 'N/A'}]"
+        )
+
+    full_message = f"{' '.join(context_prefix)}\n\n{request.message}".strip() if context_prefix else request.message
+
     try:
-        data, model = general_chat(message=request.message)
+        data, model = general_chat(message=full_message)
         return ChatResponse(reply=data.get("reply", ""), model=model)
     except ValueError as exc:
-        logger.warning("Invalid request to /api/chat: %s", exc)
+        logger.warning("Invalid request to /api/v1/chat: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
-        logger.error("AI Service Error on /api/chat: %s", exc)
+        logger.error("AI Service Error on /api/v1/chat: %s", exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
-# 2. POST /api/email
+# 2. POST /api/v1/email
 # ---------------------------------------------------------------------------
 @router.post(
     "/email",
@@ -90,20 +109,35 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
     status_code=status.HTTP_200_OK,
     summary="Generate B2B Sales Emails (Structured JSON)",
     description="Generate tailored B2B emails returning subject options, body, call to action, and signature as structured JSON.",
-    responses={
-        200: {"description": "Generated structured sales email successfully."},
-        400: {"model": ErrorResponse, "description": "Invalid input details."},
-        502: {"model": ErrorResponse, "description": "AI provider service error or invalid JSON."},
-    },
 )
-async def email_endpoint(request: EmailRequest) -> EmailResponse:
-    logger.info("POST /api/email | type=%s", request.email_type)
+async def email_endpoint(
+    request: EmailRequest,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> EmailResponse:
+    logger.info("POST /api/v1/email | user=%s | type=%s", current_user.email, request.email_type)
+    
+    prospect_name = request.prospect_name
+    company_name = request.company_name
+    lead_info = request.lead_info
+
+    if request.lead_id:
+        lead = await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
+        prospect_name = prospect_name or lead.contact_name
+        company_name = company_name or lead.company_name
+        if not lead_info or lead_info == "string":
+            lead_info = f"Company: {lead.company_name}, Contact: {lead.contact_name or 'N/A'}, Industry: {lead.industry or 'N/A'}"
+    if request.contact_id:
+        contact = await ContactService(db).get_contact(request.contact_id, current_user)
+        prospect_name = prospect_name or f"{contact.first_name} {contact.last_name or ''}".strip()
+
     try:
         data, model = generate_email(
-            lead_info=request.lead_info,
+            lead_info=lead_info,
             email_type=request.email_type or "cold_outreach",
-            prospect_name=request.prospect_name,
-            company_name=request.company_name,
+            prospect_name=prospect_name,
+            company_name=company_name,
             pain_points=request.pain_points,
         )
         return EmailResponse(
@@ -112,36 +146,42 @@ async def email_endpoint(request: EmailRequest) -> EmailResponse:
             call_to_action=data.get("call_to_action", ""),
             signature=data.get(
                 "signature",
-                {"name": "[Your Name]", "designation": "Sales Consultant", "company": "AI-Powered Sales Forecasting Platform Using Predictive Analytics"},
+                {"name": current_user.name or "[Your Name]", "designation": "Sales Consultant", "company": "SalesGenie AI"},
             ),
             email_type=request.email_type or "cold_outreach",
             model=model,
         )
     except ValueError as exc:
-        logger.warning("Invalid request to /api/email: %s", exc)
+        logger.warning("Invalid request to /api/v1/email: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
-        logger.error("AI Service Error on /api/email: %s", exc)
+        logger.error("AI Service Error on /api/v1/email: %s", exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
-# 3. POST /api/summarize
+# 3. POST /api/v1/summarize
 # ---------------------------------------------------------------------------
 @router.post(
     "/summarize",
     response_model=SummaryResponse,
     status_code=status.HTTP_200_OK,
     summary="Summarize Sales Conversations (Structured JSON)",
-    description="Summarize sales call transcripts, meeting notes, or email threads into executive insights, action items, and requirements.",
-    responses={
-        200: {"description": "Structured conversation summary returned."},
-        400: {"model": ErrorResponse, "description": "Empty or invalid content."},
-        502: {"model": ErrorResponse, "description": "AI provider service error or invalid JSON."},
-    },
+    description="Summarize sales call transcripts, meeting notes, or email threads with workspace authorization.",
 )
-async def summarize_endpoint(request: SummaryRequest) -> SummaryResponse:
-    logger.info("POST /api/summarize | source_type=%s", request.source_type)
+async def summarize_endpoint(
+    request: SummaryRequest,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> SummaryResponse:
+    logger.info("POST /api/v1/summarize | user=%s | source_type=%s", current_user.email, request.source_type)
+    
+    if request.lead_id:
+        await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
+    if request.opportunity_id:
+        await OpportunityService(db).get_opportunity(request.opportunity_id, current_user, ws_ctx=ws_ctx)
+
     try:
         data, model = summarize_conversation(
             content=request.content,
@@ -157,15 +197,15 @@ async def summarize_endpoint(request: SummaryRequest) -> SummaryResponse:
             model=model,
         )
     except ValueError as exc:
-        logger.warning("Invalid request to /api/summarize: %s", exc)
+        logger.warning("Invalid request to /api/v1/summarize: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
-        logger.error("AI Service Error on /api/summarize: %s", exc)
+        logger.error("AI Service Error on /api/v1/summarize: %s", exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
-# 4. POST /api/followup
+# 4. POST /api/v1/followup
 # ---------------------------------------------------------------------------
 @router.post(
     "/followup",
@@ -173,18 +213,31 @@ async def summarize_endpoint(request: SummaryRequest) -> SummaryResponse:
     status_code=status.HTTP_200_OK,
     summary="Suggest Follow-up Strategy (Structured JSON)",
     description="Recommend personalized follow-up timing, channels, strategy hooks, and message drafts in structured JSON.",
-    responses={
-        200: {"description": "Follow-up recommendations returned."},
-        400: {"model": ErrorResponse, "description": "Invalid context."},
-        502: {"model": ErrorResponse, "description": "AI provider service error or invalid JSON."},
-    },
 )
-async def followup_endpoint(request: FollowupRequest) -> FollowupResponse:
-    logger.info("POST /api/followup | stage=%s", request.deal_stage)
+async def followup_endpoint(
+    request: FollowupRequest,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> FollowupResponse:
+    logger.info("POST /api/v1/followup | user=%s | stage=%s", current_user.email, request.deal_stage)
+    
+    context = request.context
+    deal_stage = request.deal_stage
+
+    if request.lead_id:
+        lead = await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
+        if not deal_stage:
+            deal_stage = lead.lead_status.value
+    if request.opportunity_id:
+        opp = await OpportunityService(db).get_opportunity(request.opportunity_id, current_user, ws_ctx=ws_ctx)
+        if not deal_stage:
+            deal_stage = opp.stage.value
+
     try:
         data, model = suggest_followup(
-            context=request.context,
-            deal_stage=request.deal_stage,
+            context=context,
+            deal_stage=deal_stage,
             last_interaction=request.last_interaction,
         )
         return FollowupResponse(
@@ -195,35 +248,46 @@ async def followup_endpoint(request: FollowupRequest) -> FollowupResponse:
             model=model,
         )
     except ValueError as exc:
-        logger.warning("Invalid request to /api/followup: %s", exc)
+        logger.warning("Invalid request to /api/v1/followup: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
-        logger.error("AI Service Error on /api/followup: %s", exc)
+        logger.error("AI Service Error on /api/v1/followup: %s", exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
-# 5. POST /api/lead-score
+# 5. POST /api/v1/lead-score
 # ---------------------------------------------------------------------------
 @router.post(
     "/lead-score",
     response_model=LeadScoreResponse,
     status_code=status.HTTP_200_OK,
     summary="Qualify and Score Leads (Structured JSON)",
-    description="Evaluate lead details against ICP criteria and receive a score (HOT/WARM/COLD), risk analysis, and next-step recommendations.",
-    responses={
-        200: {"description": "Lead score evaluation returned."},
-        400: {"model": ErrorResponse, "description": "Invalid lead info."},
-        502: {"model": ErrorResponse, "description": "AI provider service error or invalid JSON."},
-    },
+    description="Evaluate lead details against ICP criteria and receive a score (HOT/WARM/COLD), risk analysis, and recommendations.",
 )
-async def lead_score_endpoint(request: LeadScoreRequest) -> LeadScoreResponse:
-    logger.info("POST /api/lead-score | industry=%s", request.industry)
+async def lead_score_endpoint(
+    request: LeadScoreRequest,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> LeadScoreResponse:
+    logger.info("POST /api/v1/lead-score | user=%s | industry=%s", current_user.email, request.industry)
+    
+    lead_info = request.lead_info
+    industry = request.industry
+    company_size = request.company_size
+
+    if request.lead_id:
+        lead = await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
+        industry = industry or lead.industry
+        if not lead_info or lead_info == "string":
+            lead_info = f"Company: {lead.company_name}, Contact: {lead.contact_name or 'N/A'}, Industry: {lead.industry or 'N/A'}, Deal Value: {f'${lead.deal_value}' if lead.deal_value else 'N/A'}"
+
     try:
         data, model = analyze_lead_quality(
-            lead_info=request.lead_info,
-            company_size=request.company_size,
-            industry=request.industry,
+            lead_info=lead_info,
+            company_size=company_size,
+            industry=industry,
             budget_signals=request.budget_signals,
         )
         return LeadScoreResponse(
@@ -236,15 +300,15 @@ async def lead_score_endpoint(request: LeadScoreRequest) -> LeadScoreResponse:
             model=model,
         )
     except ValueError as exc:
-        logger.warning("Invalid request to /api/lead-score: %s", exc)
+        logger.warning("Invalid request to /api/v1/lead-score: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
-        logger.error("AI Service Error on /api/lead-score: %s", exc)
+        logger.error("AI Service Error on /api/v1/lead-score: %s", exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
-# 6. POST /api/objection
+# 6. POST /api/v1/objection
 # ---------------------------------------------------------------------------
 @router.post(
     "/objection",
@@ -252,14 +316,20 @@ async def lead_score_endpoint(request: LeadScoreRequest) -> LeadScoreResponse:
     status_code=status.HTTP_200_OK,
     summary="Generate Objection Handling Strategy (Structured JSON)",
     description="Receive structured responses to prospect objections (pricing, competitors, timing, security, features).",
-    responses={
-        200: {"description": "Objection handling strategy returned."},
-        400: {"model": ErrorResponse, "description": "Invalid objection detail."},
-        502: {"model": ErrorResponse, "description": "AI provider service error or invalid JSON."},
-    },
 )
-async def objection_endpoint(request: ObjectionRequest) -> ObjectionResponse:
-    logger.info("POST /api/objection | category=%s", request.category)
+async def objection_endpoint(
+    request: ObjectionRequest,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> ObjectionResponse:
+    logger.info("POST /api/v1/objection | user=%s | category=%s", current_user.email, request.category)
+    
+    if request.lead_id:
+        await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
+    if request.opportunity_id:
+        await OpportunityService(db).get_opportunity(request.opportunity_id, current_user, ws_ctx=ws_ctx)
+
     try:
         data, model = handle_objection(
             objection=request.objection,
@@ -276,8 +346,8 @@ async def objection_endpoint(request: ObjectionRequest) -> ObjectionResponse:
             model=model,
         )
     except ValueError as exc:
-        logger.warning("Invalid request to /api/objection: %s", exc)
+        logger.warning("Invalid request to /api/v1/objection: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
-        logger.error("AI Service Error on /api/objection: %s", exc)
+        logger.error("AI Service Error on /api/v1/objection: %s", exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

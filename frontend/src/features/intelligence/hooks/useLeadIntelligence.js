@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import api from '@/services/api/client'
 import { generateCompanyInsight, getLatestCompanyInsight } from '@/services/api/companyInsights'
 import { generateLeadScore, getLatestLeadScore } from '@/services/api/leadScores'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 import { mapLeadIntelligence } from '../utils/leadMapper'
 
@@ -17,6 +18,7 @@ function extractErrorMessage(err, fallback) {
  * the Lead Intelligence page.
  */
 export function useLeadIntelligence() {
+  const { workspaceKey } = useWorkspaceKey()
   const [leads, setLeads] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -25,6 +27,7 @@ export function useLeadIntelligence() {
   const loadLeads = useCallback(async () => {
     setIsLoading(true)
     setError(null)
+    setLeads([])
     try {
       const { data } = await api.get('/leads', { params: { page: 1, page_size: 50 } })
       const rawLeads = data.items || []
@@ -46,7 +49,7 @@ export function useLeadIntelligence() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [workspaceKey])
 
   useEffect(() => {
     loadLeads()

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import api from '@/services/api/client'
 
 /**
@@ -9,8 +9,25 @@ import api from '@/services/api/client'
  *  2. Background re-verification occurs via GET /auth/me without flashing loading states.
  *  3. Session is ONLY cleared upon explicit user logout OR an actual 401 Unauthorized from backend.
  *  4. Temporary network errors or 5xx server issues maintain the active session.
+ *
+ * Workspace Integration:
+ *  - On successful login, `onLoginSuccess` callback fires so WorkspaceContext
+ *    can refresh the workspace list without a circular context dependency.
+ *  - On logout, `onLogoutCleanup` fires so WorkspaceContext can reset.
  */
 const AuthContext = createContext(null)
+
+// Callbacks registered by WorkspaceProvider to react to auth events.
+// Using a ref-based registry avoids circular context dependencies.
+const authEventCallbacks = {
+  onLoginSuccess: null,
+  onLogout: null,
+}
+
+export function registerAuthCallbacks({ onLoginSuccess, onLogout }) {
+  authEventCallbacks.onLoginSuccess = onLoginSuccess
+  authEventCallbacks.onLogout = onLogout
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -36,21 +53,24 @@ export function AuthProvider({ children }) {
     if (!token) {
       setUser(null)
       setIsLoading(false)
-      return
+      return null
     }
 
     try {
       const { data } = await api.get('/auth/me')
       setUser(data)
       localStorage.setItem('user', JSON.stringify(data))
+      return data
     } catch (err) {
       // ONLY clear session if backend explicitly responds with 401 Unauthorized
       if (err?.response?.status === 401) {
         localStorage.removeItem('access_token')
         localStorage.removeItem('user')
+        localStorage.removeItem('sg_active_workspace')
         setUser(null)
       }
       // On network errors or 500s, preserve existing cached session
+      return null
     } finally {
       setIsLoading(false)
     }
@@ -58,7 +78,11 @@ export function AuthProvider({ children }) {
 
   // On mount, verify session with backend
   useEffect(() => {
-    loadUser()
+    loadUser().then((userData) => {
+      if (userData && authEventCallbacks.onLoginSuccess) {
+        authEventCallbacks.onLoginSuccess(userData)
+      }
+    })
   }, [loadUser])
 
   /**
@@ -71,6 +95,12 @@ export function AuthProvider({ children }) {
       const { data } = await api.get('/auth/me')
       setUser(data)
       localStorage.setItem('user', JSON.stringify(data))
+
+      // Notify WorkspaceContext to refresh workspace list
+      if (authEventCallbacks.onLoginSuccess) {
+        authEventCallbacks.onLoginSuccess(data)
+      }
+
       return { success: true, user: data }
     } catch (err) {
       if (err?.response?.status === 401) {
@@ -85,7 +115,14 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
+    localStorage.removeItem('sg_active_workspace')
     setUser(null)
+
+    // Notify WorkspaceContext to reset
+    if (authEventCallbacks.onLogout) {
+      authEventCallbacks.onLogout()
+    }
+
     window.location.replace('/login')
   }, [])
 

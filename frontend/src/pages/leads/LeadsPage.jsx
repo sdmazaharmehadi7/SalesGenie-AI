@@ -5,6 +5,8 @@ import {
   deleteLead as deleteLeadAPI,
 } from "@/services/api/leads";
 import { useEffect, useMemo, useState } from 'react'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
+import { listWorkspaceMembers } from '@/services/api/workspaces'
 
 import Button from '@/components/ui/Button'
 import DataTable from '@/components/ui/DataTable'
@@ -29,7 +31,7 @@ function extractErrorMessage(error, fallback) {
   return error?.response?.data?.error?.message || error?.message || fallback
 }
 
-function LeadFormFields({ lead }) {
+function LeadFormFields({ lead, members = [] }) {
   return (
     <div className="grid gap-4 p-5 sm:grid-cols-2">
       <label className="space-y-1.5">
@@ -62,7 +64,7 @@ function LeadFormFields({ lead }) {
         <input className="input" type="number" min="0" step="0.01" name="deal_value" defaultValue={lead?.deal_value ?? ''} />
       </label>
 
-      <label className="space-y-1.5 sm:col-span-2">
+      <label className="space-y-1.5">
         <span>Status</span>
         <select className="input" name="lead_status" defaultValue={lead?.lead_status ?? 'new'}>
           {LEAD_STATUSES.map((status) => (
@@ -70,17 +72,32 @@ function LeadFormFields({ lead }) {
           ))}
         </select>
       </label>
+
+      {members && members.length > 0 && (
+        <label className="space-y-1.5">
+          <span>Assign to Member</span>
+          <select className="input" name="assigned_to" defaultValue={lead?.assigned_to ?? ''}>
+            <option value="">(Auto: Current User)</option>
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.user_name || m.user_email} ({m.role === 'manager' ? 'Manager' : 'Member'})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </div>
   )
 }
 
-function AddLeadModal({ open, onClose, onSave, isSaving, error }) {
+function AddLeadModal({ open, onClose, onSave, isSaving, error, members = [] }) {
   if (!open) return null
 
   function handleSubmit(event) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const dealValue = formData.get('deal_value')
+    const assignedTo = formData.get('assigned_to')
 
     onSave({
       company_name: formData.get('company_name'),
@@ -90,6 +107,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving, error }) {
       phone: formData.get('phone') || null,
       deal_value: dealValue ? Number(dealValue) : null,
       lead_status: formData.get('lead_status'),
+      assigned_to: assignedTo || undefined,
     })
   }
 
@@ -101,7 +119,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving, error }) {
           <button aria-label="Close add lead" className="rounded-control p-1.5 text-ink-muted hover:bg-surface-muted" onClick={onClose} type="button"><X className="size-5" /></button>
         </div>
         <form onSubmit={handleSubmit}>
-          <LeadFormFields lead={null} />
+          <LeadFormFields lead={null} members={members} />
           {error ? <p className="px-5 pb-2 text-sm text-danger">{error}</p> : null}
           <div className="flex justify-end gap-3 border-t border-line-default p-5">
             <Button onClick={onClose} type="button" variant="secondary" disabled={isSaving}>Cancel</Button>
@@ -113,13 +131,14 @@ function AddLeadModal({ open, onClose, onSave, isSaving, error }) {
   )
 }
 
-function EditLeadModal({ lead, onClose, onSave, isSaving, error }) {
+function EditLeadModal({ lead, onClose, onSave, isSaving, error, members = [] }) {
   if (!lead) return null
 
   function handleSubmit(event) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const dealValue = formData.get('deal_value')
+    const assignedTo = formData.get('assigned_to')
 
     onSave({
       ...lead,
@@ -130,6 +149,7 @@ function EditLeadModal({ lead, onClose, onSave, isSaving, error }) {
       phone: formData.get('phone') || null,
       deal_value: dealValue ? Number(dealValue) : null,
       lead_status: formData.get('lead_status'),
+      assigned_to: assignedTo || undefined,
     })
   }
 
@@ -138,7 +158,7 @@ function EditLeadModal({ lead, onClose, onSave, isSaving, error }) {
       <div aria-label="Edit lead" className="w-full max-w-lg rounded-card bg-surface-default shadow-overlay" role="dialog">
         <div className="flex items-center justify-between border-b border-line-default p-5"><h2 className="text-base font-semibold text-ink-primary">Edit lead</h2><button aria-label="Close edit lead" className="rounded-control p-1.5 text-ink-muted hover:bg-surface-muted" onClick={onClose} type="button"><X className="size-5" /></button></div>
         <form onSubmit={handleSubmit}>
-          <LeadFormFields lead={lead} />
+          <LeadFormFields lead={lead} members={members} />
           {error ? <p className="px-5 pb-2 text-sm text-danger">{error}</p> : null}
           <div className="flex justify-end gap-3 border-t border-line-default p-5"><Button onClick={onClose} type="button" variant="secondary" disabled={isSaving}>Cancel</Button><Button type="submit" disabled={isSaving}>{isSaving ? 'Saving…' : 'Save changes'}</Button></div>
         </form>
@@ -163,7 +183,9 @@ function DeleteLeadDialog({ lead, onCancel, onConfirm, isDeleting, error }) {
 }
 
 function LeadsPage() {
+  const { workspaceKey, activeWorkspace, isPersonal, isManager } = useWorkspaceKey()
   const [leads, setLeads] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [query, setQuery] = useState('')
@@ -210,6 +232,7 @@ function LeadsPage() {
   const loadLeads = async () => {
     setLoading(true);
     setLoadError(null);
+    setLeads([]);
     try {
       const data = await getLeads();
       setLeads(data.items || []);
@@ -221,9 +244,25 @@ function LeadsPage() {
     }
   };
 
+  const loadMembers = async () => {
+    if (!activeWorkspace?.id || isPersonal) {
+      setMembers([])
+      return
+    }
+    try {
+      const mems = await listWorkspaceMembers(activeWorkspace.id)
+      setMembers(mems || [])
+    } catch (err) {
+      console.error('Failed to load workspace members for leads:', err)
+      setMembers([])
+    }
+  }
+
+  // Re-fetch leads and workspace members whenever workspace changes
   useEffect(() => {
     loadLeads();
-  }, []);
+    loadMembers();
+  }, [workspaceKey]);
 
   function clearFilters() {
     setQuery('')
@@ -278,6 +317,12 @@ function LeadsPage() {
     }
   };
 
+  const getMemberName = (userId) => {
+    if (!userId) return null
+    const m = members.find((mem) => mem.user_id === userId)
+    return m ? (m.user_name || m.user_email) : null
+  }
+
   const columns = [
     {
       key: "company",
@@ -310,6 +355,18 @@ function LeadsPage() {
         <StatusBadge status={STATUS_LABELS[lead.lead_status] || lead.lead_status} />
       ),
     },
+    ...(!isPersonal && members.length > 0 ? [{
+      key: "assigned_to",
+      header: "Assigned To",
+      render: (lead) => {
+        const assignedName = getMemberName(lead.assigned_to)
+        return (
+          <span className="inline-flex items-center rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-ink-secondary">
+            {assignedName || 'Unassigned'}
+          </span>
+        )
+      },
+    }] : []),
     {
       key: "updated",
       header: "Updated",
@@ -351,7 +408,17 @@ function LeadsPage() {
       ) : null}
 
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-sm font-medium text-brand-600">Workspace</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-primary">Leads</h1><p className="mt-2 text-sm text-ink-muted">Manage and qualify your prospect pipeline.</p></div>
+        <div>
+          <p className="text-sm font-medium text-brand-600">
+            {isPersonal ? 'Personal Pipeline' : `${activeWorkspace?.name || 'Workspace'} Pipeline`}
+          </p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-primary">Leads</h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            {isManager && !isPersonal
+              ? 'Manage, qualify, and assign prospective deals across your sales team.'
+              : 'Manage and qualify your prospect pipeline.'}
+          </p>
+        </div>
         <Button leftIcon={<Plus className="size-4" />} onClick={() => { setAddError(null); setShowAddModal(true) }}>Add lead</Button>
       </header>
 
@@ -395,6 +462,7 @@ function LeadsPage() {
         onSave={addLead}
         isSaving={isAdding}
         error={addError}
+        members={members}
       />
 
       <EditLeadModal
@@ -403,6 +471,7 @@ function LeadsPage() {
         onSave={saveLead}
         isSaving={isSaving}
         error={saveError}
+        members={members}
       />
 
       <DeleteLeadDialog

@@ -10,7 +10,13 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.api.deps import AIProviderDep, CurrentActiveUser, DBSession, EmailProviderDep
+from app.api.deps import (
+    AIProviderDep,
+    CurrentActiveUser,
+    DBSession,
+    EmailProviderDep,
+    WorkspaceContextDep,
+)
 from app.schemas.outreach_campaign import OutreachCampaignRead, OutreachCampaignUpdate
 from app.services.outreach_service import OutreachService
 
@@ -29,9 +35,10 @@ async def generate_campaign(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     email_provider: EmailProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> OutreachCampaignRead:
     campaign = await OutreachService(db, ai_provider, email_provider).generate_campaign(
-        lead_id, current_user
+        lead_id, current_user, ws_ctx=ws_ctx
     )
     return OutreachCampaignRead.model_validate(campaign)
 
@@ -49,9 +56,10 @@ async def update_campaign(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     email_provider: EmailProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> OutreachCampaignRead:
     campaign = await OutreachService(db, ai_provider, email_provider).update_campaign(
-        lead_id, campaign_id, campaign_in, current_user
+        lead_id, campaign_id, campaign_in, current_user, ws_ctx=ws_ctx
     )
     return OutreachCampaignRead.model_validate(campaign)
 
@@ -68,9 +76,10 @@ async def send_campaign(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     email_provider: EmailProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> OutreachCampaignRead:
     campaign = await OutreachService(db, ai_provider, email_provider).send_campaign(
-        lead_id, campaign_id, current_user
+        lead_id, campaign_id, current_user, ws_ctx=ws_ctx
     )
     return OutreachCampaignRead.model_validate(campaign)
 
@@ -86,8 +95,9 @@ async def list_campaigns(
     current_user: CurrentActiveUser,
     ai_provider: AIProviderDep,
     email_provider: EmailProviderDep,
+    ws_ctx: WorkspaceContextDep,
 ) -> list[OutreachCampaignRead]:
     campaigns = await OutreachService(db, ai_provider, email_provider).list_campaigns(
-        lead_id, current_user
+        lead_id, current_user, ws_ctx=ws_ctx
     )
     return [OutreachCampaignRead.model_validate(campaign) for campaign in campaigns]

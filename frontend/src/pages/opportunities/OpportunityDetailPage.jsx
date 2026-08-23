@@ -23,6 +23,7 @@ import {
   deleteOpportunity,
 } from '@/services/api/opportunities'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 const STAGES = [
   { key: 'new', label: 'New' },
@@ -37,6 +38,7 @@ const STAGES = [
 export default function OpportunityDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { workspaceKey } = useWorkspaceKey()
 
   const [opp, setOpp] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -50,6 +52,7 @@ export default function OpportunityDetailPage() {
       setOpp(data)
     } catch (err) {
       console.error('Failed to load opportunity:', err)
+      setOpp(null)
     } finally {
       setLoading(false)
     }
@@ -57,7 +60,7 @@ export default function OpportunityDetailPage() {
 
   useEffect(() => {
     loadOpportunity()
-  }, [id])
+  }, [id, workspaceKey])
 
   const handleStageClick = async (stageKey) => {
     try {

@@ -12,8 +12,10 @@ import {
 } from '@/components/ui/icons'
 import { getContacts, createContact } from '@/services/api/contacts'
 import { getAccounts } from '@/services/api/accounts'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 export default function ContactsPage() {
+  const { workspaceKey } = useWorkspaceKey()
   const [contacts, setContacts] = useState([])
   const [accounts, setAccounts] = useState([])
   const [total, setTotal] = useState(0)
@@ -49,7 +51,7 @@ export default function ContactsPage() {
 
   useEffect(() => {
     loadContacts()
-  }, [page, search])
+  }, [page, search, workspaceKey])
 
   const handleCreate = async (e) => {
     e.preventDefault()

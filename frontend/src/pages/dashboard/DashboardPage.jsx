@@ -19,6 +19,7 @@ import { getDashboardSummary } from '@/services/api/dashboard'
 import { getLeads, createLead } from '@/services/api/leads'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/context/AuthContext'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 import Button from '@/components/ui/Button'
 import {
@@ -191,6 +192,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving }) {
 function DashboardPage() {
   const { user } = useAuth()
   const { showToast } = useToast()
+  const { workspaceKey, activeWorkspace, isPersonal, isManager } = useWorkspaceKey()
 
   const [summary, setSummary] = useState(null)
   const [leads, setLeads] = useState([])
@@ -208,6 +210,8 @@ function DashboardPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
+    setSummary(null)
+    setLeads([])
     try {
       const [summaryData, leadsData] = await Promise.all([
         getDashboardSummary(),
@@ -221,8 +225,9 @@ function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [showToast])
+  }, [showToast, workspaceKey])
 
+  // Re-fetch data whenever workspace changes
   useEffect(() => {
     loadData()
   }, [loadData])
@@ -277,9 +282,19 @@ function DashboardPage() {
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-primary">
             {greeting}, {user?.name?.split(' ')[0] || 'Sales Team'}
           </h1>
-          <p className="mt-2 text-sm text-ink-muted">
-            Here&apos;s what&apos;s happening across your pipeline today.
-          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`inline-block size-2 rounded-full ${
+              isPersonal ? 'bg-blue-500' : isManager ? 'bg-indigo-500' : 'bg-emerald-500'
+            }`} />
+            <p className="text-sm text-ink-muted">
+              {isPersonal
+                ? "Here's what's happening across your personal pipeline today."
+                : isManager
+                ? `${activeWorkspace?.name || 'Workspace'} — Manager Dashboard`
+                : `${activeWorkspace?.name || 'Workspace'} — Your assigned pipeline`
+              }
+            </p>
+          </div>
         </div>
         <Button leftIcon={<Plus className="size-4" />} onClick={() => setShowAddModal(true)}>
           Add lead

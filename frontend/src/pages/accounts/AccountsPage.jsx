@@ -10,8 +10,10 @@ import {
   ArrowUpRight,
 } from '@/components/ui/icons'
 import { getAccounts, createAccount } from '@/services/api/accounts'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 export default function AccountsPage() {
+  const { workspaceKey } = useWorkspaceKey()
   const [accounts, setAccounts] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -43,7 +45,7 @@ export default function AccountsPage() {
 
   useEffect(() => {
     loadAccounts()
-  }, [page, search])
+  }, [page, search, workspaceKey])
 
   const handleCreate = async (e) => {
     e.preventDefault()

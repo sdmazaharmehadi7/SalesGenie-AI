@@ -21,6 +21,9 @@ import { getLatestLeadScore, generateLeadScore } from '@/services/api/leadScores
 import { getLatestCompanyInsight, generateCompanyInsight } from '@/services/api/companyInsights'
 import { createOpportunity } from '@/services/api/opportunities'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
+import { listWorkspaceMembers } from '@/services/api/workspaces'
+import { useToast } from '@/context/ToastContext'
 
 const LEAD_STATUSES = [
   'new',
@@ -34,14 +37,18 @@ const LEAD_STATUSES = [
 export default function LeadDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { workspaceKey, activeWorkspace, isPersonal, isManager } = useWorkspaceKey()
+  const { showToast } = useToast()
 
   const [lead, setLead] = useState(null)
+  const [members, setMembers] = useState([])
   const [score, setScore] = useState(null)
   const [insight, setInsight] = useState(null)
   const [loading, setLoading] = useState(true)
   const [scoringAi, setScoringAi] = useState(false)
   const [analyzingAi, setAnalyzingAi] = useState(false)
   const [creatingOpp, setCreatingOpp] = useState(false)
+  const [reassigning, setReassigning] = useState(false)
 
   const loadLeadData = async () => {
     setLoading(true)
@@ -64,9 +71,24 @@ export default function LeadDetailPage() {
     }
   }
 
+  const loadMembers = async () => {
+    if (!activeWorkspace?.id || isPersonal) {
+      setMembers([])
+      return
+    }
+    try {
+      const mems = await listWorkspaceMembers(activeWorkspace.id)
+      setMembers(mems || [])
+    } catch (err) {
+      console.error('Failed to load members in LeadDetailPage:', err)
+      setMembers([])
+    }
+  }
+
   useEffect(() => {
     loadLeadData()
-  }, [id])
+    loadMembers()
+  }, [id, workspaceKey])
 
   const handleScoreLead = async () => {
     setScoringAi(true)
@@ -185,6 +207,11 @@ export default function LeadDetailPage() {
                 <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-bold text-brand-700 uppercase">
                   {lead.lead_status.replace('_', ' ')}
                 </span>
+                {assignedMember && (
+                  <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
+                    Assigned: {assignedMember.user_name || assignedMember.user_email}
+                  </span>
+                )}
               </div>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink-primary">
                 {lead.contact_name || lead.company_name}
@@ -317,23 +344,27 @@ export default function LeadDetailPage() {
           </div>
 
           {insight ? (
-            <div className="space-y-3 text-xs">
-              {insight.business_needs && (
-                <div>
-                  <h4 className="font-semibold text-ink-muted uppercase text-[10px] tracking-wider">Identified Needs</h4>
-                  <p className="mt-0.5 text-ink-primary leading-relaxed">{insight.business_needs}</p>
+            <div className="space-y-4 text-xs">
+              <div className="rounded-xl bg-surface-subtle p-4 border border-line-default">
+                <p className="font-semibold text-ink-secondary mb-1">Company Summary</p>
+                <p className="text-ink-primary leading-relaxed">{insight.summary || 'No summary available.'}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-xl bg-blue-50/50 border border-blue-100 p-3.5">
+                  <p className="font-bold text-brand-700 mb-1">Business Pain Points</p>
+                  <p className="text-ink-secondary leading-relaxed">{insight.pain_points || 'None identified yet.'}</p>
                 </div>
-              )}
-              {insight.opportunities && (
-                <div>
-                  <h4 className="font-semibold text-ink-muted uppercase text-[10px] tracking-wider">Sales Angles</h4>
-                  <p className="mt-0.5 text-ink-primary leading-relaxed">{insight.opportunities}</p>
+                <div className="rounded-xl bg-emerald-50/50 border border-emerald-100 p-3.5">
+                  <p className="font-bold text-emerald-700 mb-1">Budget / Signals</p>
+                  <p className="text-ink-secondary leading-relaxed">{insight.budget_signals || 'No signals recorded.'}</p>
                 </div>
-              )}
-              {insight.industry_analysis && (
-                <div>
-                  <h4 className="font-semibold text-ink-muted uppercase text-[10px] tracking-wider">Industry Trend</h4>
-                  <p className="mt-0.5 text-ink-primary leading-relaxed">{insight.industry_analysis}</p>
+              </div>
+
+              {insight.tech_stack && (
+                <div className="rounded-xl bg-surface-subtle p-3 border border-line-default">
+                  <span className="font-semibold text-ink-muted">Detected Tech Stack: </span>
+                  <span className="text-ink-primary font-mono text-[11px]">{insight.tech_stack}</span>
                 </div>
               )}
             </div>
@@ -375,6 +406,34 @@ export default function LeadDetailPage() {
               <dt className="font-semibold text-ink-muted">Industry</dt>
               <dd className="mt-1 font-medium text-ink-primary">{lead.industry || '—'}</dd>
             </div>
+
+            {/* Assignment Section */}
+            {!isPersonal && (
+              <div className="border-t border-line-default pt-3">
+                <dt className="font-semibold text-ink-muted mb-1.5">Assigned Sales Rep</dt>
+                {isManager && members.length > 0 ? (
+                  <dd>
+                    <select
+                      className="input w-full text-xs font-medium"
+                      value={lead.assigned_to || ''}
+                      disabled={reassigning}
+                      onChange={(e) => handleAssignLead(e.target.value)}
+                    >
+                      <option value="">(Unassigned / Creator)</option>
+                      {members.map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {m.user_name || m.user_email} ({m.role === 'manager' ? 'Manager' : 'Member'})
+                        </option>
+                      ))}
+                    </select>
+                  </dd>
+                ) : (
+                  <dd className="font-medium text-ink-primary">
+                    {assignedMember ? (assignedMember.user_name || assignedMember.user_email) : 'Unassigned'}
+                  </dd>
+                )}
+              </div>
+            )}
           </dl>
 
           <div className="mt-6 border-t border-line-default pt-4">

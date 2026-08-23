@@ -4,6 +4,7 @@ import { getLeads } from '@/services/api/leads'
 import { listInteractions } from '@/services/api/conversations'
 import { getCampaigns } from '@/services/api/outreach'
 import { getDashboardSummary, getSnapshotHistory, recordSnapshot } from '@/services/api/analytics'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 const STATUS_LABELS = {
   new: 'New',
@@ -89,6 +90,7 @@ function mapSnapshot(snapshot) {
  *    Lead Intelligence pages.
  */
 export function useAnalytics() {
+  const { workspaceKey } = useWorkspaceKey()
   const [summary, setSummary] = useState(null)
   const [snapshots, setSnapshots] = useState([])
   const [industryBreakdown, setIndustryBreakdown] = useState([])
@@ -105,6 +107,10 @@ export function useAnalytics() {
   const loadAll = useCallback(async () => {
     setIsLoading(true)
     setError(null)
+    setSummary(null)
+    setSnapshots([])
+    setIndustryBreakdown([])
+    setWeeklyActivity([])
     try {
       const [summaryRes, snapshotsRes, leadsData] = await Promise.all([
         getDashboardSummary(),
@@ -160,7 +166,7 @@ export function useAnalytics() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [workspaceKey])
 
   useEffect(() => {
     loadAll()

@@ -12,10 +12,12 @@ import {
 } from '@/components/ui/icons'
 import { getContact, deleteContact } from '@/services/api/contacts'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 export default function ContactDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { workspaceKey } = useWorkspaceKey()
 
   const [contact, setContact] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -27,6 +29,7 @@ export default function ContactDetailPage() {
       setContact(data)
     } catch (err) {
       console.error('Failed to load contact details:', err)
+      setContact(null)
     } finally {
       setLoading(false)
     }
@@ -34,7 +37,7 @@ export default function ContactDetailPage() {
 
   useEffect(() => {
     loadContact()
-  }, [id])
+  }, [id, workspaceKey])
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this contact?')) return

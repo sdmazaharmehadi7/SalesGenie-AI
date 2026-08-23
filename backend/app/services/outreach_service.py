@@ -13,6 +13,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import WorkspaceContext
 from app.core.exceptions import ConflictError, NotFoundError
 from app.integrations.ai.base import AIProvider
 from app.integrations.email.base import EmailProvider
@@ -36,8 +37,13 @@ class OutreachService:
         self.lead_service = LeadService(db)
         self.interactions = SalesInteractionRepository(db)
 
-    async def generate_campaign(self, lead_id: uuid.UUID, current_user) -> OutreachCampaign:
-        lead = await self.lead_service.get_lead(lead_id, current_user)
+    async def generate_campaign(
+        self,
+        lead_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> OutreachCampaign:
+        lead = await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         latest_insight = await self.insights.get_latest_for_lead(lead.id)
 
         insight_dict = None
@@ -69,17 +75,22 @@ class OutreachService:
         campaign_id: uuid.UUID,
         campaign_in: OutreachCampaignUpdate,
         current_user,
+        ws_ctx: WorkspaceContext | None = None,
     ) -> OutreachCampaign:
-        await self.lead_service.get_lead(lead_id, current_user)  # enforces access control
+        await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)  # enforces access control
         campaign = await self._get_campaign_for_lead(lead_id, campaign_id)
         updated = await self.campaigns.update(campaign, campaign_in)
         await self.db.commit()
         return updated
 
     async def send_campaign(
-        self, lead_id: uuid.UUID, campaign_id: uuid.UUID, current_user
+        self,
+        lead_id: uuid.UUID,
+        campaign_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
     ) -> OutreachCampaign:
-        lead = await self.lead_service.get_lead(lead_id, current_user)
+        lead = await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         campaign = await self._get_campaign_for_lead(lead_id, campaign_id)
 
         if campaign.campaign_status != CampaignStatus.DRAFT:
@@ -107,16 +118,28 @@ class OutreachService:
         activity = SalesInteractionCreate(
             interaction_type=InteractionType.EMAIL,
             lead_id=lead.id,
+            workspace_id=lead.workspace_id,
+            user_id=current_user.id,
             summary=f"Outreach email sent: {campaign.email_subject}",
             action_items=[],
         )
-        await self.interactions.create(activity)
+        await self.interactions.create(
+            activity,
+            lead_id=lead.id,
+            workspace_id=lead.workspace_id,
+            user_id=current_user.id,
+        )
 
         await self.db.commit()
         return updated
 
-    async def list_campaigns(self, lead_id: uuid.UUID, current_user) -> list[OutreachCampaign]:
-        await self.lead_service.get_lead(lead_id, current_user)
+    async def list_campaigns(
+        self,
+        lead_id: uuid.UUID,
+        current_user,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> list[OutreachCampaign]:
+        await self.lead_service.get_lead(lead_id, current_user, ws_ctx=ws_ctx)
         return await self.campaigns.list_for_lead(lead_id)
 
     async def _get_campaign_for_lead(

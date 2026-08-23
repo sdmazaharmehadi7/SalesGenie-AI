@@ -48,6 +48,26 @@ class ActivityService:
         is_personal, _, workspace_id = self._resolve_context(ws_ctx, current_user)
 
         target_workspace_id = None if is_personal else (activity_in.workspace_id or workspace_id)
+
+        # If not personal area and workspace_id wasn't in context/payload, inherit from parent entity
+        if not is_personal and target_workspace_id is None:
+            if activity_in.lead_id:
+                lead = await self.db.get(Lead, activity_in.lead_id)
+                if lead and lead.workspace_id:
+                    target_workspace_id = lead.workspace_id
+            elif activity_in.opportunity_id:
+                opp = await self.db.get(Opportunity, activity_in.opportunity_id)
+                if opp and opp.workspace_id:
+                    target_workspace_id = opp.workspace_id
+            elif activity_in.account_id:
+                acc = await self.db.get(Account, activity_in.account_id)
+                if acc and acc.workspace_id:
+                    target_workspace_id = acc.workspace_id
+            elif activity_in.contact_id:
+                con = await self.db.get(Contact, activity_in.contact_id)
+                if con and con.workspace_id:
+                    target_workspace_id = con.workspace_id
+
         interaction = await self.interactions.create(
             activity_in,
             workspace_id=target_workspace_id,

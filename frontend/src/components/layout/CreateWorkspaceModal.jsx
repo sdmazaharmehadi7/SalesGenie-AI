@@ -4,7 +4,7 @@ import { useWorkspace } from '@/context/WorkspaceContext'
 import { useToast } from '@/context/ToastContext'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import { Building2, Crown, Sparkles, X } from '@/components/ui/icons'
+import { Building2, Crown, X } from '@/components/ui/icons'
 
 export default function CreateWorkspaceModal({ isOpen, onClose }) {
   const navigate = useNavigate()
@@ -12,14 +12,13 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
   const { showToast } = useToast()
 
   const [workspaceName, setWorkspaceName] = useState('')
-  const [companyName, setCompanyName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!isOpen) return null
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     setError('')
 
@@ -29,18 +28,29 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
     }
 
     setIsSubmitting(true)
-    setTimeout(() => {
-      const newWs = createWorkspace({
+    try {
+      const newWs = await createWorkspace({
         name: workspaceName.trim(),
-        companyName: companyName.trim() || workspaceName.trim(),
         description: description.trim(),
       })
-
-      setIsSubmitting(false)
       showToast(`Workspace "${newWs.name}" created! You are the Manager.`, 'success')
       onClose()
       navigate('/dashboard', { replace: true })
-    }, 300)
+    } catch (err) {
+      const msg =
+        err?.response?.data?.detail ||
+        'Failed to create workspace. Please try again.'
+      setError(Array.isArray(msg) ? msg.map((m) => m.msg).join(', ') : String(msg))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function handleClose() {
+    setWorkspaceName('')
+    setDescription('')
+    setError('')
+    onClose()
   }
 
   return (
@@ -54,12 +64,12 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
       <div
         aria-hidden="true"
         className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Modal Card */}
       <div className="relative w-full max-w-lg rounded-card border border-line-default bg-surface-default p-6 shadow-overlay animate-in fade-in zoom-in-95 duration-150">
-        
+
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-line-default pb-4">
           <div className="flex items-center gap-3">
@@ -79,7 +89,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
           <button
             aria-label="Close dialog"
             className="rounded-control p-1 text-ink-muted hover:bg-surface-muted hover:text-ink-primary"
-            onClick={onClose}
+            onClick={handleClose}
             type="button"
           >
             <X className="size-5" />
@@ -88,7 +98,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
 
         {/* Form Body */}
         <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-          
+
           {/* Workspace Name */}
           <div>
             <Input
@@ -103,17 +113,6 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
             <p className="mt-1 text-[11px] text-ink-muted">
               This name will appear in your team sidebar and notifications.
             </p>
-          </div>
-
-          {/* Company / Team Name */}
-          <div>
-            <Input
-              label="Company / Team Name"
-              name="companyName"
-              placeholder="e.g. Acme Corporation"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
           </div>
 
           {/* Description */}
@@ -151,7 +150,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }) {
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-line-default">
-            <Button onClick={onClose} type="button" variant="outline">
+            <Button onClick={handleClose} type="button" variant="outline" disabled={isSubmitting}>
               Cancel
             </Button>
             <Button

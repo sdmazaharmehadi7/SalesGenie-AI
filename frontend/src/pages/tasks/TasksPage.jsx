@@ -18,8 +18,10 @@ import {
   toggleTaskComplete,
   deleteTask,
 } from '@/services/api/tasks'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 export default function TasksPage() {
+  const { workspaceKey } = useWorkspaceKey()
   const [tasks, setTasks] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -63,7 +65,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     loadTasks()
-  }, [page, search, statusFilter, priorityFilter])
+  }, [page, search, statusFilter, priorityFilter, workspaceKey])
 
   const handleCreate = async (e) => {
     e.preventDefault()

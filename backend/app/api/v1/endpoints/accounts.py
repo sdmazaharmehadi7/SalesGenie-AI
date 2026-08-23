@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, status
 
 from app.ai.services import generate_company_intelligence
-from app.api.deps import CurrentActiveUser, DBSession, Pagination
+from app.api.deps import CurrentActiveUser, DBSession, Pagination, WorkspaceContextDep
 from app.schemas.account import (
     AccountCreate,
     AccountListItem,
@@ -87,9 +87,14 @@ async def get_account_opportunities(account_id: uuid.UUID, db: DBSession, curren
 
 
 @router.get("/{account_id}/activities", response_model=list[ActivityListItem], summary="Get account activity timeline")
-async def get_account_activities(account_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser) -> list[ActivityListItem]:
+async def get_account_activities(
+    account_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> list[ActivityListItem]:
     await AccountService(db).get_account(account_id, current_user)
-    activities = await ActivityService(db).get_timeline(account_id=account_id)
+    activities = await ActivityService(db).get_timeline(current_user=current_user, ws_ctx=ws_ctx, account_id=account_id)
     return [ActivityListItem.model_validate(a) for a in activities]
 
 

@@ -15,6 +15,7 @@ import {
   updateOpportunityStage,
   createOpportunity,
 } from '@/services/api/opportunities'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 const STAGE_ORDER = [
   'new',
@@ -37,6 +38,7 @@ const STAGE_COLORS = {
 }
 
 export default function PipelinePage() {
+  const { workspaceKey } = useWorkspaceKey()
   const [board, setBoard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -64,8 +66,9 @@ export default function PipelinePage() {
   }
 
   useEffect(() => {
+    setLoading(true)
     loadPipeline()
-  }, [])
+  }, [workspaceKey])
 
   const handleRefresh = () => {
     setRefreshing(true)

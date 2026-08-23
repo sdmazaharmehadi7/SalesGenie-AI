@@ -5,6 +5,7 @@ import {
   getCampaigns,
   updateCampaign,
 } from '@/services/api/outreach'
+import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 function mapCampaign(c) {
   if (!c) return null
@@ -31,6 +32,7 @@ function extractErrorMessage(err, fallback) {
 }
 
 export function useOutreachGenerator() {
+  const { workspaceKey } = useWorkspaceKey()
   const [leads, setLeads] = useState([])
   const [leadsLoading, setLeadsLoading] = useState(true)
   const [selectedLeadId, setSelectedLeadId] = useState('')
@@ -47,10 +49,14 @@ export function useOutreachGenerator() {
   const [copySuccess, setCopySuccess] = useState(false)
   const [error, setError] = useState(null)
 
-  // 1. Fetch leads on mount
+  // 1. Fetch leads on mount / workspace change
   const loadLeads = useCallback(async () => {
     setLeadsLoading(true)
     setError(null)
+    setLeads([])
+    setSelectedLeadId('')
+    setCampaign(null)
+    setHistory([])
     try {
       const data = await getLeads({ page_size: 100 })
       const items = data.items || []
@@ -64,7 +70,7 @@ export function useOutreachGenerator() {
     } finally {
       setLeadsLoading(false)
     }
-  }, [])
+  }, [workspaceKey])
 
   useEffect(() => {
     loadLeads()

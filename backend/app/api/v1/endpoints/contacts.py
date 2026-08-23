@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.api.deps import CurrentActiveUser, DBSession, Pagination
+from app.api.deps import CurrentActiveUser, DBSession, Pagination, WorkspaceContextDep
 from app.schemas.contact import (
     ContactCreate,
     ContactListItem,
@@ -72,7 +72,12 @@ async def delete_contact(contact_id: uuid.UUID, db: DBSession, current_user: Cur
 
 
 @router.get("/{contact_id}/activities", response_model=list[ActivityListItem], summary="Get contact activity timeline")
-async def get_contact_activities(contact_id: uuid.UUID, db: DBSession, current_user: CurrentActiveUser) -> list[ActivityListItem]:
+async def get_contact_activities(
+    contact_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> list[ActivityListItem]:
     await ContactService(db).get_contact(contact_id, current_user)
-    activities = await ActivityService(db).get_timeline(contact_id=contact_id)
+    activities = await ActivityService(db).get_timeline(current_user=current_user, ws_ctx=ws_ctx, contact_id=contact_id)
     return [ActivityListItem.model_validate(a) for a in activities]
