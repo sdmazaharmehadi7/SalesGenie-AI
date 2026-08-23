@@ -31,7 +31,7 @@ function extractErrorMessage(error, fallback) {
   return error?.response?.data?.error?.message || error?.message || fallback
 }
 
-function LeadFormFields({ lead, members = [] }) {
+function LeadFormFields({ lead, members = [], isManager = false }) {
   const defaultManagerId = lead?.assigned_to || members.find((m) => m.role === 'manager')?.user_id || members[0]?.user_id || ''
 
   return (
@@ -75,7 +75,7 @@ function LeadFormFields({ lead, members = [] }) {
         </select>
       </label>
 
-      {members && members.length > 0 && (
+      {isManager && members && members.length > 0 && (
         <label className="space-y-1.5">
           <span>Assign to Member</span>
           <select className="input" name="assigned_to" defaultValue={defaultManagerId}>
@@ -91,14 +91,14 @@ function LeadFormFields({ lead, members = [] }) {
   )
 }
 
-function AddLeadModal({ open, onClose, onSave, isSaving, error, members = [] }) {
+function AddLeadModal({ open, onClose, onSave, isSaving, error, members = [], isManager = false }) {
   if (!open) return null
 
   function handleSubmit(event) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const dealValue = formData.get('deal_value')
-    const assignedTo = formData.get('assigned_to')
+    const assignedTo = isManager ? formData.get('assigned_to') : undefined
 
     onSave({
       company_name: formData.get('company_name'),
@@ -120,7 +120,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving, error, members = [] }) 
           <button aria-label="Close add lead" className="rounded-control p-1.5 text-ink-muted hover:bg-surface-muted" onClick={onClose} type="button"><X className="size-5" /></button>
         </div>
         <form onSubmit={handleSubmit}>
-          <LeadFormFields lead={null} members={members} />
+          <LeadFormFields lead={null} members={members} isManager={isManager} />
           {error ? <p className="px-5 pb-2 text-sm text-danger">{error}</p> : null}
           <div className="flex justify-end gap-3 border-t border-line-default p-5">
             <Button onClick={onClose} type="button" variant="secondary" disabled={isSaving}>Cancel</Button>
@@ -132,14 +132,14 @@ function AddLeadModal({ open, onClose, onSave, isSaving, error, members = [] }) 
   )
 }
 
-function EditLeadModal({ lead, onClose, onSave, isSaving, error, members = [] }) {
+function EditLeadModal({ lead, onClose, onSave, isSaving, error, members = [], isManager = false }) {
   if (!lead) return null
 
   function handleSubmit(event) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const dealValue = formData.get('deal_value')
-    const assignedTo = formData.get('assigned_to')
+    const assignedTo = isManager ? formData.get('assigned_to') : undefined
 
     onSave({
       ...lead,
@@ -150,7 +150,7 @@ function EditLeadModal({ lead, onClose, onSave, isSaving, error, members = [] })
       phone: formData.get('phone') || null,
       deal_value: dealValue ? Number(dealValue) : null,
       lead_status: formData.get('lead_status'),
-      assigned_to: assignedTo || undefined,
+      ...(isManager ? { assigned_to: assignedTo || undefined } : {}),
     })
   }
 
@@ -159,7 +159,7 @@ function EditLeadModal({ lead, onClose, onSave, isSaving, error, members = [] })
       <div aria-label="Edit lead" className="w-full max-w-lg rounded-card bg-surface-default shadow-overlay" role="dialog">
         <div className="flex items-center justify-between border-b border-line-default p-5"><h2 className="text-base font-semibold text-ink-primary">Edit lead</h2><button aria-label="Close edit lead" className="rounded-control p-1.5 text-ink-muted hover:bg-surface-muted" onClick={onClose} type="button"><X className="size-5" /></button></div>
         <form onSubmit={handleSubmit}>
-          <LeadFormFields lead={lead} members={members} />
+          <LeadFormFields lead={lead} members={members} isManager={isManager} />
           {error ? <p className="px-5 pb-2 text-sm text-danger">{error}</p> : null}
           <div className="flex justify-end gap-3 border-t border-line-default p-5"><Button onClick={onClose} type="button" variant="secondary" disabled={isSaving}>Cancel</Button><Button type="submit" disabled={isSaving}>{isSaving ? 'Saving…' : 'Save changes'}</Button></div>
         </form>
@@ -464,6 +464,7 @@ function LeadsPage() {
         isSaving={isAdding}
         error={addError}
         members={members}
+        isManager={isManager}
       />
 
       <EditLeadModal
@@ -473,6 +474,7 @@ function LeadsPage() {
         isSaving={isSaving}
         error={saveError}
         members={members}
+        isManager={isManager}
       />
 
       <DeleteLeadDialog

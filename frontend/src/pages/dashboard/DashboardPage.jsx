@@ -127,7 +127,7 @@ function MetricSkeleton() {
 // ─── Lead Form ────────────────────────────────────────────────────────────────
 const EMPTY_LEAD = { company_name: '', industry: '', contact_name: '', email: '', phone: '', deal_value: '', lead_status: 'new' }
 
-function AddLeadModal({ open, onClose, onSave, isSaving, members = [] }) {
+function AddLeadModal({ open, onClose, onSave, isSaving, members = [], isManager = false }) {
   const defaultManagerId = members.find((m) => m.role === 'manager')?.user_id || members[0]?.user_id || ''
   const [form, setForm] = useState(EMPTY_LEAD)
 
@@ -135,10 +135,10 @@ function AddLeadModal({ open, onClose, onSave, isSaving, members = [] }) {
     if (open) {
       setForm({
         ...EMPTY_LEAD,
-        assigned_to: defaultManagerId || undefined,
+        assigned_to: isManager ? (defaultManagerId || undefined) : undefined,
       })
     }
-  }, [open, defaultManagerId])
+  }, [open, defaultManagerId, isManager])
 
   if (!open) return null
 
@@ -151,7 +151,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving, members = [] }) {
     onSave({
       ...form,
       deal_value: form.deal_value ? Number(form.deal_value) : null,
-      assigned_to: form.assigned_to || defaultManagerId || undefined,
+      assigned_to: isManager ? (form.assigned_to || defaultManagerId || undefined) : undefined,
     })
   }
 
@@ -193,7 +193,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving, members = [] }) {
               </select>
             </label>
 
-            {members && members.length > 0 && (
+            {isManager && members && members.length > 0 && (
               <label className="space-y-1.5 sm:col-span-2">
                 <span className="text-sm font-medium text-ink-secondary">Assign to Member</span>
                 <select
@@ -322,6 +322,7 @@ function DashboardPage() {
         onSave={handleAddLead}
         isSaving={isSaving}
         members={members}
+        isManager={isManager}
       />
 
       {/* Header */}
