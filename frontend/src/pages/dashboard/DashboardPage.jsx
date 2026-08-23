@@ -17,6 +17,7 @@ import {
 
 import { getDashboardSummary } from '@/services/api/dashboard'
 import { getLeads, createLead } from '@/services/api/leads'
+import { listWorkspaceMembers } from '@/services/api/workspaces'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/context/AuthContext'
 import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
@@ -126,8 +127,18 @@ function MetricSkeleton() {
 // ─── Lead Form ────────────────────────────────────────────────────────────────
 const EMPTY_LEAD = { company_name: '', industry: '', contact_name: '', email: '', phone: '', deal_value: '', lead_status: 'new' }
 
-function AddLeadModal({ open, onClose, onSave, isSaving }) {
+function AddLeadModal({ open, onClose, onSave, isSaving, members = [] }) {
+  const defaultManagerId = members.find((m) => m.role === 'manager')?.user_id || members[0]?.user_id || ''
   const [form, setForm] = useState(EMPTY_LEAD)
+
+  useEffect(() => {
+    if (open) {
+      setForm({
+        ...EMPTY_LEAD,
+        assigned_to: defaultManagerId || undefined,
+      })
+    }
+  }, [open, defaultManagerId])
 
   if (!open) return null
 
@@ -137,7 +148,11 @@ function AddLeadModal({ open, onClose, onSave, isSaving }) {
 
   function handleSubmit(e) {
     e.preventDefault()
-    onSave({ ...form, deal_value: form.deal_value ? Number(form.deal_value) : null })
+    onSave({
+      ...form,
+      deal_value: form.deal_value ? Number(form.deal_value) : null,
+      assigned_to: form.assigned_to || defaultManagerId || undefined,
+    })
   }
 
   return (
@@ -163,7 +178,7 @@ function AddLeadModal({ open, onClose, onSave, isSaving }) {
                   className="input"
                   type={type}
                   required={required}
-                  value={form[field]}
+                  value={form[field] || ''}
                   onChange={(e) => update(field, e.target.value)}
                   min={type === 'number' ? 0 : undefined}
                 />
@@ -177,6 +192,23 @@ function AddLeadModal({ open, onClose, onSave, isSaving }) {
                 ))}
               </select>
             </label>
+
+            {members && members.length > 0 && (
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-sm font-medium text-ink-secondary">Assign to Member</span>
+                <select
+                  className="input"
+                  value={form.assigned_to || defaultManagerId}
+                  onChange={(e) => update('assigned_to', e.target.value)}
+                >
+                  {members.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.user_name || m.user_email} ({m.role === 'manager' ? 'Manager — Default' : 'Team Member'})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           <div className="flex justify-end gap-3 border-t border-line-default p-5">
             <Button onClick={onClose} type="button" variant="secondary" disabled={isSaving}>Cancel</Button>
@@ -196,6 +228,7 @@ function DashboardPage() {
 
   const [summary, setSummary] = useState(null)
   const [leads, setLeads] = useState([])
+  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -227,10 +260,25 @@ function DashboardPage() {
     }
   }, [showToast, workspaceKey])
 
+  const loadMembers = useCallback(async () => {
+    if (!activeWorkspace?.id || isPersonal) {
+      setMembers([])
+      return
+    }
+    try {
+      const mems = await listWorkspaceMembers(activeWorkspace.id)
+      setMembers(mems || [])
+    } catch (err) {
+      console.error('Failed to load members for dashboard:', err)
+      setMembers([])
+    }
+  }, [activeWorkspace?.id, isPersonal])
+
   // Re-fetch data whenever workspace changes
   useEffect(() => {
     loadData()
-  }, [loadData])
+    loadMembers()
+  }, [loadData, loadMembers])
 
   // ── Derived data ─────────────────────────────────────────────────────────────
   const monthlyLeads = buildMonthlyGrowth(leads)
@@ -273,6 +321,7 @@ function DashboardPage() {
         onClose={() => setShowAddModal(false)}
         onSave={handleAddLead}
         isSaving={isSaving}
+        members={members}
       />
 
       {/* Header */}

@@ -27,6 +27,7 @@ import OnboardingPage from '@/pages/onboarding/OnboardingPage'
 import ProfilePage from '@/pages/profile/ProfilePage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import SignupPage from '@/pages/auth/SignupPage'
+import TeamTrackingPage from '@/pages/team-tracking/TeamTrackingPage'
 
 export const router = createBrowserRouter([
   {
@@ -85,6 +86,8 @@ export const router = createBrowserRouter([
           { path: '/outreach-generator', element: <OutreachGeneratorPage /> },
           { path: '/conversation-summary', element: <ConversationSummaryPage /> },
           { path: '/analytics', element: <AnalyticsPage /> },
+          { path: '/manage/team', element: <TeamTrackingPage /> },
+          { path: '/team-tracking', element: <TeamTrackingPage /> },
           { path: '/settings', element: <SettingsPage /> },
           { path: '/settings/:section', element: <SettingsPage /> },
           { path: '/profile', element: <ProfilePage /> },

@@ -32,6 +32,8 @@ function extractErrorMessage(error, fallback) {
 }
 
 function LeadFormFields({ lead, members = [] }) {
+  const defaultManagerId = lead?.assigned_to || members.find((m) => m.role === 'manager')?.user_id || members[0]?.user_id || ''
+
   return (
     <div className="grid gap-4 p-5 sm:grid-cols-2">
       <label className="space-y-1.5">
@@ -76,11 +78,10 @@ function LeadFormFields({ lead, members = [] }) {
       {members && members.length > 0 && (
         <label className="space-y-1.5">
           <span>Assign to Member</span>
-          <select className="input" name="assigned_to" defaultValue={lead?.assigned_to ?? ''}>
-            <option value="">(Auto: Current User)</option>
+          <select className="input" name="assigned_to" defaultValue={defaultManagerId}>
             {members.map((m) => (
               <option key={m.user_id} value={m.user_id}>
-                {m.user_name || m.user_email} ({m.role === 'manager' ? 'Manager' : 'Member'})
+                {m.user_name || m.user_email} ({m.role === 'manager' ? 'Manager — Default' : 'Team Member'})
               </option>
             ))}
           </select>

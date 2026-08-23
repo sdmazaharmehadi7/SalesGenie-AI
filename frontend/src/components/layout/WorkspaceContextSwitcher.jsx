@@ -8,18 +8,13 @@ import {
   Check,
   ChevronDown,
   Crown,
-  Plus,
   Sparkles,
   User,
   Users,
 } from '@/components/ui/icons'
-import CreateWorkspaceModal from '@/components/layout/CreateWorkspaceModal'
-import JoinWorkspaceModal from '@/components/layout/JoinWorkspaceModal'
 
 export default function WorkspaceContextSwitcher({ isCollapsed = false, inNavbar = false }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false)
   const menuRef = useRef(null)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -231,24 +226,6 @@ export default function WorkspaceContextSwitcher({ isCollapsed = false, inNavbar
             {/* Workspace Hub Footer */}
             <div className="border-t border-line-default pt-1 space-y-0.5">
               <button
-                className="flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors"
-                onClick={() => { setIsOpen(false); setIsCreateModalOpen(true) }}
-                role="menuitem"
-                type="button"
-              >
-                <Plus className="size-3.5" />
-                <span>+ Create a Workspace</span>
-              </button>
-              <button
-                className="flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors"
-                onClick={() => { setIsOpen(false); setIsJoinModalOpen(true) }}
-                role="menuitem"
-                type="button"
-              >
-                <Users className="size-3.5" />
-                <span>Join with Invite Code</span>
-              </button>
-              <button
                 className="flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-muted hover:text-ink-primary transition-colors"
                 onClick={handleGoToHub}
                 role="menuitem"
@@ -260,16 +237,6 @@ export default function WorkspaceContextSwitcher({ isCollapsed = false, inNavbar
             </div>
           </div>
         )}
-
-        <CreateWorkspaceModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-        />
-
-        <JoinWorkspaceModal
-          isOpen={isJoinModalOpen}
-          onClose={() => setIsJoinModalOpen(false)}
-        />
       </div>
     )
   }
@@ -429,24 +396,6 @@ export default function WorkspaceContextSwitcher({ isCollapsed = false, inNavbar
           {/* Hub Action Link */}
           <div className="border-t border-line-default pt-1 space-y-0.5">
             <button
-              className="flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors"
-              onClick={() => { setIsOpen(false); setIsCreateModalOpen(true) }}
-              role="menuitem"
-              type="button"
-            >
-              <Plus className="size-3.5" />
-              <span>+ Create a Workspace</span>
-            </button>
-            <button
-              className="flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors"
-              onClick={() => { setIsOpen(false); setIsJoinModalOpen(true) }}
-              role="menuitem"
-              type="button"
-            >
-              <Users className="size-3.5" />
-              <span>Join with Invite Code</span>
-            </button>
-            <button
               className="flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-muted hover:text-ink-primary transition-colors"
               onClick={handleGoToHub}
               role="menuitem"
@@ -458,16 +407,6 @@ export default function WorkspaceContextSwitcher({ isCollapsed = false, inNavbar
           </div>
         </div>
       )}
-
-      <CreateWorkspaceModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-      />
-
-      <JoinWorkspaceModal
-        isOpen={isJoinModalOpen}
-        onClose={() => setIsJoinModalOpen(false)}
-      />
     </div>
   )
 }

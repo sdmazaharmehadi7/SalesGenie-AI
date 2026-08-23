@@ -30,6 +30,7 @@ export const primaryNavigation = [
 ]
 
 export const managerNavigation = [
+  { label: 'Team Tracking', icon: Activity, to: '/manage/team', badge: 'Manager' },
   { label: 'Team Management', icon: Users, to: '/settings/workspace', badge: 'Manager' },
   { label: 'Workspace Management', icon: Building2, to: '/settings/general', badge: 'Manager' },
 ]

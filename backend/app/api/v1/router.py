@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     opportunities,
     outreach,
     tasks,
+    team_tracking,
     users,
     workspaces,
 )
@@ -47,3 +48,4 @@ api_router.include_router(opportunities.router, prefix="/opportunities", tags=["
 api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
 api_router.include_router(activities.router, prefix="/activities", tags=["Activities & Timeline"])
 api_router.include_router(email.router, prefix="/email", tags=["Email"])
+api_router.include_router(team_tracking.router, prefix="/team-tracking", tags=["Team Tracking & Performance"])
