@@ -1,22 +1,40 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sendChatMessage } from '@/services/api/ai'
+import { useAuth } from '@/context/AuthContext'
+import { useWorkspace } from '@/context/WorkspaceContext'
 
-const STORAGE_KEY = 'sg_chat_threads'
+/** Clean up legacy global unisolated storage key if present */
+try {
+  localStorage.removeItem('sg_chat_threads')
+} catch {
+  // Ignore localStorage errors
+}
 
-/** Load persisted threads from localStorage (or return empty array). */
-function loadThreads() {
+/** Compute user- and workspace-scoped storage key */
+function getStorageKey(userId, workspaceId) {
+  if (!userId) return null
+  const ws = workspaceId || 'personal'
+  return `sg_chat_threads_${userId}_${ws}`
+}
+
+/** Load persisted threads from scoped localStorage key */
+function loadThreads(userId, workspaceId) {
+  const key = getStorageKey(userId, workspaceId)
+  if (!key) return []
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
   }
 }
 
-/** Persist threads to localStorage. */
-function saveThreads(threads) {
+/** Persist threads to scoped localStorage key */
+function saveThreads(userId, workspaceId, threads) {
+  const key = getStorageKey(userId, workspaceId)
+  if (!key) return
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(threads))
+    localStorage.setItem(key, JSON.stringify(threads))
   } catch {
     // Ignore quota errors silently
   }
@@ -29,18 +47,49 @@ function timestamp() {
 /**
  * useChat — manages AI conversation threads backed by POST /api/v1/chat.
  *
- * Conversations are stored in localStorage for persistence across refreshes.
- * Streaming is simulated word-by-word after the full response arrives, since
- * the backend returns the complete reply in one shot.
+ * Conversations are isolated per authenticated user_id and active workspace_id.
+ * When the logged-in user or workspace changes, chat history is automatically
+ * re-scoped and previous in-memory state is cleared.
  */
 export function useChat() {
-  const [conversations, setConversations] = useState(() => loadThreads())
-  const [activeThreadId, setActiveThreadId] = useState(() => loadThreads()[0]?.id || null)
+  const { user } = useAuth()
+  const { activeWorkspace } = useWorkspace()
+
+  const userId = user?.id || null
+  const workspaceId = activeWorkspace?.id || 'personal'
+
+  const [conversations, setConversations] = useState(() => loadThreads(userId, workspaceId))
+  const [activeThreadId, setActiveThreadId] = useState(() => {
+    const initialThreads = loadThreads(userId, workspaceId)
+    return initialThreads[0]?.id || null
+  })
   const [searchQuery, setSearchQuery] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const intervalRef = useRef(null)
   const abortRef = useRef(false)
+
+  // Track previous user and workspace to detect switches and reset state
+  const prevContextRef = useRef({ userId, workspaceId })
+
+  useEffect(() => {
+    // If user or workspace changed, cancel ongoing streams and reload isolated threads
+    if (prevContextRef.current.userId !== userId || prevContextRef.current.workspaceId !== workspaceId) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      setIsGenerating(false)
+      setStreamingContent('')
+      setSearchQuery('')
+
+      const nextThreads = loadThreads(userId, workspaceId)
+      setConversations(nextThreads)
+      setActiveThreadId(nextThreads[0]?.id || null)
+
+      prevContextRef.current = { userId, workspaceId }
+    }
+  }, [userId, workspaceId])
 
   const activeThread = useMemo(
     () => conversations.find((c) => c.id === activeThreadId) || null,
@@ -58,14 +107,17 @@ export function useChat() {
     })
   }, [conversations, searchQuery])
 
-  /** Persist to localStorage whenever conversations change. */
-  const updateConversations = useCallback((updater) => {
-    setConversations((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      saveThreads(next)
-      return next
-    })
-  }, [])
+  /** Persist to user- and workspace-isolated localStorage */
+  const updateConversations = useCallback(
+    (updater) => {
+      setConversations((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        saveThreads(userId, workspaceId, next)
+        return next
+      })
+    },
+    [userId, workspaceId],
+  )
 
   const selectThread = useCallback((id) => setActiveThreadId(id), [])
 
@@ -74,16 +126,22 @@ export function useChat() {
     setStreamingContent('')
   }, [])
 
-  const togglePin = useCallback((id) => {
-    updateConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)),
-    )
-  }, [updateConversations])
+  const togglePin = useCallback(
+    (id) => {
+      updateConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)),
+      )
+    },
+    [updateConversations],
+  )
 
-  const deleteThread = useCallback((id) => {
-    updateConversations((prev) => prev.filter((c) => c.id !== id))
-    setActiveThreadId((curr) => (curr === id ? null : curr))
-  }, [updateConversations])
+  const deleteThread = useCallback(
+    (id) => {
+      updateConversations((prev) => prev.filter((c) => c.id !== id))
+      setActiveThreadId((curr) => (curr === id ? null : curr))
+    },
+    [updateConversations],
+  )
 
   const stopGeneration = useCallback(() => {
     abortRef.current = true

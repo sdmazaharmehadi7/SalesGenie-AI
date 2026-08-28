@@ -47,17 +47,19 @@ export default function WorkspaceContextSwitcher({ isCollapsed = false, inNavbar
     switchToPersonal(user?.name || user?.email?.split('@')[0])
     setIsOpen(false)
     showToast('Switched to Personal Area (Private)', 'success')
+    navigate('/personal')
   }
 
   function handleSelectWorkspace(ws) {
     switchWorkspace(ws)
     setIsOpen(false)
     showToast(`Switched to ${ws.name} as ${ws.roleLabel || ws.role}`, 'success')
+    navigate(`/workspace/${ws.id}`)
   }
 
   function handleGoToHub() {
     setIsOpen(false)
-    navigate('/onboarding')
+    navigate('/workspace-hub')
   }
 
   const displayName = activeWorkspace?.name || (isPersonal ? 'Personal Area' : 'Workspace')

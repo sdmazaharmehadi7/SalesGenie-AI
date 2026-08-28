@@ -43,6 +43,7 @@ class UserRead(ORMBaseModel):
     role: UserRole
     department: str | None
     is_active: bool
+    is_email_verified: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -50,6 +51,25 @@ class UserRead(ORMBaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class SignupResponse(BaseModel):
+    message: str = "Verification OTP sent to your email."
+    email: EmailStr
+    requires_verification: bool = True
+
+
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=6, max_length=6, description="6-digit verification code")
+
+
+class ResendOTPRequest(BaseModel):
+    email: EmailStr
+
+
+class OTPResponse(BaseModel):
+    message: str
 
 
 class Token(BaseModel):

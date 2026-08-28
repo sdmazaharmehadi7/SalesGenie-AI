@@ -20,6 +20,16 @@ export const register = async (userData) => {
   return response.data;
 };
 
+export const verifyOtp = async ({ email, otp }) => {
+  const response = await api.post("/auth/verify-otp", { email, otp });
+  return response.data;
+};
+
+export const resendOtp = async ({ email }) => {
+  const response = await api.post("/auth/resend-otp", { email });
+  return response.data;
+};
+
 export const googleLogin = async (payload) => {
   const response = await api.post("/auth/google", payload);
   return response.data;

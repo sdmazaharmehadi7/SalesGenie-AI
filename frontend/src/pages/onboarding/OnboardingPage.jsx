@@ -1,30 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import { useToast } from '@/context/ToastContext'
-import {
-  listMyPendingInvitations,
-  acceptInvitation,
-  rejectInvitation,
-} from '@/services/api/workspaces'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import {
   ArrowRight,
   Building2,
-  Check,
   CheckCircle2,
   ChevronLeft,
   Crown,
-  Loader2,
   LogOut,
   Mail,
   Plus,
   Sparkles,
   User,
   Users,
-  X,
 } from '@/components/ui/icons'
 
 function getInitials(name) {
@@ -35,25 +27,18 @@ function getInitials(name) {
   return (first + last).toUpperCase() || 'U'
 }
 
-function OnboardingPage() {
+export default function OnboardingPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const {
-    workspaces,
-    isLoadingWorkspaces,
-    switchWorkspace,
     switchToPersonal,
     createWorkspace,
     joinWorkspace,
-    refreshWorkspaces,
   } = useWorkspace()
   const { showToast } = useToast()
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User'
   const initials = getInitials(displayName)
-
-  const [pendingInvitations, setPendingInvitations] = useState([])
-  const [loadingInvitations, setLoadingInvitations] = useState(false)
 
   // Active sub-flow: null | 'create' | 'join'
   const [activeFlow, setActiveFlow] = useState(null)
@@ -68,70 +53,14 @@ function OnboardingPage() {
   const [joinError, setJoinError] = useState('')
   const [isJoining, setIsJoining] = useState(false)
 
-  const loadInvitations = useCallback(async () => {
-    setLoadingInvitations(true)
-    try {
-      const data = await listMyPendingInvitations()
-      setPendingInvitations(data || [])
-    } catch (err) {
-      console.error('Failed to load pending invitations:', err)
-    } finally {
-      setLoadingInvitations(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    refreshWorkspaces()
-    loadInvitations()
-  }, [refreshWorkspaces, loadInvitations])
-
   // ─── Flow: Select Personal Area ─────────────────────────────────────────────
   function handleSelectPersonal() {
     switchToPersonal(displayName)
+    if (user?.id) {
+      localStorage.setItem(`sg_onboarded_${user.id}`, 'true')
+    }
     showToast('Entered Personal Area!', 'success')
-    navigate('/dashboard', { replace: true })
-  }
-
-  // ─── Flow: Select Existing Workspace ────────────────────────────────────────
-  function handleSelectWorkspace(ws) {
-    switchWorkspace(ws)
-    showToast(`Switched to ${ws.name} as ${ws.roleLabel}!`, 'success')
-    navigate('/dashboard', { replace: true })
-  }
-
-  // ─── Flow: Accept Invitation ────────────────────────────────────────────────
-  async function handleAcceptInvite(invitation) {
-    try {
-      const result = await acceptInvitation(invitation.token)
-      showToast(`Accepted invitation! Joined ${result.workspace_name} as Team Member.`, 'success')
-      await refreshWorkspaces()
-      setPendingInvitations((prev) => prev.filter((i) => i.id !== invitation.id))
-      switchWorkspace({
-        id: result.workspace_id,
-        name: result.workspace_name,
-        type: result.workspace_type || 'team',
-        role: result.role || 'team_member',
-        roleLabel: result.is_manager ? 'Manager' : 'Team Member',
-        isOwner: result.is_manager,
-        membersCount: 1,
-      })
-      navigate('/dashboard', { replace: true })
-    } catch (err) {
-      const msg = err?.response?.data?.detail || 'Failed to accept invitation.'
-      showToast(msg, 'error')
-    }
-  }
-
-  // ─── Flow: Decline Invitation ────────────────────────────────────────────────
-  async function handleDeclineInvite(invitation) {
-    try {
-      await rejectInvitation(invitation.token)
-      setPendingInvitations((prev) => prev.filter((i) => i.id !== invitation.id))
-      showToast(`Declined invitation to ${invitation.workspace_name}.`, 'info')
-    } catch (err) {
-      const msg = err?.response?.data?.detail || 'Failed to decline invitation.'
-      showToast(msg, 'error')
-    }
+    navigate('/personal', { replace: true })
   }
 
   // ─── Flow: Create Workspace ──────────────────────────────────────────────────
@@ -151,8 +80,11 @@ function OnboardingPage() {
         description: createDescription.trim(),
       })
       setIsCreating(false)
+      if (user?.id) {
+        localStorage.setItem(`sg_onboarded_${user.id}`, 'true')
+      }
       showToast(`Workspace "${newWs.name}" created! You are the Manager.`, 'success')
-      navigate('/dashboard', { replace: true })
+      navigate(`/workspace/${newWs.id}`, { replace: true })
     } catch (err) {
       setIsCreating(false)
       const msg = err?.response?.data?.detail || 'Failed to create workspace. Please try again.'
@@ -180,16 +112,16 @@ function OnboardingPage() {
       }
 
       setIsJoining(false)
+      if (user?.id) {
+        localStorage.setItem(`sg_onboarded_${user.id}`, 'true')
+      }
       showToast(`Joined ${result.workspace.name} as Team Member!`, 'success')
-      navigate('/dashboard', { replace: true })
+      navigate(`/workspace/${result.workspace.id}`, { replace: true })
     } catch (err) {
       setIsJoining(false)
       setJoinError('Failed to join workspace. Please check your token.')
     }
   }
-
-  const hasWorkspaces = workspaces.length > 0
-  const hasInvitations = pendingInvitations.length > 0
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-canvas text-ink-primary">
@@ -233,15 +165,15 @@ function OnboardingPage() {
           <div className="text-center">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-brand-700">
               <Sparkles className="size-3.5" />
-              <span>Workspace Management & Access Hub</span>
+              <span>Get Started with SalesGenie AI</span>
             </div>
 
             <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-primary sm:text-3xl">
-              Welcome back, {displayName}
+              Welcome, {displayName}
             </h1>
 
             <p className="mx-auto mt-2 max-w-xl text-sm text-ink-muted">
-              Choose your work context. Personal Area remains completely private, while team workspaces provide collaborative CRM pipelines and AI analytics.
+              Choose how you would like to begin. Set up your private Personal Area, create a new team workspace, or join an existing organization.
             </p>
           </div>
 
@@ -255,7 +187,7 @@ function OnboardingPage() {
                   type="button"
                 >
                   <ChevronLeft className="size-4" />
-                  <span>Back to workspace list</span>
+                  <span>Back to options</span>
                 </button>
 
                 <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
@@ -353,7 +285,7 @@ function OnboardingPage() {
                   type="button"
                 >
                   <ChevronLeft className="size-4" />
-                  <span>Back to workspace list</span>
+                  <span>Back to options</span>
                 </button>
 
                 <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
@@ -427,7 +359,7 @@ function OnboardingPage() {
             </div>
           )}
 
-          {/* ─── PRIMARY SELECTION DASHBOARD ─────────────────────────────────── */}
+          {/* ─── PRIMARY 3-OPTION ONBOARDING ─────────────────────────────────── */}
           {activeFlow === null && (
             <div className="mt-8 space-y-6">
 
@@ -448,7 +380,7 @@ function OnboardingPage() {
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-ink-muted sm:text-sm">
-                        Private workspace for your individual CRM leads, deal pipeline, and personal AI sales tools.
+                        Start immediately with a private CRM workspace for your individual leads, deals, and personal AI sales tools.
                       </p>
                     </div>
                   </div>
@@ -464,214 +396,73 @@ function OnboardingPage() {
                 </div>
               </div>
 
-              {/* 2. MY WORKSPACES SECTION (If user has existing workspaces) */}
-              {hasWorkspaces && (
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
-                      My Workspaces ({workspaces.length})
-                    </h2>
+              {/* 2 & 3. WORKSPACE ACTIONS: CREATE OR JOIN */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Create Workspace Action Card */}
+                <div
+                  className="group flex flex-col justify-between rounded-card border border-line-default bg-surface-default p-5 shadow-card transition-all hover:border-indigo-300 hover:shadow-floating"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div className="grid size-10 place-items-center rounded-control bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                        <Building2 className="size-5" />
+                      </div>
+                      <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+                        Manager Role
+                      </span>
+                    </div>
+                    <h3 className="mt-4 text-sm font-semibold text-ink-primary">
+                      + Create a Workspace
+                    </h3>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      Set up a new organization. As creator, you will be the Workspace Manager/Owner with full administrative control.
+                    </p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {workspaces.map((ws) => {
-                      const isManager = ws.role === 'manager' || ws.role === 'owner'
-                      return (
-                        <div
-                          key={ws.id}
-                          className="group flex flex-col justify-between rounded-card border border-line-default bg-surface-default p-4 shadow-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-floating"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2.5">
-                                <div className={`grid size-9 place-items-center rounded-control text-xs font-bold ${
-                                  isManager ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
-                                }`}>
-                                  {ws.name.slice(0, 2).toUpperCase()}
-                                </div>
-                                <div>
-                                  <h3 className="text-sm font-semibold text-ink-primary">
-                                    {ws.name}
-                                  </h3>
-                                  <span className="text-xs text-ink-muted">
-                                    {ws.membersCount ? `${ws.membersCount} members` : 'Team workspace'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                  isManager
-                                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                }`}
-                              >
-                                {isManager ? (
-                                  <Crown className="size-3" />
-                                ) : (
-                                  <Users className="size-3" />
-                                )}
-                                <span>{ws.roleLabel || (isManager ? 'Manager' : 'Team Member')}</span>
-                              </span>
-                            </div>
-
-                            {ws.description && (
-                              <p className="mt-2.5 text-xs text-ink-muted line-clamp-2">
-                                {ws.description}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="mt-4 pt-3 border-t border-line-default">
-                            <Button
-                              className="w-full justify-center text-xs py-1.5"
-                              onClick={() => handleSelectWorkspace(ws)}
-                              type="button"
-                              variant={isManager ? 'primary' : 'outline'}
-                            >
-                              <span>Enter as {ws.roleLabel}</span>
-                              <ArrowRight className="ml-1.5 size-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="mt-4 pt-3 border-t border-line-default">
+                    <Button
+                      className="w-full justify-center border-line-strong bg-surface-default text-ink-primary hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 text-xs"
+                      onClick={() => setActiveFlow('create')}
+                      type="button"
+                      variant="outline"
+                    >
+                      <Plus className="mr-1 size-3.5" />
+                      <span>Create Workspace</span>
+                    </Button>
                   </div>
                 </div>
-              )}
 
-              {/* 3. PENDING INVITATIONS SECTION */}
-              {hasInvitations && (
-                <div>
-                  <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-amber-700">
-                    Pending Invitations ({pendingInvitations.length})
-                  </h2>
-
-                  <div className="space-y-3">
-                    {pendingInvitations.map((inv) => (
-                      <div
-                        key={inv.id}
-                        className="flex flex-col items-start justify-between gap-3 rounded-card border border-amber-200 bg-amber-50/50 p-4 sm:flex-row sm:items-center"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="grid size-10 shrink-0 place-items-center rounded-control bg-amber-100 text-amber-800">
-                            <Mail className="size-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-semibold text-ink-primary">
-                                {inv.workspace_name}
-                              </h3>
-                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                                Role: {inv.role === 'manager' ? 'Manager' : 'Team Member'}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 text-xs text-ink-secondary">
-                              Invited by <span className="font-medium text-ink-primary">{inv.invited_by_name || inv.invited_by_email}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex w-full items-center gap-2 sm:w-auto">
-                          <Button
-                            className="flex-1 justify-center border-amber-300 bg-white text-ink-secondary hover:bg-amber-100/50 text-xs sm:flex-none"
-                            onClick={() => handleDeclineInvite(inv)}
-                            type="button"
-                            variant="outline"
-                          >
-                            <X className="mr-1 size-3.5" />
-                            <span>Decline</span>
-                          </Button>
-                          <Button
-                            className="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-xs sm:flex-none"
-                            onClick={() => handleAcceptInvite(inv)}
-                            type="button"
-                          >
-                            <Check className="mr-1 size-3.5" />
-                            <span>Accept & Join</span>
-                          </Button>
-                        </div>
+                {/* Join Workspace Action Card */}
+                <div
+                  className="group flex flex-col justify-between rounded-card border border-line-default bg-surface-default p-5 shadow-card transition-all hover:border-emerald-300 hover:shadow-floating"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div className="grid size-10 place-items-center rounded-control bg-emerald-50 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
+                        <Users className="size-5" />
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 4. WORKSPACE ACTIONS: CREATE OR JOIN */}
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
-                    {hasWorkspaces ? 'Add or Join Workspaces' : 'Get Started'}
-                  </h2>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {/* Create Workspace Action Card */}
-                  <div
-                    className="group flex flex-col justify-between rounded-card border border-line-default bg-surface-default p-5 shadow-card transition-all hover:border-indigo-300 hover:shadow-floating"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <div className="grid size-10 place-items-center rounded-control bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white">
-                          <Building2 className="size-5" />
-                        </div>
-                        <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                          Manager Role
-                        </span>
-                      </div>
-                      <h3 className="mt-4 text-sm font-semibold text-ink-primary">
-                        + Create a Workspace
-                      </h3>
-                      <p className="mt-1 text-xs text-ink-muted">
-                        Set up a new organization. As creator, you will be the Workspace Manager/Owner with full administrative control.
-                      </p>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                        Team Member
+                      </span>
                     </div>
-
-                    <div className="mt-4 pt-3 border-t border-line-default">
-                      <Button
-                        className="w-full justify-center border-line-strong bg-surface-default text-ink-primary hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 text-xs"
-                        onClick={() => setActiveFlow('create')}
-                        type="button"
-                        variant="outline"
-                      >
-                        <Plus className="mr-1 size-3.5" />
-                        <span>Create Workspace</span>
-                      </Button>
-                    </div>
+                    <h3 className="mt-4 text-sm font-semibold text-ink-primary">
+                      Join with Invite Code
+                    </h3>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      Have an invite token from another organization? Enter it to join as a Team Member.
+                    </p>
                   </div>
 
-                  {/* Join Workspace Action Card */}
-                  <div
-                    className="group flex flex-col justify-between rounded-card border border-line-default bg-surface-default p-5 shadow-card transition-all hover:border-emerald-300 hover:shadow-floating"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <div className="grid size-10 place-items-center rounded-control bg-emerald-50 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
-                          <Users className="size-5" />
-                        </div>
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                          Team Member
-                        </span>
-                      </div>
-                      <h3 className="mt-4 text-sm font-semibold text-ink-primary">
-                        Join with Invite Code
-                      </h3>
-                      <p className="mt-1 text-xs text-ink-muted">
-                        Have an invite token from another organization? Enter it to join as a Team Member.
-                      </p>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-line-default">
-                      <Button
-                        className="w-full justify-center border-line-strong bg-surface-default text-ink-primary hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-xs"
-                        onClick={() => setActiveFlow('join')}
-                        type="button"
-                        variant="outline"
-                      >
-                        <Mail className="mr-1 size-3.5" />
-                        <span>Enter Invite Token</span>
-                      </Button>
-                    </div>
+                  <div className="mt-4 pt-3 border-t border-line-default">
+                    <Button
+                      className="w-full justify-center border-line-strong bg-surface-default text-ink-primary hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-xs"
+                      onClick={() => setActiveFlow('join')}
+                      type="button"
+                      variant="outline"
+                    >
+                      <Mail className="mr-1 size-3.5" />
+                      <span>Enter Invite Token</span>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -684,5 +475,3 @@ function OnboardingPage() {
     </div>
   )
 }
-
-export default OnboardingPage

@@ -24,6 +24,9 @@ import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OutreachGeneratorPage from '@/pages/outreach/OutreachGeneratorPage'
 import OnboardingPage from '@/pages/onboarding/OnboardingPage'
+import WorkspaceHubPage from '@/pages/workspaces/WorkspaceHubPage'
+import PersonalContextHandler from '@/components/layout/PersonalContextHandler'
+import WorkspaceContextHandler from '@/components/layout/WorkspaceContextHandler'
 import ProfilePage from '@/pages/profile/ProfilePage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import SignupPage from '@/pages/auth/SignupPage'
@@ -55,6 +58,30 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/workspace-hub',
+        element: (
+          <ProtectedRoute>
+            <WorkspaceHubPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/workspaces/create',
+        element: (
+          <ProtectedRoute>
+            <WorkspaceHubPage initialFlow="create" />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/workspaces/join',
+        element: (
+          <ProtectedRoute>
+            <WorkspaceHubPage initialFlow="join" />
+          </ProtectedRoute>
+        ),
+      },
+      {
         element: (
           <ProtectedRoute>
             <Layout />
@@ -62,6 +89,8 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <Navigate replace to="/crm" /> },
+          { path: '/personal', element: <PersonalContextHandler /> },
+          { path: '/workspace/:workspaceId', element: <WorkspaceContextHandler /> },
           {
             path: '/dashboard',
             lazy: async () => {
@@ -97,4 +126,3 @@ export const router = createBrowserRouter([
     ],
   },
 ])
-

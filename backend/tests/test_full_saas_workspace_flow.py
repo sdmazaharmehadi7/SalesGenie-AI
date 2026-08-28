@@ -32,26 +32,15 @@ async def test_full_saas_multi_workspace_crm_flow():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Step 1: Register User A, User B, User C
         unique = uuid.uuid4().hex[:6]
+        from tests.conftest import register_and_verify_user
         
-        reg_a = await client.post("/api/v1/auth/register", json={
-            "name": "User A", "email": f"user_a_{unique}@example.com", "password": "Password123!"
-        })
-        assert reg_a.status_code == 201, reg_a.text
-        token_a = reg_a.json()["access_token"]
+        token_a = await register_and_verify_user(client, "User A", f"user_a_{unique}@example.com", "Password123!")
         headers_a = {"Authorization": f"Bearer {token_a}"}
 
-        reg_b = await client.post("/api/v1/auth/register", json={
-            "name": "User B", "email": f"user_b_{unique}@example.com", "password": "Password123!"
-        })
-        assert reg_b.status_code == 201, reg_b.text
-        token_b = reg_b.json()["access_token"]
+        token_b = await register_and_verify_user(client, "User B", f"user_b_{unique}@example.com", "Password123!")
         headers_b = {"Authorization": f"Bearer {token_b}"}
 
-        reg_c = await client.post("/api/v1/auth/register", json={
-            "name": "User C", "email": f"user_c_{unique}@example.com", "password": "Password123!"
-        })
-        assert reg_c.status_code == 201, reg_c.text
-        token_c = reg_c.json()["access_token"]
+        token_c = await register_and_verify_user(client, "User C", f"user_c_{unique}@example.com", "Password123!")
         headers_c = {"Authorization": f"Bearer {token_c}"}
 
         # Step 2: User A creates Workspace A

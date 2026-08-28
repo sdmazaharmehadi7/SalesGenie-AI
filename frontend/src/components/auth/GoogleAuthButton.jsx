@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { getGoogleAuthConfig, googleLogin } from '@/services/api/auth'
+import { getPostAuthRedirectUrl } from '@/services/api/authRedirect'
 
 /**
  * Official Google "G" logo SVG.
@@ -102,19 +103,15 @@ export default function GoogleAuthButton({ mode = 'signin', onError }) {
         credential: response.credential,
       })
 
-      await login(tokenData.access_token)
+      const authResult = await login(tokenData.access_token)
       showToast(
         mode === 'signup'
           ? 'Account created with Google! Welcome.'
           : 'Signed in with Google successfully!',
         'success'
       )
-      const hasWorkspace = localStorage.getItem('sg_active_workspace')
-      if (hasWorkspace) {
-        navigate('/dashboard', { replace: true })
-      } else {
-        navigate('/onboarding', { replace: true })
-      }
+      const target = await getPostAuthRedirectUrl(authResult?.user)
+      navigate(target, { replace: true })
     } catch (err) {
       console.error('Google login failed:', err)
       const data = err?.response?.data
@@ -207,14 +204,10 @@ export default function GoogleAuthButton({ mode = 'signin', onError }) {
                   code: response.code,
                   redirect_uri: window.location.origin,
                 })
-                await login(tokenData.access_token)
+                const authResult = await login(tokenData.access_token)
                 showToast('Signed in with Google successfully!', 'success')
-                const hasWorkspace = localStorage.getItem('sg_active_workspace')
-                if (hasWorkspace) {
-                  navigate('/dashboard', { replace: true })
-                } else {
-                  navigate('/onboarding', { replace: true })
-                }
+                const target = await getPostAuthRedirectUrl(authResult?.user)
+                navigate(target, { replace: true })
               } catch (err) {
                 const msg = err?.response?.data?.detail || 'Google authentication failed.'
                 if (onError) onError(msg)

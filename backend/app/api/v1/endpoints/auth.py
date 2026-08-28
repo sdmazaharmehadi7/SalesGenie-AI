@@ -9,7 +9,7 @@ schemas), delegate to `AuthService`, and map the result (or a raised
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import CurrentActiveUser, DBSession
@@ -18,10 +18,14 @@ from app.schemas.user import (
     ChangePasswordRequest,
     ChangePasswordResponse,
     GoogleAuthRequest,
+    OTPResponse,
+    ResendOTPRequest,
+    SignupResponse,
     Token,
     TokenRefreshRequest,
     UserCreate,
     UserRead,
+    VerifyOTPRequest,
 )
 from app.services.auth_service import AuthService
 
@@ -30,13 +34,32 @@ router = APIRouter()
 
 @router.post(
     "/register",
-    response_model=Token,
-    status_code=201,
-    summary="Register a new user",
+    response_model=SignupResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user (sends email OTP for verification)",
 )
-async def register(user_in: UserCreate, db: DBSession) -> Token:
-    _, token = await AuthService(db).register(user_in)
-    return token
+async def register(user_in: UserCreate, db: DBSession) -> SignupResponse:
+    _, signup_resp = await AuthService(db).register(user_in)
+    return signup_resp
+
+
+@router.post(
+    "/verify-otp",
+    response_model=Token,
+    summary="Verify 6-digit email OTP and activate account",
+)
+async def verify_otp(payload: VerifyOTPRequest, db: DBSession) -> Token:
+    return await AuthService(db).verify_otp(payload.email, payload.otp)
+
+
+@router.post(
+    "/resend-otp",
+    response_model=OTPResponse,
+    summary="Resend 6-digit email verification OTP with rate limiting cooldown",
+)
+async def resend_otp(payload: ResendOTPRequest, db: DBSession) -> OTPResponse:
+    result = await AuthService(db).resend_otp(payload.email)
+    return OTPResponse(message=result["message"])
 
 
 @router.post(
@@ -49,15 +72,14 @@ async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> Token:
     # OAuth2PasswordRequestForm's field is named `username` by spec — we
-    # treat it as the user's email, which is what Swagger UI's built-in
-    # "Authorize" login form will submit.
+    # treat it as the user's email.
     return await AuthService(db).login(email=form_data.username, password=form_data.password)
 
 
 @router.post(
     "/google",
     response_model=Token,
-    summary="Authenticate or register using Google OAuth / OpenID Connect",
+    summary="Authenticate or register using Google OAuth / OpenID Connect (OTP bypassed)",
 )
 async def google_auth(
     payload: GoogleAuthRequest,

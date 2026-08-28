@@ -27,21 +27,12 @@ async def test_complete_multi_user_isolation_and_security() -> None:
         password = "SecurePassword123!"
 
         # 1. Register User A
-        res_a = await client.post(
-            "/api/v1/auth/register",
-            json={"name": "User Alpha", "email": user_a_email, "password": password, "role": "sales_rep"},
-        )
-        assert res_a.status_code == 201, res_a.text
-        token_a = res_a.json()["access_token"]
+        from tests.conftest import register_and_verify_user
+        token_a = await register_and_verify_user(client, "User Alpha", user_a_email, password, "sales_rep")
         headers_a = {"Authorization": f"Bearer {token_a}"}
 
         # 2. Register User B
-        res_b = await client.post(
-            "/api/v1/auth/register",
-            json={"name": "User Beta", "email": user_b_email, "password": password, "role": "sales_rep"},
-        )
-        assert res_b.status_code == 201, res_b.text
-        token_b = res_b.json()["access_token"]
+        token_b = await register_and_verify_user(client, "User Beta", user_b_email, password, "sales_rep")
         headers_b = {"Authorization": f"Bearer {token_b}"}
 
         # ----------------------------------------------------
@@ -273,12 +264,8 @@ async def test_complete_multi_user_isolation_and_security() -> None:
         # ----------------------------------------------------
         # 7. Empty State for Brand New User C
         # ----------------------------------------------------
-        res_c = await client.post(
-            "/api/v1/auth/register",
-            json={"name": "User Charlie", "email": user_c_email, "password": password, "role": "sales_rep"},
-        )
-        assert res_c.status_code == 201
-        headers_c = {"Authorization": f"Bearer {res_c.json()['access_token']}"}
+        token_c = await register_and_verify_user(client, "User Charlie", user_c_email, password, "sales_rep")
+        headers_c = {"Authorization": f"Bearer {token_c}"}
 
         # User C should see 0 records across all CRM resources (no mock/sample data)
         assert (await client.get("/api/v1/leads", headers=headers_c)).json()["total"] == 0

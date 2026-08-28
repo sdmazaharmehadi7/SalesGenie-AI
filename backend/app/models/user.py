@@ -55,6 +55,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    is_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} role={self.role.value}>"

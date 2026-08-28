@@ -27,34 +27,20 @@ async def test_workspace_crm_architecture_and_membership_access() -> None:
 
         # 1. Register users
         # User 1: Workspace Manager
-        res_mgr = await client.post(
-            "/api/v1/auth/register",
-            json={"name": "Workspace Manager", "email": manager_email, "password": password, "role": "sales_rep"},
-        )
-        assert res_mgr.status_code == 201, res_mgr.text
-        token_mgr = res_mgr.json()["access_token"]
+        from tests.conftest import register_and_verify_user
+        token_mgr = await register_and_verify_user(client, "Workspace Manager", manager_email, password, "sales_rep")
         headers_mgr = {"Authorization": f"Bearer {token_mgr}"}
         me_mgr = await client.get("/api/v1/auth/me", headers=headers_mgr)
         mgr_id = me_mgr.json()["id"]
 
         # User 2: Team Member
-        res_mem = await client.post(
-            "/api/v1/auth/register",
-            json={"name": "Team Member", "email": member_email, "password": password, "role": "sales_rep"},
-        )
-        assert res_mem.status_code == 201, res_mem.text
-        token_mem = res_mem.json()["access_token"]
+        token_mem = await register_and_verify_user(client, "Team Member", member_email, password, "sales_rep")
         headers_mem = {"Authorization": f"Bearer {token_mem}"}
         me_mem = await client.get("/api/v1/auth/me", headers=headers_mem)
         mem_id = me_mem.json()["id"]
 
         # User 3: Outsider (non-member)
-        res_out = await client.post(
-            "/api/v1/auth/register",
-            json={"name": "Outsider", "email": outsider_email, "password": password, "role": "sales_rep"},
-        )
-        assert res_out.status_code == 201, res_out.text
-        token_out = res_out.json()["access_token"]
+        token_out = await register_and_verify_user(client, "Outsider", outsider_email, password, "sales_rep")
         headers_out = {"Authorization": f"Bearer {token_out}"}
 
         # 2. Manager creates a workspace

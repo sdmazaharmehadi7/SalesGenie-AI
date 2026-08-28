@@ -30,20 +30,11 @@ async def test_ai_workspace_context_authorization_and_isolation() -> None:
             password = "SecurePassword123!"
 
             # 1. Register User A and User B
-            res_a = await client.post(
-                "/api/v1/auth/register",
-                json={"name": "User Alpha", "email": user_a_email, "password": password, "role": "sales_rep"},
-            )
-            assert res_a.status_code == 201
-            token_a = res_a.json()["access_token"]
+            from tests.conftest import register_and_verify_user
+            token_a = await register_and_verify_user(client, "User Alpha", user_a_email, password, "sales_rep")
             headers_a = {"Authorization": f"Bearer {token_a}"}
 
-            res_b = await client.post(
-                "/api/v1/auth/register",
-                json={"name": "User Beta", "email": user_b_email, "password": password, "role": "sales_rep"},
-            )
-            assert res_b.status_code == 201
-            token_b = res_b.json()["access_token"]
+            token_b = await register_and_verify_user(client, "User Beta", user_b_email, password, "sales_rep")
             headers_b = {"Authorization": f"Bearer {token_b}"}
 
             # 2. User A creates Workspace A
