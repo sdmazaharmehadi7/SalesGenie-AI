@@ -153,6 +153,20 @@ export default function LeadDetailPage() {
     }
   }
 
+  const handleAssignLead = async (newAssigneeId) => {
+    setReassigning(true)
+    try {
+      const updated = await updateLead(id, { assigned_to: newAssigneeId || null })
+      setLead(updated)
+      showToast('Lead assignment updated successfully!', 'success')
+    } catch (err) {
+      console.error('Failed to reassign lead:', err)
+      showToast('Failed to reassign lead.', 'error')
+    } finally {
+      setReassigning(false)
+    }
+  }
+
   const formatCurrency = (val) => {
     const num = Number(val) || 0
     return new Intl.NumberFormat('en-US', {
@@ -161,6 +175,8 @@ export default function LeadDetailPage() {
       maximumFractionDigits: 0,
     }).format(num)
   }
+
+  const assignedMember = members.find((m) => m.user_id === (lead?.assigned_to || lead?.owner_id))
 
   if (loading) {
     return (

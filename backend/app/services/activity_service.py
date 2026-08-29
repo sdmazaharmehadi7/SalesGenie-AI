@@ -73,6 +73,45 @@ class ActivityService:
             workspace_id=target_workspace_id,
             user_id=current_user.id,
         )
+
+        # ------------------------------------------------------------------
+        # Trigger Notifications for Mentions & Email Activities
+        # ------------------------------------------------------------------
+        from app.services.notification_service import NotificationService
+        notif_service = NotificationService(self.db)
+
+        # 1. Team Mentions detection (@username or @name in summary/note)
+        if activity_in.summary and "@" in activity_in.summary:
+            import re
+            mentioned_tokens = re.findall(r"@([a-zA-Z0-9_.-]+)", activity_in.summary)
+            if mentioned_tokens:
+                from app.models.workspace import WorkspaceMembership
+                lead_obj = await self.db.get(Lead, activity_in.lead_id) if activity_in.lead_id else None
+                lead_name = lead_obj.contact_name or lead_obj.company_name if lead_obj else None
+
+                # Search users in database matching token by name or email
+                user_stmt = select(User).where(User.is_active == True, User.id != current_user.id)  # noqa: E712
+                all_users = (await self.db.execute(user_stmt)).scalars().all()
+
+                for u in all_users:
+                    u_first = u.name.split()[0].lower() if u.name else ""
+                    u_email_prefix = u.email.split("@")[0].lower() if u.email else ""
+                    u_full = u.name.lower() if u.name else ""
+
+                    is_mentioned = any(
+                        token.lower() in (u_first, u_email_prefix, u_full)
+                        for token in mentioned_tokens
+                    )
+                    if is_mentioned:
+                        await notif_service.notify_team_mention(
+                            mentioned_user_id=u.id,
+                            author_name=current_user.name,
+                            note_snippet=activity_in.summary[:150],
+                            lead_id=activity_in.lead_id,
+                            lead_name=lead_name,
+                            workspace_id=target_workspace_id,
+                        )
+
         await self.db.commit()
         return interaction
 

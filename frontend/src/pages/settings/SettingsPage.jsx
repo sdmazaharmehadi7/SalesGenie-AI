@@ -14,6 +14,10 @@ import {
   updateMemberRole,
   removeWorkspaceMember,
 } from '@/services/api/workspaces'
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from '@/services/api/notifications'
 
 /**
  * Persist settings to localStorage so they survive page refreshes.
@@ -578,62 +582,144 @@ function WorkspaceSection() {
 
 // ─── Section: Notifications ───────────────────────────────────────────────────
 function NotificationsSection() {
+  const { showToast } = useToast()
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [prefs, setPrefs] = useState({
-    leadAssigned:    true,
-    leadStatusChange: true,
-    emailOpened:     false,
-    emailReplied:    true,
-    meetingReminder: true,
-    weeklyDigest:    true,
-    aiInsights:      true,
-    teamMentions:    true,
-    browserPush:     false,
-    mobilePush:      true,
-    slackAlerts:     false,
-    smsAlerts:       false,
+    lead_assigned_inapp:       true,
+    lead_assigned_email:       true,
+    lead_status_changed_inapp: true,
+    email_opened_inapp:        true,
+    email_replied_inapp:       true,
+    meeting_reminder_inapp:    true,
+    weekly_digest_inapp:       true,
+    ai_insights_inapp:         true,
+    team_mentions_inapp:       true,
   })
-  const toggle = (key) => { setSaved(false); setPrefs((p) => ({ ...p, [key]: !p[key] })) }
+
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      try {
+        const data = await getNotificationPreferences()
+        if (mounted && data) {
+          setPrefs({
+            lead_assigned_inapp:       data.lead_assigned_inapp ?? true,
+            lead_assigned_email:       data.lead_assigned_email ?? true,
+            lead_status_changed_inapp: data.lead_status_changed_inapp ?? true,
+            email_opened_inapp:        data.email_opened_inapp ?? true,
+            email_replied_inapp:       data.email_replied_inapp ?? true,
+            meeting_reminder_inapp:    data.meeting_reminder_inapp ?? true,
+            weekly_digest_inapp:       data.weekly_digest_inapp ?? true,
+            ai_insights_inapp:         data.ai_insights_inapp ?? true,
+            team_mentions_inapp:       data.team_mentions_inapp ?? true,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load notification preferences:', err)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
+
+  const toggle = (key) => {
+    setSaved(false)
+    setPrefs((p) => ({ ...p, [key]: !p[key] }))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await updateNotificationPreferences(prefs)
+      setSaved(true)
+      showToast('Notification preferences saved successfully!', 'success')
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      showToast('Failed to save notification preferences.', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const groups = [
     {
-      title: 'Lead activity',
+      title: 'Lead Assignments & Status',
       rows: [
-        { key: 'leadAssigned',     label: 'Lead assigned to me',          desc: 'When a new lead is assigned to your account.' },
-        { key: 'leadStatusChange', label: 'Lead status changes',          desc: 'When a lead progresses through pipeline stages.' },
+        {
+          key: 'lead_assigned_inapp',
+          label: 'Lead assigned to me (In-app)',
+          desc: 'Receive in-app notification when a manager assigns a lead to you.',
+        },
+        {
+          key: 'lead_assigned_email',
+          label: 'Lead assigned to me (Email)',
+          desc: 'Receive an email notification with lead details when assigned a new lead.',
+        },
+        {
+          key: 'lead_status_changed_inapp',
+          label: 'Lead status changes (In-app)',
+          desc: 'When a lead progresses through pipeline stages or status is updated.',
+        },
       ],
     },
     {
-      title: 'Email activity',
+      title: 'Email Activity & Engagement',
       rows: [
-        { key: 'emailOpened',  label: 'Email opened',   desc: 'When a prospect opens an email you sent.' },
-        { key: 'emailReplied', label: 'Email replied',  desc: 'When a prospect replies to an outreach email.' },
+        {
+          key: 'email_opened_inapp',
+          label: 'Email opened (In-app)',
+          desc: 'Receive an alert when a prospect opens an outreach email.',
+        },
+        {
+          key: 'email_replied_inapp',
+          label: 'Email replied (In-app)',
+          desc: 'Receive an alert when a prospect replies to an outreach email.',
+        },
       ],
     },
     {
-      title: 'Meetings & reminders',
+      title: 'Meetings & Weekly Digest',
       rows: [
-        { key: 'meetingReminder', label: 'Meeting reminders', desc: '15 minutes before a scheduled meeting.' },
-        { key: 'weeklyDigest',    label: 'Weekly digest',     desc: 'Summary of your pipeline every Monday morning.' },
+        {
+          key: 'meeting_reminder_inapp',
+          label: 'Meeting reminders (In-app)',
+          desc: 'Get notified 15 minutes before a scheduled meeting.',
+        },
+        {
+          key: 'weekly_digest_inapp',
+          label: 'Weekly digest (In-app)',
+          desc: 'Receive a pipeline performance summary every Monday morning.',
+        },
       ],
     },
     {
-      title: 'AI & team',
+      title: 'AI Insights & Collaboration',
       rows: [
-        { key: 'aiInsights',  label: 'AI insights & recommendations', desc: 'When AI detects new opportunities or risks.' },
-        { key: 'teamMentions', label: 'Team mentions',                desc: 'When a teammate @mentions you in a note.' },
-      ],
-    },
-    {
-      title: 'Delivery channels',
-      rows: [
-        { key: 'browserPush', label: 'Browser push notifications', desc: 'Receive notifications in your browser.' },
-        { key: 'mobilePush',  label: 'Mobile push notifications',  desc: 'Push notifications on your phone.' },
-        { key: 'slackAlerts', label: 'Slack alerts',               desc: 'Send notifications to a connected Slack channel.' },
-        { key: 'smsAlerts',   label: 'SMS alerts',                 desc: 'Receive critical alerts via text message.' },
+        {
+          key: 'ai_insights_inapp',
+          label: 'AI insights & recommendations (In-app)',
+          desc: 'When AI detects new high-priority opportunities or risks on your leads.',
+        },
+        {
+          key: 'team_mentions_inapp',
+          label: 'Team mentions (In-app)',
+          desc: 'When a teammate @mentions you in a CRM note or activity.',
+        },
       ],
     },
   ]
+
+  if (loading) {
+    return (
+      <div className="py-8 text-center text-sm text-ink-muted">
+        Loading notification preferences...
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -658,7 +744,7 @@ function NotificationsSection() {
           </div>
         </SectionCard>
       ))}
-      <SaveBar onSave={() => setSaved(true)} saved={saved} />
+      <SaveBar onSave={handleSave} saved={saved} saving={saving} />
     </div>
   )
 }

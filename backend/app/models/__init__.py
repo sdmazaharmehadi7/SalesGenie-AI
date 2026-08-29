@@ -44,6 +44,12 @@ from app.models.workspace import (  # noqa: F401
     WorkspaceType,
 )
 
+from app.models.notification import (  # noqa: F401
+    Notification,
+    NotificationPreference,
+    NotificationType,
+)
+
 __all__ = [
     "Base",
     "User",
@@ -74,4 +80,7 @@ __all__ = [
     "WorkspaceType",
     "MembershipStatus",
     "InvitationStatus",
+    "Notification",
+    "NotificationPreference",
+    "NotificationType",
 ]

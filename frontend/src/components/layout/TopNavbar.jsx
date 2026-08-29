@@ -1,5 +1,6 @@
-import { Bell, Menu } from '@/components/ui/icons'
+import { Menu } from '@/components/ui/icons'
 import Breadcrumb from '@/components/layout/Breadcrumb'
+import NotificationDropdown from '@/components/layout/NotificationDropdown'
 import UserProfileDropdown from '@/components/layout/UserProfileDropdown'
 import WorkspaceContextSwitcher from '@/components/layout/WorkspaceContextSwitcher'
 
@@ -21,14 +22,9 @@ function TopNavbar({ onMenuClick }) {
         {/* Workspace context switcher in top navbar */}
         <WorkspaceContextSwitcher inNavbar />
 
-        <button
-          aria-label="View notifications"
-          className="relative rounded-control p-2 text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-focus"
-          type="button"
-        >
-          <Bell className="size-5" strokeWidth={1.8} />
-          <span className="absolute right-2 top-2 size-1.5 rounded-full bg-brand-500 ring-2 ring-surface-default" />
-        </button>
+        {/* Notifications dropdown */}
+        <NotificationDropdown />
+
         <UserProfileDropdown />
       </div>
     </header>

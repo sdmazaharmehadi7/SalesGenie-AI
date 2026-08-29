@@ -105,6 +105,21 @@ class LeadService:
                 workspace_id=workspace_id,
             )
 
+            if assignee_id != current_user.id:
+                from app.repositories.user_repository import UserRepository
+                from app.services.notification_service import NotificationService
+                assignee_user = await UserRepository(self.db).get_by_id(assignee_id)
+                if assignee_user is not None:
+                    await NotificationService(self.db).notify_lead_assigned(
+                        lead_id=lead.id,
+                        lead_name=lead.company_name,
+                        company_name=lead.company_name,
+                        lead_status=lead.lead_status.value if lead.lead_status else "New",
+                        manager_name=current_user.name,
+                        team_member=assignee_user,
+                        workspace_id=workspace_id,
+                    )
+
         await self.db.commit()
         return lead
 
@@ -183,7 +198,59 @@ class LeadService:
                     error_code="reassign_forbidden",
                 )
 
+        prev_assigned_to = lead.assigned_to or lead.owner_id
+        prev_status = lead.lead_status.value if lead.lead_status else None
+
         updated = await self.leads.update(lead, lead_in)
+
+        # ------------------------------------------------------------------
+        # Trigger Notifications
+        # ------------------------------------------------------------------
+        new_assigned_to = updated.assigned_to or updated.owner_id
+        new_status = updated.lead_status.value if updated.lead_status else None
+
+        from app.repositories.user_repository import UserRepository
+        from app.services.notification_service import NotificationService
+
+        notif_service = NotificationService(self.db)
+
+        # 1. Lead Assigned to Me notification & email
+        if new_assigned_to and new_assigned_to != prev_assigned_to:
+            assignee_user = await UserRepository(self.db).get_by_id(new_assigned_to)
+            if assignee_user is not None and assignee_user.id != current_user.id:
+                # Get latest activity summary if available
+                latest_activity = f"Lead assigned to {assignee_user.name} by {current_user.name}"
+                from app.repositories.sales_interaction_repository import SalesInteractionRepository
+                interactions = await SalesInteractionRepository(self.db).list_for_entity(lead_id=updated.id, limit=1)
+                if interactions and interactions[0].summary:
+                    latest_activity = interactions[0].summary
+
+                await notif_service.notify_lead_assigned(
+                    lead_id=updated.id,
+                    lead_name=updated.company_name,
+                    company_name=updated.company_name,
+                    lead_status=new_status or "New",
+                    manager_name=current_user.name,
+                    team_member=assignee_user,
+                    workspace_id=updated.workspace_id,
+                    recent_activity=latest_activity,
+                )
+
+        # 2. Lead Status Changed notification
+        if new_status and prev_status and new_status != prev_status:
+            recipient_id = new_assigned_to or updated.created_by
+            if recipient_id and recipient_id != current_user.id:
+                await notif_service.notify_lead_status_changed(
+                    lead_id=updated.id,
+                    lead_name=updated.company_name,
+                    company_name=updated.company_name,
+                    old_status=prev_status,
+                    new_status=new_status,
+                    changed_by_name=current_user.name,
+                    recipient_user_id=recipient_id,
+                    workspace_id=updated.workspace_id,
+                )
+
         await self.db.commit()
         return updated
 
