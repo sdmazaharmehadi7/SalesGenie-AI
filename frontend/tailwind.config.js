@@ -72,6 +72,28 @@ export default {
         floating:'0 8px 24px rgb(15 23 42 / 0.10), 0 2px 6px rgb(15 23 42 / 0.05)',
         overlay: '0 20px 48px rgb(15 23 42 / 0.16), 0 8px 16px rgb(15 23 42 / 0.08)',
       },
+      keyframes: {
+        shimmer: {
+          '0%':   { backgroundPosition: '-200% center' },
+          '100%': { backgroundPosition:  '200% center' },
+        },
+        fadeIn: {
+          '0%':   { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'thinking-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%':       { opacity: '0.4' },
+        },
+      },
+      animation: {
+        shimmer:         'shimmer 1.8s ease-in-out infinite',
+        'fade-in':       'fadeIn 0.3s ease-out both',
+        'thinking-pulse':'thinking-pulse 2s ease-in-out infinite',
+      },
+      backgroundSize: {
+        '200': '200% auto',
+      },
     },
   },
   plugins: [],

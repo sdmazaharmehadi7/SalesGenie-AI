@@ -186,12 +186,38 @@ def get_ai_response(
 # WRAPPER FUNCTIONS FOR EACH CAPABILITY
 # ---------------------------------------------------------------------------
 
-def general_chat(message: str) -> tuple[dict[str, Any], str]:
-    """Process general sales assistant queries."""
+def general_chat(
+    message: str,
+    crm_context: str | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Process general sales assistant queries with compact CRM context & chat history."""
+    prompt_sections = []
+    if crm_context:
+        prompt_sections.append(f"CRM CONTEXT:\n{crm_context.strip()}")
+
+    if history:
+        # Take at most last 6 messages to save tokens
+        recent_history = history[-6:]
+        history_lines = []
+        for msg in recent_history:
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            content = msg.get("content", "").strip()
+            if content:
+                if len(content) > 200:
+                    content = content[:200] + "..."
+                history_lines.append(f"{role}: {content}")
+        if history_lines:
+            prompt_sections.append(f"RECENT CONVERSATION:\n" + "\n".join(history_lines))
+
+    prompt_sections.append(f"USER QUESTION:\n{message.strip()}")
+
+    user_query = "\n\n".join(prompt_sections)
     data, model = get_ai_response(
-        user_message=message,
+        user_message=user_query,
         system_prompt=SALES_SYSTEM_PROMPT,
         capability_name="chat",
+        max_tokens=1024,
     )
     # Ensure fallback fields if model deviated
     if "reply" not in data:

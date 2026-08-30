@@ -6,9 +6,11 @@ import api from './client'
  *          /api/v1/followup, /api/v1/lead-score, /api/v1/objection
  */
 
-/** General sales assistant chat. */
-export const sendChatMessage = (message) =>
-  api.post('/chat', { message })
+/** General sales assistant chat. Supports { message, history, lead_id, opportunity_id } or plain string. */
+export const sendChatMessage = (payload) => {
+  const body = typeof payload === 'string' ? { message: payload } : payload
+  return api.post('/chat', body)
+}
 
 /**
  * Generate a B2B sales email.

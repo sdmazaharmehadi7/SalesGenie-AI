@@ -74,30 +74,46 @@ async def chat_endpoint(
     ws_ctx: WorkspaceContextDep,
 ) -> ChatResponse:
     logger.info("POST /api/v1/chat | user=%s | workspace=%s", current_user.email, ws_ctx.workspace_id)
-    
-    context_prefix = []
-    if request.lead_id:
-        lead = await LeadService(db).get_lead(request.lead_id, current_user, ws_ctx=ws_ctx)
-        context_prefix.append(
-            f"[CRM Lead Context: Company={lead.company_name}, Contact={lead.contact_name or 'N/A'}, Status={lead.lead_status.value}]"
-        )
-    if request.opportunity_id:
-        opp = await OpportunityService(db).get_opportunity(request.opportunity_id, current_user, ws_ctx=ws_ctx)
-        context_prefix.append(
-            f"[CRM Opportunity Context: Deal={opp.name}, Stage={opp.stage.value}, Amount={f'${opp.amount}' if opp.amount else 'N/A'}]"
-        )
 
-    full_message = f"{' '.join(context_prefix)}\n\n{request.message}".strip() if context_prefix else request.message
+    from app.ai.crm_context_service import CRMContextService
+
+    # 1. Build minimal, authorized CRM context
+    context_svc = CRMContextService(db)
+    crm_context = await context_svc.build_crm_context(
+        query=request.message,
+        current_user=current_user,
+        ws_ctx=ws_ctx,
+        lead_id=request.lead_id,
+        opportunity_id=request.opportunity_id,
+    )
+
+    # 2. Extract recent conversation history if provided (max 6 messages)
+    history_dicts = None
+    if request.history:
+        history_dicts = [m.model_dump() for m in request.history[-6:]]
 
     try:
-        data, model = general_chat(message=full_message)
+        data, model = general_chat(
+            message=request.message,
+            crm_context=crm_context,
+            history=history_dicts,
+        )
         return ChatResponse(reply=data.get("reply", ""), model=model)
     except ValueError as exc:
         logger.warning("Invalid request to /api/v1/chat: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except AIServiceError as exc:
         logger.error("AI Service Error on /api/v1/chat: %s", exc)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        return ChatResponse(
+            reply="AI is temporarily unavailable. Please try again later.",
+            model="SalesGenie AI",
+        )
+    except Exception as exc:
+        logger.error("Unexpected error on /api/v1/chat: %s", exc)
+        return ChatResponse(
+            reply="AI is temporarily unavailable. Please try again later.",
+            model="SalesGenie AI",
+        )
 
 
 # ---------------------------------------------------------------------------

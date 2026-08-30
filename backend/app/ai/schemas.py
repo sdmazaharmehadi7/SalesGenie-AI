@@ -10,9 +10,11 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
-# ---------------------------------------------------------------------------
-# 1. Chat Schemas
-# ---------------------------------------------------------------------------
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="Role: user or assistant", examples=["user"])
+    content: str = Field(..., description="Message text content")
+
+
 class ChatRequest(BaseModel):
     """Request schema for general sales assistant chat."""
     message: str = Field(
@@ -21,6 +23,10 @@ class ChatRequest(BaseModel):
         max_length=4000,
         description="User sales query or request.",
         examples=["What is the best way to handle a price objection during a demo?"],
+    )
+    history: Optional[List[ChatMessage]] = Field(
+        default=None,
+        description="Optional recent chat message history for multi-turn conversational context (max 10).",
     )
     lead_id: Optional[uuid.UUID] = Field(default=None, description="Optional lead context")
     opportunity_id: Optional[uuid.UUID] = Field(default=None, description="Optional opportunity context")

@@ -20,6 +20,7 @@ export function ChatInterface() {
     searchQuery,
     setSearchQuery,
     isGenerating,
+    isLoading,
     streamingContent,
     selectThread,
     createNewChat,
@@ -132,7 +133,8 @@ export function ChatInterface() {
                 streamingContent={streamingContent}
               />
 
-              {isGenerating && !streamingContent && <TypingIndicator />}
+              {/* Show thinking indicator while API request is in flight OR before stream starts */}
+              {isGenerating && (isLoading || !streamingContent) && <TypingIndicator />}
 
               <div ref={messagesEndRef} />
             </>

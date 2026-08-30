@@ -65,9 +65,11 @@ export function useChat() {
   })
   const [searchQuery, setSearchQuery] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)     // true while waiting for API response
   const [streamingContent, setStreamingContent] = useState('')
   const intervalRef = useRef(null)
   const abortRef = useRef(false)
+  const activeRequestRef = useRef(false)                // guard against concurrent requests
 
   // Track previous user and workspace to detect switches and reset state
   const prevContextRef = useRef({ userId, workspaceId })
@@ -80,6 +82,7 @@ export function useChat() {
         intervalRef.current = null
       }
       setIsGenerating(false)
+      setIsLoading(false)
       setStreamingContent('')
       setSearchQuery('')
 
@@ -145,6 +148,7 @@ export function useChat() {
 
   const stopGeneration = useCallback(() => {
     abortRef.current = true
+    activeRequestRef.current = false
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
@@ -161,6 +165,7 @@ export function useChat() {
       )
     }
     setIsGenerating(false)
+    setIsLoading(false)
     setStreamingContent('')
   }, [activeThreadId, streamingContent, updateConversations])
 
@@ -210,7 +215,10 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (text) => {
-      if (!text?.trim() || isGenerating) return
+      // Prevent concurrent requests
+      if (!text?.trim() || isGenerating || activeRequestRef.current) return
+
+      activeRequestRef.current = true
 
       const userMsg = {
         id: `m-${Date.now()}`,
@@ -240,17 +248,49 @@ export function useChat() {
         )
       }
 
+      // ── Show thinking indicator immediately (before API call) ──
+      setIsGenerating(true)
+      setIsLoading(true)
+      setStreamingContent('')
+      abortRef.current = false
+
+      // Prepare history (last 6 non-error messages as { role, content })
+      const existingConv = conversations.find((c) => c.id === threadId)
+      const rawHistory = existingConv ? existingConv.messages : []
+      const history = rawHistory
+        .filter((m) => !m.isError && m.content)
+        .slice(-6)
+        .map((m) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        }))
+
       // Call the real AI API
       try {
-        const { data } = await sendChatMessage(text.trim())
-        const replyText = data?.reply || 'I was unable to generate a response. Please try again.'
-        setTimeout(() => simulateStream(replyText, threadId), 300)
+        const { data } = await sendChatMessage({
+          message: text.trim(),
+          history,
+        })
+
+        // Guard: if user hit Stop while waiting, discard response
+        if (abortRef.current) return
+
+        const replyText =
+          data?.reply?.trim() || 'I was unable to generate a response. Please try again.'
+
+        // Hide loading indicator, start streaming the text
+        setIsLoading(false)
+        simulateStream(replyText, threadId)
       } catch (err) {
         console.error('Chat API error:', err)
+
+        if (abortRef.current) return
+
         const errorMsg = {
           id: `m-${Date.now()}`,
           role: 'assistant',
-          content: '⚠️ Sorry, I encountered an error connecting to the AI service. Please check your connection and try again.',
+          content:
+            '⚠️ Sorry, I encountered an error connecting to the AI service. Please check your connection and try again.',
           timestamp: timestamp(),
           isError: true,
         }
@@ -258,9 +298,12 @@ export function useChat() {
           prev.map((c) => (c.id === threadId ? { ...c, messages: [...c.messages, errorMsg] } : c)),
         )
         setIsGenerating(false)
+        setIsLoading(false)
+      } finally {
+        activeRequestRef.current = false
       }
     },
-    [activeThreadId, isGenerating, simulateStream, updateConversations],
+    [activeThreadId, isGenerating, conversations, simulateStream, updateConversations],
   )
 
   const regenerateResponse = useCallback(() => {
@@ -293,6 +336,7 @@ export function useChat() {
     setSearchQuery,
     filteredConversations,
     isGenerating,
+    isLoading,
     streamingContent,
     selectThread,
     createNewChat,
