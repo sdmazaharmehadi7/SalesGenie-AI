@@ -80,6 +80,7 @@ export default function PipelinePage() {
     try {
       await updateOpportunityStage(oppId, newStage)
       await loadPipeline()
+      window.dispatchEvent(new Event('sg:notifications_updated'))
     } catch (err) {
       console.error('Failed to update stage:', err)
     } finally {

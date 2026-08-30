@@ -114,12 +114,27 @@ export default function NotificationDropdown() {
     }
   }, [user])
 
-  // Fetch count on mount and when active workspace changes
+  // Fetch count on mount, when active workspace changes, on window focus, and on custom update event
   useEffect(() => {
     fetchUnreadCount()
-    const interval = setInterval(fetchUnreadCount, 30000)
-    return () => clearInterval(interval)
-  }, [fetchUnreadCount, activeWorkspace])
+    const interval = setInterval(fetchUnreadCount, 8000)
+
+    const handleUpdate = () => {
+      fetchUnreadCount()
+      if (isOpen) {
+        fetchNotificationsList()
+      }
+    }
+
+    window.addEventListener('focus', handleUpdate)
+    window.addEventListener('sg:notifications_updated', handleUpdate)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleUpdate)
+      window.removeEventListener('sg:notifications_updated', handleUpdate)
+    }
+  }, [fetchUnreadCount, fetchNotificationsList, activeWorkspace, isOpen])
 
   // Fetch full list when dropdown opens
   useEffect(() => {

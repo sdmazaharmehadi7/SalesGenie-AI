@@ -140,6 +140,9 @@ class OpportunityService:
         updated = await self.opportunities.update(opp, opp_in)
 
         if opp_in.stage is not None and opp_in.stage != old_stage:
+            old_stage_name = STAGE_NAMES.get(old_stage, old_stage.value)
+            new_stage_name = STAGE_NAMES.get(updated.stage, updated.stage.value)
+
             await self.interactions.create(
                 SalesInteractionCreate(
                     opportunity_id=updated.id,
@@ -149,9 +152,32 @@ class OpportunityService:
                     workspace_id=updated.workspace_id,
                     user_id=current_user.id,
                     interaction_type=InteractionType.STAGE_CHANGE,
-                    summary=f"Deal stage changed from {STAGE_NAMES.get(old_stage, old_stage.value)} to {STAGE_NAMES.get(updated.stage, updated.stage.value)}.",
+                    summary=f"Deal stage changed from {old_stage_name} to {new_stage_name}.",
                 )
             )
+
+            # Trigger in-app notification
+            from app.services.notification_service import NotificationService
+            notif_service = NotificationService(self.db)
+            recipients = set()
+            if updated.owner_id:
+                recipients.add(updated.owner_id)
+            if hasattr(updated, "created_by") and updated.created_by:
+                recipients.add(updated.created_by)
+            if not recipients or (len(recipients) == 1 and current_user.id in recipients):
+                recipients.add(current_user.id)
+
+            for r_id in recipients:
+                await notif_service.notify_opportunity_stage_changed(
+                    opp_id=updated.id,
+                    opp_name=updated.name,
+                    old_stage=old_stage_name,
+                    new_stage=new_stage_name,
+                    changed_by_name=current_user.name,
+                    recipient_user_id=r_id,
+                    workspace_id=updated.workspace_id,
+                    is_actor=(r_id == current_user.id),
+                )
 
         await self.db.commit()
         return updated

@@ -214,7 +214,7 @@ export default function AccountDetailPage() {
             <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-purple-50/40 p-6 shadow-xs">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="size-5 text-indigo-600" />
-                <h3 className="text-sm font-bold text-indigo-950">Gemini Company Intelligence & Strategic Insights</h3>
+                <h3 className="text-sm font-bold text-indigo-950">AI Company Intelligence & Strategic Insights</h3>
               </div>
               <p className="text-xs text-indigo-900 leading-relaxed">{aiInsight.executive_summary}</p>
 

@@ -118,8 +118,11 @@ export default function LeadDetailPage() {
     try {
       const updated = await updateLead(id, { lead_status: newStatus })
       setLead(updated)
+      showToast(`Lead status updated to ${newStatus.replace('_', ' ')}!`, 'success')
+      window.dispatchEvent(new Event('sg:notifications_updated'))
     } catch (err) {
       console.error('Failed to update lead status:', err)
+      showToast('Failed to update lead status.', 'error')
     }
   }
 
@@ -325,7 +328,7 @@ export default function LeadDetailPage() {
               </div>
             ) : (
               <div className="py-6 text-center text-xs text-ink-muted">
-                No score generated yet. Click "AI Lead Score" to analyze this lead with Gemini.
+                No score generated yet. Click "AI Lead Score" to analyze this lead with SalesGenie AI.
               </div>
             )}
           </div>
@@ -386,7 +389,7 @@ export default function LeadDetailPage() {
             </div>
           ) : (
             <div className="py-6 text-center text-xs text-ink-muted">
-              Click "Generate" to run Gemini company intelligence and discovery research.
+              Click "Generate" to run AI company intelligence and discovery research.
             </div>
           )}
         </div>

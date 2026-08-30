@@ -238,8 +238,16 @@ class LeadService:
 
         # 2. Lead Status Changed notification
         if new_status and prev_status and new_status != prev_status:
-            recipient_id = new_assigned_to or updated.created_by
-            if recipient_id and recipient_id != current_user.id:
+            recipients = set()
+            if new_assigned_to:
+                recipients.add(new_assigned_to)
+            if updated.created_by:
+                recipients.add(updated.created_by)
+            # If current_user is the sole stakeholder (or in personal area), ensure actor gets notification
+            if not recipients or len(recipients) == 0 or (len(recipients) == 1 and current_user.id in recipients):
+                recipients.add(current_user.id)
+
+            for r_id in recipients:
                 await notif_service.notify_lead_status_changed(
                     lead_id=updated.id,
                     lead_name=updated.company_name,
@@ -247,8 +255,9 @@ class LeadService:
                     old_status=prev_status,
                     new_status=new_status,
                     changed_by_name=current_user.name,
-                    recipient_user_id=recipient_id,
+                    recipient_user_id=r_id,
                     workspace_id=updated.workspace_id,
+                    is_actor=(r_id == current_user.id),
                 )
 
         await self.db.commit()

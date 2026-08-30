@@ -256,6 +256,7 @@ SalesGenie AI Platform
         changed_by_name: str,
         recipient_user_id: uuid.UUID,
         workspace_id: uuid.UUID | None,
+        is_actor: bool = False,
     ) -> Notification | None:
         """Triggered when a lead changes status."""
         pref = await self.notifications.get_or_create_preferences(recipient_user_id)
@@ -263,10 +264,16 @@ SalesGenie AI Platform
             return None
 
         title = f"Lead Status Updated: {lead_name or company_name}"
-        message = (
-            f"{changed_by_name} updated {lead_name or company_name} status "
-            f"from '{old_status}' to '{new_status}'."
-        )
+        if is_actor:
+            message = (
+                f"You updated {lead_name or company_name} status "
+                f"from '{old_status}' to '{new_status}'."
+            )
+        else:
+            message = (
+                f"{changed_by_name} updated {lead_name or company_name} status "
+                f"from '{old_status}' to '{new_status}'."
+            )
         notif_in = NotificationCreate(
             user_id=recipient_user_id,
             workspace_id=workspace_id,
@@ -282,6 +289,47 @@ SalesGenie AI Platform
                 "new_status": new_status,
                 "changed_by": changed_by_name,
                 "link": f"/leads/{lead_id}",
+            },
+        )
+        return await self.notifications.create(notif_in)
+
+    async def notify_opportunity_stage_changed(
+        self,
+        *,
+        opp_id: uuid.UUID,
+        opp_name: str,
+        old_stage: str,
+        new_stage: str,
+        changed_by_name: str,
+        recipient_user_id: uuid.UUID,
+        workspace_id: uuid.UUID | None,
+        is_actor: bool = False,
+    ) -> Notification | None:
+        """Triggered when a deal/opportunity changes pipeline stage."""
+        pref = await self.notifications.get_or_create_preferences(recipient_user_id)
+        if not pref.lead_status_changed_inapp:
+            return None
+
+        title = f"Pipeline Stage Updated: {opp_name}"
+        if is_actor:
+            message = f"You updated '{opp_name}' stage from '{old_stage}' to '{new_stage}'."
+        else:
+            message = f"{changed_by_name} moved deal '{opp_name}' from '{old_stage}' to '{new_stage}'."
+
+        notif_in = NotificationCreate(
+            user_id=recipient_user_id,
+            workspace_id=workspace_id,
+            type=NotificationType.LEAD_STATUS_CHANGED.value,
+            title=title,
+            message=message,
+            entity_type="opportunity",
+            entity_id=opp_id,
+            data={
+                "opportunity_name": opp_name,
+                "old_stage": old_stage,
+                "new_stage": new_stage,
+                "changed_by": changed_by_name,
+                "link": f"/opportunities/{opp_id}",
             },
         )
         return await self.notifications.create(notif_in)
