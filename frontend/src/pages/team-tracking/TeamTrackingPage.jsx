@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Area,
   AreaChart,
@@ -6,7 +7,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -88,6 +88,9 @@ const tooltipStyle = {
   padding: '10px 14px',
 }
 
+const gridStyle = { strokeDasharray: '3 3', vertical: false, stroke: '#f1f5f9' }
+
+// ─── Utility helpers ───────────────────────────────────────────────────────────
 function formatCurrency(val) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -103,6 +106,100 @@ function formatCompactCurrency(val) {
     notation: 'compact',
     maximumFractionDigits: 1,
   }).format(val || 0)
+}
+
+/** Returns true when a metric value is zero or nullish — use for empty-state rendering */
+function isZeroOrNull(v) {
+  return v == null || v === 0 || v === '0' || v === '$0'
+}
+
+/** Dynamic X-axis angle config based on number of data points */
+function xAxisAngleProps(dataLength) {
+  if (dataLength <= 3) {
+    return { angle: 0, textAnchor: 'middle', dy: 10, height: 30 }
+  }
+  return { angle: -35, textAnchor: 'end', dy: 0, height: 55 }
+}
+
+// ─── Custom truncating X-axis tick ────────────────────────────────────────────
+function CustomXTick({ x, y, payload, angle, textAnchor, dy, maxChars = 12 }) {
+  const raw = payload?.value ?? ''
+  const label = raw.length > maxChars ? raw.slice(0, maxChars) + '…' : raw
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <title>{raw}</title>
+      <text
+        x={0}
+        y={0}
+        dy={dy ?? 10}
+        textAnchor={textAnchor ?? 'middle'}
+        transform={angle ? `rotate(${angle})` : undefined}
+        fill="#64748b"
+        fontSize={11}
+        style={{ overflow: 'hidden' }}
+      >
+        {label}
+      </text>
+    </g>
+  )
+}
+
+// ─── Chart Empty State ─────────────────────────────────────────────────────────
+function ChartEmptyState({ height = 256 }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-2 rounded-xl bg-surface-subtle/50"
+      style={{ height }}
+    >
+      <BarChart3 className="size-9 text-ink-muted/30" />
+      <p className="text-xs font-medium text-ink-muted">No closed activity yet this period</p>
+    </div>
+  )
+}
+
+// ─── Skeleton Components ───────────────────────────────────────────────────────
+function SkeletonCard() {
+  return (
+    <div className="rounded-2xl border border-line-default bg-surface-default p-4 sm:p-5 shadow-xs animate-pulse flex flex-col justify-between min-h-[128px]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="h-3 w-20 rounded bg-surface-muted" />
+        <div className="size-8 rounded-xl bg-surface-muted shrink-0" />
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="h-6 sm:h-7 w-24 rounded bg-surface-muted" />
+        <div className="h-3 w-28 rounded bg-surface-muted/60" />
+      </div>
+    </div>
+  )
+}
+
+function SkeletonChart() {
+  return (
+    <div className="h-64 w-full animate-pulse rounded-xl bg-surface-subtle" />
+  )
+}
+
+function SkeletonRow({ cols = 12 }) {
+  return (
+    <tr className="border-b border-line-subtle">
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="py-4 px-3">
+          <div className="h-3 rounded bg-surface-muted animate-pulse" style={{ width: `${40 + (i % 3) * 20}%` }} />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
+// ─── Scroll Shadow wrapper for horizontal-scroll affordance ───────────────────
+function ScrollShadowX({ children, className = '' }) {
+  return (
+    <div className={`relative ${className}`}>
+      {/* right fade gradient — shows always so users know they can scroll */}
+      <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-10 bg-gradient-to-l from-surface-default/80 to-transparent" />
+      {children}
+    </div>
+  )
 }
 
 // ─── Member Detail Drawer Component ───────────────────────────────────────────
@@ -188,24 +285,28 @@ function MemberDetailDrawer({ member, onClose, workspaceKey }) {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-ink-muted">Pipeline Distribution</h3>
                 <span className="text-xs text-brand-600 font-semibold">{member.assigned_leads} Total in Pipe</span>
               </div>
-              <div className="space-y-2.5">
-                {member.pipeline_breakdown?.map((stage) => (
-                  <div key={stage.stage}>
-                    <div className="flex justify-between text-xs mb-1 font-medium">
-                      <span className="text-ink-primary">{stage.stage}</span>
-                      <span className="text-ink-secondary">{stage.count} leads ({formatCompactCurrency(stage.value)})</span>
+              {member.pipeline_breakdown?.length > 0 ? (
+                <div className="space-y-2.5">
+                  {member.pipeline_breakdown.map((stage) => (
+                    <div key={stage.stage}>
+                      <div className="flex justify-between text-xs mb-1 font-medium">
+                        <span className="text-ink-primary">{stage.stage}</span>
+                        <span className="text-ink-secondary">{stage.count} leads ({formatCompactCurrency(stage.value)})</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                        <div
+                          className="h-full rounded-full bg-brand-600 transition-all"
+                          style={{
+                            width: `${member.assigned_leads > 0 ? (stage.count / member.assigned_leads) * 100 : 0}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                      <div
-                        className="h-full rounded-full bg-brand-600 transition-all"
-                        style={{
-                          width: `${member.assigned_leads > 0 ? (stage.count / member.assigned_leads) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-4 text-center text-xs text-ink-muted">No pipeline data available.</div>
+              )}
             </div>
 
             {/* Activity Summary Badges */}
@@ -244,10 +345,15 @@ function MemberDetailDrawer({ member, onClose, workspaceKey }) {
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-3">Recent Sales Activity</h3>
               {loadingAct ? (
-                <div className="p-8 text-center text-xs text-ink-muted">Loading activities…</div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-16 rounded-xl bg-surface-subtle animate-pulse" />
+                  ))}
+                </div>
               ) : activities.length === 0 ? (
-                <div className="rounded-xl border border-line-default bg-surface-subtle p-6 text-center text-xs text-ink-muted">
-                  No sales activities recorded yet for this member.
+                <div className="rounded-xl border border-line-default bg-surface-subtle p-6 text-center">
+                  <Activity className="size-7 text-ink-muted/40 mx-auto mb-2" />
+                  <p className="text-xs text-ink-muted">No sales activities recorded yet for this member.</p>
                 </div>
               ) : (
                 <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-line-default">
@@ -285,17 +391,29 @@ function MemberComparisonModal({ selectedMembers, members, onClose }) {
   const comparedList = members.filter((m) => selectedMembers.includes(m.user_id))
 
   const metrics = [
-    { label: 'Assigned Leads', key: 'assigned_leads', format: (v) => v },
-    { label: 'Contacted Leads', key: 'contacted', format: (v) => v },
-    { label: 'Qualified Leads', key: 'qualified', format: (v) => v },
-    { label: 'Meetings Booked', key: 'meetings', format: (v) => v },
-    { label: 'Deals Won', key: 'deals_won', format: (v) => v },
-    { label: 'Deals Lost', key: 'deals_lost', format: (v) => v },
+    { label: 'Assigned Leads', key: 'assigned_leads', format: (v) => v ?? 0 },
+    { label: 'Contacted Leads', key: 'contacted', format: (v) => v ?? 0 },
+    { label: 'Qualified Leads', key: 'qualified', format: (v) => v ?? 0 },
+    { label: 'Meetings Booked', key: 'meetings', format: (v) => v ?? 0 },
+    { label: 'Deals Won', key: 'deals_won', format: (v) => v ?? 0 },
+    { label: 'Deals Lost', key: 'deals_lost', format: (v) => v ?? 0 },
     { label: 'Total Revenue', key: 'revenue', format: (v) => formatCurrency(v) },
-    { label: 'Conversion Rate', key: 'conversion_rate', format: (v) => `${v}%` },
-    { label: 'Total Touchpoints', key: 'activity_counts', format: (v) => v?.total || 0 },
-    { label: 'Performance Tier', key: 'performance_score', format: (v) => v },
+    { label: 'Conversion Rate', key: 'conversion_rate', format: (v) => `${v ?? 0}%` },
+    { label: 'Total Touchpoints', key: 'activity_counts', format: (v) => v?.total ?? 0 },
+    { label: 'Performance Tier', key: 'performance_score', format: (v) => v ?? '—' },
   ]
+
+  // Determine best performer per metric row for highlighting
+  function getBestIndex(metricKey) {
+    let best = -1
+    let bestVal = -Infinity
+    comparedList.forEach((m, i) => {
+      const raw = m[metricKey]
+      const num = typeof raw === 'number' ? raw : typeof raw === 'object' ? (raw?.total ?? 0) : parseFloat(raw) || 0
+      if (num > bestVal) { bestVal = num; best = i }
+    })
+    return bestVal > 0 ? best : -1
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-xs">
@@ -304,8 +422,11 @@ function MemberComparisonModal({ selectedMembers, members, onClose }) {
           <div className="flex items-center gap-2.5">
             <BarChart3 className="size-5 text-brand-600" />
             <h2 className="text-base font-bold text-ink-primary">Team Member Performance Comparison</h2>
+            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700 border border-brand-200">
+              {comparedList.length} members
+            </span>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-ink-muted hover:bg-surface-muted">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-ink-muted hover:bg-surface-muted transition-colors">
             <X className="size-5" />
           </button>
         </div>
@@ -315,32 +436,40 @@ function MemberComparisonModal({ selectedMembers, members, onClose }) {
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-line-default">
-                  <th className="pb-3 pr-4 font-bold uppercase text-ink-muted">Metric</th>
+                  <th className="pb-3 pr-4 font-bold uppercase text-ink-muted text-[11px] tracking-wider">Metric</th>
                   {comparedList.map((m) => (
                     <th key={m.user_id} className="pb-3 px-4 font-bold text-ink-primary text-center">
-                      <div className="grid size-8 place-items-center rounded-xl bg-brand-50 text-brand-700 font-bold mx-auto mb-1">
+                      <div className="grid size-9 place-items-center rounded-xl bg-brand-50 text-brand-700 font-bold mx-auto mb-1 border border-brand-100">
                         {m.name.charAt(0)}
                       </div>
-                      <span>{m.name}</span>
+                      <span className="block">{m.name}</span>
                       <span className="block text-[10px] text-ink-muted font-normal capitalize">{m.role}</span>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-subtle">
-                {metrics.map((row) => (
-                  <tr key={row.label} className="hover:bg-surface-subtle/50">
-                    <td className="py-3 pr-4 font-semibold text-ink-secondary">{row.label}</td>
-                    {comparedList.map((m) => {
-                      const val = m[row.key]
-                      return (
-                        <td key={m.user_id} className="py-3 px-4 text-center font-bold text-ink-primary">
-                          {row.format(val)}
+                {metrics.map((row) => {
+                  const bestIdx = getBestIndex(row.key)
+                  return (
+                    <tr key={row.label} className="hover:bg-surface-subtle/50">
+                      <td className="py-3 pr-4 font-semibold text-ink-secondary">{row.label}</td>
+                      {comparedList.map((m, idx) => (
+                        <td
+                          key={m.user_id}
+                          className={`py-3 px-4 text-center font-bold ${
+                            idx === bestIdx ? 'text-emerald-600' : 'text-ink-primary'
+                          }`}
+                        >
+                          {row.format(m[row.key])}
+                          {idx === bestIdx && (
+                            <span className="ml-1 text-[9px] text-emerald-500">▲</span>
+                          )}
                         </td>
-                      )
-                    })}
-                  </tr>
-                ))}
+                      ))}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -357,32 +486,72 @@ function MemberComparisonModal({ selectedMembers, members, onClose }) {
 // ─── Main Team Tracking Page ──────────────────────────────────────────────────
 export default function TeamTrackingPage() {
   const { workspaceKey, activeWorkspace, isPersonal, isManager } = useWorkspaceKey()
-  const { switchWorkspace, workspaces, isLoadingWorkspaces } = useWorkspace()
+  const { switchWorkspace, workspaces } = useWorkspace()
   const { showToast } = useToast()
 
-  const [dateRange, setDateRange] = useState('month')
+  // ── URL-synced filter params ───────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [dateRange, setDateRange] = useState(searchParams.get('range') || 'month')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
+  const [perfFilter, setPerfFilter] = useState(searchParams.get('tier') || 'all')
+  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'revenue')
+
+  // Raw search input (shown in field) vs debounced query (used for filtering)
+  const [searchInput, setSearchInput] = useState(searchParams.get('q') || '')
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
+  const debounceTimer = useRef(null)
+
+  // ── Loading & data states ──────────────────────────────────────────────────
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [errorState, setErrorState] = useState(null)
 
-  // Data states
   const [summary, setSummary] = useState(null)
   const [members, setMembers] = useState([])
   const [followUps, setFollowUps] = useState([])
   const [insights, setInsights] = useState(null)
   const [chartsData, setChartsData] = useState(null)
 
-  // Filter & Search states for Team Performance Table
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [perfFilter, setPerfFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('revenue')
-
-  // Interactive selection states
+  // ── Interactive selection states ───────────────────────────────────────────
   const [selectedMember, setSelectedMember] = useState(null)
   const [compareIds, setCompareIds] = useState([])
   const [showCompareModal, setShowCompareModal] = useState(false)
 
+  // ── Sync filters to URL ────────────────────────────────────────────────────
+  const syncToUrl = useCallback((updates) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v && v !== 'all' && v !== 'month' && v !== 'revenue' && v !== '') {
+          next.set(k, v)
+        } else {
+          next.delete(k)
+        }
+      })
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const handleDateRange = (v) => { setDateRange(v); syncToUrl({ range: v }) }
+  const handleStatusFilter = (v) => { setStatusFilter(v); syncToUrl({ status: v }) }
+  const handlePerfFilter = (v) => { setPerfFilter(v); syncToUrl({ tier: v }) }
+  const handleSortBy = (v) => { setSortBy(v); syncToUrl({ sort: v }) }
+
+  const handleSearchInput = (e) => {
+    const val = e.target.value
+    setSearchInput(val)
+    clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => {
+      setSearchQuery(val)
+      syncToUrl({ q: val })
+    }, 300)
+  }
+
+  // Cleanup debounce on unmount
+  useEffect(() => () => clearTimeout(debounceTimer.current), [])
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const loadAllData = async (showRefreshToast = false) => {
     const wid = activeWorkspace?.id
     if (!wid || isPersonal || !isManager) {
@@ -422,9 +591,10 @@ export default function TeamTrackingPage() {
 
   useEffect(() => {
     loadAllData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceKey, dateRange, isManager, isPersonal, activeWorkspace?.id])
 
-  // Filter and Sort Team Members
+  // ── Filtered & sorted members ──────────────────────────────────────────────
   const filteredMembers = useMemo(() => {
     let result = [...members]
 
@@ -435,13 +605,8 @@ export default function TeamTrackingPage() {
       )
     }
 
-    if (statusFilter !== 'all') {
-      result = result.filter((m) => m.status === statusFilter)
-    }
-
-    if (perfFilter !== 'all') {
-      result = result.filter((m) => m.performance_score === perfFilter)
-    }
+    if (statusFilter !== 'all') result = result.filter((m) => m.status === statusFilter)
+    if (perfFilter !== 'all') result = result.filter((m) => m.performance_score === perfFilter)
 
     result.sort((a, b) => {
       if (sortBy === 'revenue') return Number(b.revenue) - Number(a.revenue)
@@ -455,12 +620,17 @@ export default function TeamTrackingPage() {
   }, [members, searchQuery, statusFilter, perfFilter, sortBy])
 
   const toggleCompare = (userId) => {
-    setCompareIds((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : prev.length < 4 ? [...prev, userId] : prev
-    )
+    setCompareIds((prev) => {
+      if (prev.includes(userId)) return prev.filter((id) => id !== userId)
+      if (prev.length >= 4) return prev
+      const next = [...prev, userId]
+      // Auto-open comparison when 2nd member is selected
+      if (next.length >= 2) setShowCompareModal(true)
+      return next
+    })
   }
 
-  // Non-manager or Personal Area View
+  // ── Non-manager / personal view ────────────────────────────────────────────
   if (isPersonal || !isManager) {
     const managerWorkspaces = (workspaces || []).filter(
       (w) => w.role === 'manager' || w.isOwner || w.role === 'owner'
@@ -503,8 +673,37 @@ export default function TeamTrackingPage() {
     )
   }
 
+  // ─── Chart data helpers ───────────────────────────────────────────────────
+  const revenueData = chartsData?.revenue_by_member || []
+  const dealsData = chartsData?.deals_won_by_member || []
+  const conversionData = chartsData?.conversion_rate_by_member || []
+
+  const revenueAngle = xAxisAngleProps(revenueData.length)
+  const dealsAngle = xAxisAngleProps(dealsData.length)
+  const conversionAngle = xAxisAngleProps(conversionData.length)
+
+  // Determine if team has any data at all (for empty state styling)
+  const teamHasNoActivity = !loading && members.length > 0 &&
+    members.every((m) => !m.revenue && !m.deals_won && !m.assigned_leads)
+
+  // ─── KPI card value renderer ──────────────────────────────────────────────
+  function KpiValue({ value, isLoading }) {
+    if (isLoading) return <div className="h-7 w-16 rounded bg-surface-muted animate-pulse" />
+    const empty = teamHasNoActivity || value === '$0' || value === '0%' || value === 0
+    return (
+      <div>
+        <p className={`text-2xl font-extrabold tracking-tight ${empty ? 'text-ink-muted/50' : 'text-ink-primary'}`}>
+          {value}
+        </p>
+        {empty && (
+          <p className="text-[10px] text-ink-muted mt-0.5">No data yet</p>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="mx-auto max-w-7xl space-y-8 p-6 lg:p-8">
+    <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
       {/* ─── 1. Page Header ──────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-line-default pb-6">
         <div>
@@ -530,7 +729,7 @@ export default function TeamTrackingPage() {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setDateRange(tab.id)}
+                onClick={() => handleDateRange(tab.id)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
                   dateRange === tab.id
                     ? 'bg-brand-600 text-white shadow-2xs'
@@ -549,103 +748,139 @@ export default function TeamTrackingPage() {
             disabled={refreshing || loading}
             leftIcon={<RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />}
           >
-            Refresh
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
       </div>
 
+      {/* Error Banner */}
+      {errorState && (
+        <div className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <AlertCircle className="size-4 shrink-0" />
+          {errorState}
+        </div>
+      )}
+
       {/* ─── 2. Summary KPI Cards ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {[
-          {
-            label: 'Total Members',
-            value: summary?.total_members ?? '—',
-            trend: summary?.total_members_trend,
-            icon: Users,
-            color: 'text-blue-600 bg-blue-50 border-blue-100',
-          },
-          {
-            label: 'Active Members',
-            value: summary?.active_members ?? '—',
-            trend: summary?.active_members_trend,
-            icon: CheckCircle2,
-            color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-          },
-          {
-            label: 'Total Leads',
-            value: summary?.total_leads ?? '—',
-            trend: summary?.total_leads_trend,
-            icon: Target,
-            color: 'text-indigo-600 bg-indigo-50 border-indigo-100',
-          },
-          {
-            label: 'Deals Won',
-            value: summary?.deals_won ?? '—',
-            trend: summary?.deals_won_trend,
-            icon: Award,
-            color: 'text-amber-600 bg-amber-50 border-amber-100',
-          },
-          {
-            label: 'Team Revenue',
-            value: formatCurrency(summary?.team_revenue),
-            trend: summary?.team_revenue_trend,
-            icon: TrendingUp,
-            color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-          },
-          {
-            label: 'Avg Conversion',
-            value: `${summary?.avg_conversion_rate ?? 0}%`,
-            trend: summary?.conversion_rate_trend,
-            icon: BarChart3,
-            color: 'text-purple-600 bg-purple-50 border-purple-100',
-          },
-        ].map((kpi) => {
-          const Icon = kpi.icon
-          return (
-            <div key={kpi.label} className="rounded-2xl border border-line-default bg-surface-default p-5 shadow-xs flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink-muted">{kpi.label}</span>
-                <div className={`grid size-8 place-items-center rounded-xl border ${kpi.color}`}>
-                  <Icon className="size-4" />
+      <div className="grid grid-cols-2 gap-3.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+        ) : (
+          [
+            {
+              label: 'Total Members',
+              value: summary?.total_members ?? '—',
+              trend: summary?.total_members_trend,
+              icon: Users,
+              color: 'text-blue-600 bg-blue-50 border-blue-100',
+            },
+            {
+              label: 'Active Members',
+              value: summary?.active_members ?? '—',
+              trend: summary?.active_members_trend,
+              icon: CheckCircle2,
+              color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+            },
+            {
+              label: 'Total Leads',
+              value: summary?.total_leads ?? 0,
+              trend: summary?.total_leads_trend,
+              icon: Target,
+              color: 'text-indigo-600 bg-indigo-50 border-indigo-100',
+            },
+            {
+              label: 'Deals Won',
+              value: summary?.deals_won ?? 0,
+              trend: summary?.deals_won_trend,
+              icon: Award,
+              color: 'text-amber-600 bg-amber-50 border-amber-100',
+            },
+            {
+              label: 'Team Revenue',
+              value: formatCurrency(summary?.team_revenue),
+              trend: summary?.team_revenue_trend,
+              icon: TrendingUp,
+              color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+            },
+            {
+              label: 'Avg Conversion',
+              value: `${summary?.avg_conversion_rate ?? 0}%`,
+              trend: summary?.conversion_rate_trend,
+              icon: BarChart3,
+              color: 'text-purple-600 bg-purple-50 border-purple-100',
+            },
+          ].map((kpi) => {
+            const Icon = kpi.icon
+            const rawVal = kpi.value
+            const isEmpty = teamHasNoActivity && (rawVal === 0 || rawVal === '$0' || rawVal === '0%')
+            return (
+              <div
+                key={kpi.label}
+                className="rounded-2xl border border-line-default bg-surface-default p-4 sm:p-5 shadow-xs flex flex-col justify-between min-w-0 min-h-[128px] transition-shadow hover:shadow-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-ink-muted truncate">{kpi.label}</span>
+                  <div className={`grid size-8 place-items-center rounded-xl border shrink-0 ${kpi.color}`}>
+                    <Icon className="size-4" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <p className={`text-xl sm:text-2xl font-extrabold tracking-tight truncate ${isEmpty ? 'text-ink-muted/50' : 'text-ink-primary'}`}>
+                    {rawVal}
+                  </p>
+                  <div className="mt-1.5 flex items-center min-h-[18px]">
+                    {isEmpty ? (
+                      <span className="text-[10px] font-medium text-ink-muted">No data yet</span>
+                    ) : kpi.trend ? (
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-ink-muted truncate">
+                        {kpi.trend.trend === 'up' ? (
+                          <ArrowUpRight className="size-3.5 text-emerald-600 shrink-0" />
+                        ) : kpi.trend.trend === 'down' ? (
+                          <ArrowDownRight className="size-3.5 text-rose-600 shrink-0" />
+                        ) : (
+                          <Minus className="size-3.5 text-slate-400 shrink-0" />
+                        )}
+                        <span className={kpi.trend.trend === 'up' ? 'text-emerald-600 font-bold shrink-0' : kpi.trend.trend === 'down' ? 'text-rose-600 font-bold shrink-0' : 'shrink-0'}>
+                          {kpi.trend.change_pct != null ? `${kpi.trend.change_pct}%` : ''}
+                        </span>
+                        <span className="truncate">{kpi.trend.comparison_label}</span>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-              <div className="mt-3">
-                <p className="text-2xl font-extrabold text-ink-primary tracking-tight">{kpi.value}</p>
-                {kpi.trend && (
-                  <div className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-ink-muted">
-                    {kpi.trend.trend === 'up' ? (
-                      <ArrowUpRight className="size-3.5 text-emerald-600 shrink-0" />
-                    ) : kpi.trend.trend === 'down' ? (
-                      <ArrowDownRight className="size-3.5 text-rose-600 shrink-0" />
-                    ) : (
-                      <Minus className="size-3.5 text-slate-400 shrink-0" />
-                    )}
-                    <span className={kpi.trend.trend === 'up' ? 'text-emerald-600 font-bold' : kpi.trend.trend === 'down' ? 'text-rose-600 font-bold' : ''}>
-                      {kpi.trend.change_pct != null ? `${kpi.trend.change_pct}%` : ''}
-                    </span>
-                    <span>{kpi.trend.comparison_label}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
 
       {/* ─── 3. AI Team Insights Section ──────────────────────────────────────── */}
       {insights && insights.insights?.length > 0 && (
-        <div className="rounded-2xl border border-line-default bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-blue-50/50 p-6 shadow-xs">
+        <div className="rounded-2xl border border-line-default bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-blue-50/50 p-5 shadow-xs">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="size-5 text-indigo-600" />
-            <h2 className="text-sm font-bold uppercase tracking-wider text-indigo-950">AI Team Insights & Forecasting</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-indigo-950">AI Team Insights &amp; Forecasting</h2>
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ml-1">
+              {insights.insights.length}
+            </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* auto-fit grid: fills available space with min 280px cards; no dead whitespace with 1-2 cards */}
+          <div
+            className="grid gap-4 overflow-x-auto"
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
+          >
             {insights.insights.map((item, idx) => (
-              <div key={idx} className="rounded-xl border border-indigo-100 bg-surface-default p-4 shadow-2xs flex flex-col justify-between">
+              <div key={idx} className="rounded-xl border border-indigo-100 bg-surface-default p-4 shadow-2xs flex flex-col justify-between min-w-[260px]">
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">
-                      {item.type === 'top_performer' ? '🔥 Top Performer' : item.type === 'needs_attention' ? '⚠️ Needs Attention' : item.type === 'follow_up_risk' ? '⏰ Follow-up Risk' : '📈 Opportunity'}
+                      {item.type === 'top_performer'
+                        ? '🔥 Top Performer'
+                        : item.type === 'needs_attention'
+                        ? '⚠️ Needs Attention'
+                        : item.type === 'follow_up_risk'
+                        ? '⏰ Follow-up Risk'
+                        : '📈 Opportunity'}
                     </span>
                     {item.metric_highlight && (
                       <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
@@ -674,73 +909,103 @@ export default function TeamTrackingPage() {
       )}
 
       {/* ─── 4. Performance Charts Section ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Chart 1: Revenue by Team Member */}
-        <div className="rounded-2xl border border-line-default bg-surface-default p-6 shadow-xs">
+        <div className="rounded-2xl border border-line-default bg-surface-default p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-ink-primary">Revenue by Team Member</h3>
+            <h3 className="text-sm font-bold text-ink-primary">Revenue by Member</h3>
             <span className="text-xs text-ink-muted">Won Deals</span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartsData?.revenue_by_member || []} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompactCurrency} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(val) => [formatCurrency(val), 'Revenue']} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {(chartsData?.revenue_by_member || []).map((_, i) => (
-                    <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {loading ? (
+            <SkeletonChart />
+          ) : revenueData.length === 0 ? (
+            <ChartEmptyState />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: revenueAngle.height }}>
+                  <CartesianGrid {...gridStyle} />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={(props) => <CustomXTick {...props} angle={revenueAngle.angle} textAnchor={revenueAngle.textAnchor} dy={revenueAngle.dy} />}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompactCurrency} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(val) => [formatCurrency(val), 'Revenue']} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {revenueData.map((_, i) => (
+                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Chart 2: Deals Won by Team Member */}
-        <div className="rounded-2xl border border-line-default bg-surface-default p-6 shadow-xs">
+        <div className="rounded-2xl border border-line-default bg-surface-default p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-ink-primary">Deals Won by Member</h3>
             <span className="text-xs text-ink-muted">Closed Count</span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartsData?.deals_won_by_member || []} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(val) => [val, 'Deals Won']} />
-                <Bar dataKey="value" fill={PALETTE.emerald} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {loading ? (
+            <SkeletonChart />
+          ) : dealsData.length === 0 ? (
+            <ChartEmptyState />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dealsData} margin={{ top: 10, right: 10, left: 0, bottom: dealsAngle.height }}>
+                  <CartesianGrid {...gridStyle} />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={(props) => <CustomXTick {...props} angle={dealsAngle.angle} textAnchor={dealsAngle.textAnchor} dy={dealsAngle.dy} />}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(val) => [val, 'Deals Won']} />
+                  <Bar dataKey="value" fill={PALETTE.emerald} radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
-        {/* Chart 3: Lead Conversion Rates */}
-        <div className="rounded-2xl border border-line-default bg-surface-default p-6 shadow-xs">
+        {/* Chart 3: Conversion Rate by Member */}
+        <div className="rounded-2xl border border-line-default bg-surface-default p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-ink-primary">Conversion Rate by Member</h3>
             <span className="text-xs text-ink-muted">Win Velocity %</span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartsData?.conversion_rate_by_member || []} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
-                <Tooltip contentStyle={tooltipStyle} formatter={(val) => [`${val}%`, 'Conversion Rate']} />
-                <Bar dataKey="value" fill={PALETTE.purple} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {loading ? (
+            <SkeletonChart />
+          ) : conversionData.length === 0 ? (
+            <ChartEmptyState />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={conversionData} margin={{ top: 10, right: 10, left: 0, bottom: conversionAngle.height }}>
+                  <CartesianGrid {...gridStyle} />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    tick={(props) => <CustomXTick {...props} angle={conversionAngle.angle} textAnchor={conversionAngle.textAnchor} dy={conversionAngle.dy} />}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(val) => [`${val}%`, 'Conversion Rate']} />
+                  <Bar dataKey="value" fill={PALETTE.purple} radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ─── 5. Team Activity Over Time & Pipeline Distribution ──────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Activity Over Time */}
-        <div className="rounded-2xl border border-line-default bg-surface-default p-6 shadow-xs lg:col-span-2">
+        <div className="rounded-2xl border border-line-default bg-surface-default p-5 shadow-xs lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-ink-primary">Team Activity Over Time</h3>
@@ -749,78 +1014,122 @@ export default function TeamTrackingPage() {
             <div className="flex items-center gap-3 text-xs font-semibold">
               <span className="flex items-center gap-1 text-blue-600"><span className="size-2 rounded-full bg-blue-600" /> Emails</span>
               <span className="flex items-center gap-1 text-emerald-600"><span className="size-2 rounded-full bg-emerald-600" /> Calls</span>
-              <span className="flex items-center gap-1 text-purple-600"><span className="size-2 rounded-full bg-purple-600" /> Meetings</span>
             </div>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartsData?.team_activity_over_time || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorEmails" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={PALETTE.cyan} stopOpacity={0.4} />
-                    <stop offset="95%" stopColor={PALETTE.cyan} stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={PALETTE.emerald} stopOpacity={0.4} />
-                    <stop offset="95%" stopColor={PALETTE.emerald} stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="emails" stroke={PALETTE.cyan} fillOpacity={1} fill="url(#colorEmails)" />
-                <Area type="monotone" dataKey="calls" stroke={PALETTE.emerald} fillOpacity={1} fill="url(#colorCalls)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {loading ? (
+            <SkeletonChart />
+          ) : !chartsData?.team_activity_over_time?.length ? (
+            <ChartEmptyState />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartsData.team_activity_over_time} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorEmails" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PALETTE.cyan} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={PALETTE.cyan} stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PALETTE.emerald} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={PALETTE.emerald} stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...gridStyle} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Area type="monotone" dataKey="emails" stroke={PALETTE.cyan} fillOpacity={1} fill="url(#colorEmails)" />
+                  <Area type="monotone" dataKey="calls" stroke={PALETTE.emerald} fillOpacity={1} fill="url(#colorCalls)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Pipeline Distribution */}
-        <div className="rounded-2xl border border-line-default bg-surface-default p-6 shadow-xs">
+        <div className="rounded-2xl border border-line-default bg-surface-default p-5 shadow-xs">
           <h3 className="text-sm font-bold text-ink-primary mb-1">Pipeline Distribution</h3>
           <p className="text-xs text-ink-muted mb-4">Total lead count across pipeline stages</p>
-          <div className="space-y-3">
-            {chartsData?.pipeline_distribution?.map((item) => (
-              <div key={item.stage} className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-ink-secondary">{item.stage}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-ink-primary">{item.count}</span>
-                  <span className="text-[10px] text-ink-muted">leads</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-8 rounded-lg bg-surface-muted animate-pulse" />
+              ))}
+            </div>
+          ) : !chartsData?.pipeline_distribution?.length ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <Layers className="size-8 text-ink-muted/30" />
+              <p className="text-xs text-ink-muted text-center">No pipeline data available yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {chartsData.pipeline_distribution.map((item, idx) => {
+                const total = chartsData.pipeline_distribution.reduce((s, d) => s + d.count, 0)
+                const pct = total > 0 ? Math.round((item.count / total) * 100) : 0
+                return (
+                  <div key={item.stage}>
+                    <div className="flex items-center justify-between text-xs mb-1 font-medium">
+                      <span className="text-ink-secondary">{item.stage}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-ink-primary">{item.count}</span>
+                        <span className="text-[10px] text-ink-muted">leads</span>
+                        <span className="text-[10px] text-ink-muted">({pct}%)</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: BAR_COLORS[idx % BAR_COLORS.length] }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
       {/* ─── 6. Team Performance Table ───────────────────────────────────────── */}
       <div className="rounded-2xl border border-line-default bg-surface-default shadow-xs overflow-hidden">
-        {/* Table Filters & Actions Header */}
-        <div className="p-6 border-b border-line-default flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-surface-subtle/30">
-          <div>
-            <h2 className="text-base font-bold text-ink-primary">Team Performance Directory</h2>
-            <p className="text-xs text-ink-secondary mt-0.5">Click any member to inspect detailed activity and pipeline breakdown</p>
+        {/* Table Header: title + inline filter row */}
+        <div className="p-5 border-b border-line-default bg-surface-subtle/30">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <div>
+              <h2 className="text-base font-bold text-ink-primary">Team Performance Directory</h2>
+              <p className="text-xs text-ink-secondary mt-0.5">Click any member to inspect detailed activity and pipeline breakdown</p>
+            </div>
+            {compareIds.length >= 2 && (
+              <Button
+                onClick={() => setShowCompareModal(true)}
+                className="shrink-0 text-xs"
+              >
+                Compare ({compareIds.length}) members
+              </Button>
+            )}
           </div>
 
+          {/* ── Filter Row: single responsive flex row ──────────────────────── */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+            {/* Search — flex-1 so it grows */}
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-muted" />
               <input
+                id="team-search"
                 type="text"
                 placeholder="Search member..."
-                className="input pl-9 text-xs py-1.5 w-44"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input pl-8 text-xs py-1.5 w-full"
+                value={searchInput}
+                onChange={handleSearchInput}
               />
             </div>
 
             {/* Status Filter */}
             <select
-              className="input text-xs py-1.5"
+              id="team-status-filter"
+              className="input text-xs py-1.5 w-auto shrink-0"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilter(e.target.value)}
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
@@ -828,11 +1137,12 @@ export default function TeamTrackingPage() {
               <option value="offline">Offline</option>
             </select>
 
-            {/* Performance Filter */}
+            {/* Performance Tier Filter */}
             <select
-              className="input text-xs py-1.5"
+              id="team-tier-filter"
+              className="input text-xs py-1.5 w-auto shrink-0"
               value={perfFilter}
-              onChange={(e) => setPerfFilter(e.target.value)}
+              onChange={(e) => handlePerfFilter(e.target.value)}
             >
               <option value="all">All Tiers</option>
               <option value="Excellent">Excellent</option>
@@ -842,135 +1152,193 @@ export default function TeamTrackingPage() {
 
             {/* Sort Dropdown */}
             <select
-              className="input text-xs py-1.5"
+              id="team-sort"
+              className="input text-xs py-1.5 w-auto shrink-0"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => handleSortBy(e.target.value)}
             >
               <option value="revenue">Sort by Revenue</option>
               <option value="conversion">Sort by Conversion</option>
               <option value="deals_won">Sort by Deals Won</option>
               <option value="leads">Sort by Assigned Leads</option>
             </select>
+          </div>
 
-            {/* Compare Button */}
-            {compareIds.length >= 2 && (
-              <Button
-                onClick={() => setShowCompareModal(true)}
-                className="bg-brand-600 text-xs py-1.5"
-              >
-                Compare ({compareIds.length})
-              </Button>
+          {/* Active filter chips */}
+          {(statusFilter !== 'all' || perfFilter !== 'all' || searchQuery) && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-[11px] text-ink-muted">Filtering:</span>
+              {searchQuery && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 border border-brand-200 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+                  "{searchQuery}"
+                  <button onClick={() => { setSearchInput(''); setSearchQuery(''); syncToUrl({ q: '' }) }} className="hover:text-brand-900">
+                    <X className="size-2.5" />
+                  </button>
+                </span>
+              )}
+              {statusFilter !== 'all' && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted border border-line-default px-2 py-0.5 text-[11px] font-semibold text-ink-secondary">
+                  {statusFilter}
+                  <button onClick={() => handleStatusFilter('all')} className="hover:text-ink-primary"><X className="size-2.5" /></button>
+                </span>
+              )}
+              {perfFilter !== 'all' && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted border border-line-default px-2 py-0.5 text-[11px] font-semibold text-ink-secondary">
+                  {perfFilter}
+                  <button onClick={() => handlePerfFilter('all')} className="hover:text-ink-primary"><X className="size-2.5" /></button>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Table Content with scroll shadow affordance */}
+        <ScrollShadowX>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b border-line-default bg-surface-subtle/50 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  <th className="py-3.5 pl-5 pr-3">Cmp</th>
+                  <th className="py-3.5 px-3">Team Member</th>
+                  <th className="py-3.5 px-3">Role</th>
+                  <th className="py-3.5 px-3 text-center">Leads</th>
+                  <th className="py-3.5 px-3 text-center">Contacted</th>
+                  <th className="py-3.5 px-3 text-center">Meetings</th>
+                  <th className="py-3.5 px-3 text-center">Won</th>
+                  <th className="py-3.5 px-3 text-right">Revenue</th>
+                  <th className="py-3.5 px-3 text-center">Conv%</th>
+                  <th className="py-3.5 px-3 text-center">Status</th>
+                  <th className="py-3.5 px-3 text-center">Tier</th>
+                  <th className="py-3.5 pl-3 pr-5 text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line-subtle">
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={12} />)
+                ) : filteredMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="py-14 text-center">
+                      <Users className="size-9 text-ink-muted/30 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-ink-muted">
+                        {members.length === 0 ? 'No team members yet' : 'No members match the filters'}
+                      </p>
+                      <p className="text-xs text-ink-muted/70 mt-1">
+                        {members.length === 0
+                          ? 'Invite team members to your workspace to start tracking performance.'
+                          : 'Try clearing some filters to see more results.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMembers.map((m) => {
+                    const isChecked = compareIds.includes(m.user_id)
+                    const hasActivity = m.revenue > 0 || m.deals_won > 0 || m.assigned_leads > 0
+                    return (
+                      <tr
+                        key={m.user_id}
+                        className="hover:bg-surface-subtle transition-colors cursor-pointer group"
+                        onClick={() => setSelectedMember(m)}
+                      >
+                        <td className="py-4 pl-5 pr-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleCompare(m.user_id)}
+                            title={isChecked ? 'Remove from comparison' : 'Add to comparison'}
+                            className="rounded text-brand-600 focus:ring-brand-500"
+                          />
+                        </td>
+                        <td className="py-4 px-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="grid size-8 place-items-center rounded-xl bg-brand-50 text-brand-700 font-bold border border-brand-100 shrink-0 text-sm">
+                              {m.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-ink-primary group-hover:text-brand-600 transition-colors block truncate max-w-[120px]">
+                                {m.name}
+                              </span>
+                              <span className="text-[11px] text-ink-muted truncate block max-w-[120px]">{m.email}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-3 capitalize text-ink-secondary font-medium">{m.role}</td>
+                        <td className={`py-4 px-3 text-center font-semibold ${!hasActivity ? 'text-ink-muted/50' : 'text-ink-primary'}`}>
+                          {m.assigned_leads}
+                        </td>
+                        <td className={`py-4 px-3 text-center font-medium ${!hasActivity ? 'text-ink-muted/50' : 'text-ink-secondary'}`}>
+                          {m.contacted}
+                        </td>
+                        <td className={`py-4 px-3 text-center font-medium ${!hasActivity ? 'text-ink-muted/50' : 'text-ink-secondary'}`}>
+                          {m.meetings}
+                        </td>
+                        <td className={`py-4 px-3 text-center font-bold ${m.deals_won > 0 ? 'text-emerald-600' : 'text-ink-muted/50'}`}>
+                          {m.deals_won}
+                        </td>
+                        <td className={`py-4 px-3 text-right font-extrabold ${m.revenue > 0 ? 'text-ink-primary' : 'text-ink-muted/50'}`}>
+                          {formatCurrency(m.revenue)}
+                        </td>
+                        <td className={`py-4 px-3 text-center font-bold ${m.conversion_rate > 0 ? 'text-indigo-600' : 'text-ink-muted/50'}`}>
+                          {m.conversion_rate}%
+                        </td>
+                        <td className="py-4 px-3 text-center">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              m.status === 'active'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : m.status === 'away'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {m.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-3 text-center">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              m.performance_score === 'Excellent'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : m.performance_score === 'Needs Attention'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}
+                          >
+                            {m.performance_score || '—'}
+                          </span>
+                        </td>
+                        <td className="py-4 pl-3 pr-5 text-right">
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 group-hover:underline">
+                            Details <ChevronRight className="size-3.5" />
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </ScrollShadowX>
+
+        {/* Table footer summary */}
+        {!loading && filteredMembers.length > 0 && (
+          <div className="px-5 py-3 border-t border-line-subtle bg-surface-subtle/30 flex items-center justify-between text-[11px] text-ink-muted">
+            <span>
+              Showing <span className="font-semibold text-ink-secondary">{filteredMembers.length}</span> of{' '}
+              <span className="font-semibold text-ink-secondary">{members.length}</span> members
+            </span>
+            {compareIds.length > 0 && (
+              <span className="text-brand-600 font-semibold">
+                {compareIds.length} selected for comparison
+                {compareIds.length < 2 && ' — select one more to compare'}
+              </span>
             )}
           </div>
-        </div>
-
-        {/* Table Content */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-line-default bg-surface-subtle/50 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                <th className="py-3.5 pl-6 pr-3">Compare</th>
-                <th className="py-3.5 px-3">Team Member</th>
-                <th className="py-3.5 px-3">Role</th>
-                <th className="py-3.5 px-3 text-center">Leads</th>
-                <th className="py-3.5 px-3 text-center">Contacted</th>
-                <th className="py-3.5 px-3 text-center">Meetings</th>
-                <th className="py-3.5 px-3 text-center">Won</th>
-                <th className="py-3.5 px-3 text-right">Revenue</th>
-                <th className="py-3.5 px-3 text-center">Conversion</th>
-                <th className="py-3.5 px-3 text-center">Status</th>
-                <th className="py-3.5 px-3 text-center">Score</th>
-                <th className="py-3.5 pl-3 pr-6 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line-subtle">
-              {loading ? (
-                <tr>
-                  <td colSpan={12} className="py-12 text-center text-ink-muted">Loading team performance…</td>
-                </tr>
-              ) : filteredMembers.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="py-12 text-center text-ink-muted">No team members match the criteria.</td>
-                </tr>
-              ) : (
-                filteredMembers.map((m) => {
-                  const isChecked = compareIds.includes(m.user_id)
-                  return (
-                    <tr
-                      key={m.user_id}
-                      className="hover:bg-surface-subtle transition-colors cursor-pointer group"
-                      onClick={() => setSelectedMember(m)}
-                    >
-                      <td className="py-4 pl-6 pr-3" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleCompare(m.user_id)}
-                          className="rounded text-brand-600 focus:ring-brand-500"
-                        />
-                      </td>
-                      <td className="py-4 px-3">
-                        <div className="flex items-center gap-3">
-                          <div className="grid size-8 place-items-center rounded-xl bg-brand-50 text-brand-700 font-bold border border-brand-100 shrink-0">
-                            {m.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <span className="font-bold text-ink-primary group-hover:text-brand-600 transition-colors block">
-                              {m.name}
-                            </span>
-                            <span className="text-[11px] text-ink-muted">{m.email}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-3 capitalize text-ink-secondary font-medium">{m.role}</td>
-                      <td className="py-4 px-3 text-center font-semibold text-ink-primary">{m.assigned_leads}</td>
-                      <td className="py-4 px-3 text-center font-medium text-ink-secondary">{m.contacted}</td>
-                      <td className="py-4 px-3 text-center font-medium text-ink-secondary">{m.meetings}</td>
-                      <td className="py-4 px-3 text-center font-bold text-emerald-600">{m.deals_won}</td>
-                      <td className="py-4 px-3 text-right font-extrabold text-ink-primary">{formatCurrency(m.revenue)}</td>
-                      <td className="py-4 px-3 text-center font-bold text-indigo-600">{m.conversion_rate}%</td>
-                      <td className="py-4 px-3 text-center">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                            m.status === 'active'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : m.status === 'away'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
-                        >
-                          {m.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-3 text-center">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            m.performance_score === 'Excellent'
-                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                              : m.performance_score === 'Needs Attention'
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                              : 'bg-blue-50 text-blue-700 border border-blue-200'
-                          }`}
-                        >
-                          {m.performance_score}
-                        </span>
-                      </td>
-                      <td className="py-4 pl-3 pr-6 text-right">
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 group-hover:underline">
-                          Details <ChevronRight className="size-3.5" />
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        )}
       </div>
 
       {/* ─── 7. Follow-ups Requiring Attention ───────────────────────────────── */}
-      <div className="rounded-2xl border border-line-default bg-surface-default shadow-xs p-6">
+      <div className="rounded-2xl border border-line-default bg-surface-default shadow-xs p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Clock className="size-5 text-amber-600" />
@@ -981,10 +1349,15 @@ export default function TeamTrackingPage() {
           </span>
         </div>
 
-        {followUps.length === 0 ? (
-          <div className="rounded-xl border border-line-default bg-surface-subtle p-8 text-center text-xs text-ink-muted">
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-surface-subtle animate-pulse" />)}
+          </div>
+        ) : followUps.length === 0 ? (
+          <div className="rounded-xl border border-line-default bg-surface-subtle p-8 text-center">
             <CheckCircle2 className="size-8 text-emerald-500 mx-auto mb-2" />
-            All team follow-ups are up to date! No leads are currently stalled.
+            <p className="text-sm font-semibold text-ink-primary">All caught up!</p>
+            <p className="text-xs text-ink-muted mt-1">No leads are currently stalled or overdue.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1012,7 +1385,7 @@ export default function TeamTrackingPage() {
                     <td className="py-3.5 px-4 text-ink-muted">{f.last_contact ? new Date(f.last_contact).toLocaleDateString() : '—'}</td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        f.priority === 'High' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+                        f.priority === 'High' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}>
                         {f.priority}
                       </span>
