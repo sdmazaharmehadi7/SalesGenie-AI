@@ -286,6 +286,30 @@ class WorkspaceRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_any_invitation(
+        self,
+        workspace_id: uuid.UUID,
+        email: str,
+    ) -> "WorkspaceInvitation | None":
+        """Find most recent invitation for a specific workspace and email regardless of status."""
+        from app.models.workspace import WorkspaceInvitation
+
+        result = await self.db.execute(
+            select(WorkspaceInvitation)
+            .where(
+                and_(
+                    WorkspaceInvitation.workspace_id == workspace_id,
+                    WorkspaceInvitation.email == email.strip().lower(),
+                )
+            )
+            .options(
+                selectinload(WorkspaceInvitation.workspace),
+                selectinload(WorkspaceInvitation.invited_by),
+            )
+            .order_by(WorkspaceInvitation.created_at.desc())
+        )
+        return result.scalars().first()
+
     async def get_pending_invitation(
         self,
         workspace_id: uuid.UUID,

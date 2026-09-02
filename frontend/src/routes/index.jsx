@@ -31,6 +31,7 @@ import ProfilePage from '@/pages/profile/ProfilePage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import SignupPage from '@/pages/auth/SignupPage'
 import TeamTrackingPage from '@/pages/team-tracking/TeamTrackingPage'
+import WorkspaceTeamHubPage from '@/pages/workspaces/WorkspaceTeamHubPage'
 
 export const router = createBrowserRouter([
   {
@@ -117,6 +118,7 @@ export const router = createBrowserRouter([
           { path: '/analytics', element: <AnalyticsPage /> },
           { path: '/manage/team', element: <TeamTrackingPage /> },
           { path: '/team-tracking', element: <TeamTrackingPage /> },
+          { path: '/workspace/team', element: <WorkspaceTeamHubPage /> },
           { path: '/settings', element: <SettingsPage /> },
           { path: '/settings/:section', element: <SettingsPage /> },
           { path: '/profile', element: <ProfilePage /> },

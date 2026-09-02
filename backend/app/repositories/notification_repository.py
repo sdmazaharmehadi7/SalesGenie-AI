@@ -74,7 +74,13 @@ class NotificationRepository:
         if is_personal or workspace_id is None:
             stmt = stmt.where(Notification.workspace_id.is_(None))
         else:
-            stmt = stmt.where(Notification.workspace_id == workspace_id)
+            stmt = stmt.where(
+                (Notification.workspace_id == workspace_id)
+                | (
+                    Notification.workspace_id.is_(None)
+                    & (Notification.type == "workspace_invitation")
+                )
+            )
 
         if is_read is not None:
             stmt = stmt.where(Notification.is_read == is_read)
@@ -102,7 +108,13 @@ class NotificationRepository:
         if is_personal or workspace_id is None:
             stmt = stmt.where(Notification.workspace_id.is_(None))
         else:
-            stmt = stmt.where(Notification.workspace_id == workspace_id)
+            stmt = stmt.where(
+                (Notification.workspace_id == workspace_id)
+                | (
+                    Notification.workspace_id.is_(None)
+                    & (Notification.type == "workspace_invitation")
+                )
+            )
 
         return (await self.db.execute(stmt)).scalar_one()
 
@@ -111,6 +123,26 @@ class NotificationRepository:
         await self.db.flush()
         await self.db.refresh(notification)
         return notification
+
+    async def mark_entity_notifications_read(
+        self,
+        *,
+        user_id: uuid.UUID,
+        entity_type: str,
+        entity_id: uuid.UUID,
+    ) -> int:
+        stmt = (
+            update(Notification)
+            .where(
+                Notification.user_id == user_id,
+                Notification.entity_type == entity_type,
+                Notification.entity_id == entity_id,
+                Notification.is_read == False,  # noqa: E712
+            )
+            .values(is_read=True)
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
 
     async def mark_all_read(
         self,
@@ -126,7 +158,13 @@ class NotificationRepository:
         if is_personal or workspace_id is None:
             stmt = stmt.where(Notification.workspace_id.is_(None))
         else:
-            stmt = stmt.where(Notification.workspace_id == workspace_id)
+            stmt = stmt.where(
+                (Notification.workspace_id == workspace_id)
+                | (
+                    Notification.workspace_id.is_(None)
+                    & (Notification.type == "workspace_invitation")
+                )
+            )
 
         stmt = stmt.values(is_read=True)
         result = await self.db.execute(stmt)

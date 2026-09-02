@@ -126,3 +126,11 @@ class ChangePasswordRequest(BaseModel):
 class ChangePasswordResponse(BaseModel):
     message: str = "Password changed successfully."
 
+
+class UserSearchItem(ORMBaseModel):
+    """Minimal representation of a registered user for workspace invitation search."""
+
+    id: uuid.UUID
+    name: str
+    email: EmailStr
+

@@ -39,3 +39,6 @@ class UserService:
         updated = await self.users.update(user, user_in)
         await self.db.commit()
         return updated
+
+    async def search_users_by_email(self, query: str, limit: int = 10) -> list[User]:
+        return await self.users.search_by_email(query, limit=limit)

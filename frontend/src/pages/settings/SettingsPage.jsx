@@ -13,7 +13,9 @@ import {
   cancelInvitation,
   updateMemberRole,
   removeWorkspaceMember,
+  resendWorkspaceInvitation,
 } from '@/services/api/workspaces'
+import { searchUsersByEmail } from '@/services/api/users'
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
@@ -355,15 +357,21 @@ function GeneralSection() {
 
 // ─── Section: Workspace ───────────────────────────────────────────────────────
 function WorkspaceSection() {
-  const { activeWorkspace, isPersonal } = useWorkspace()
+  const { activeWorkspace, isPersonal, isManager } = useWorkspace()
   const { showToast } = useToast()
   const [members, setMembers] = useState([])
   const [invitations, setInvitations] = useState([])
   const [loadingMembers, setLoadingMembers] = useState(true)
 
-  const [inviteEmail, setInviteEmail] = useState('')
+  // Recipient search state (manager only)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
   const [inviteRole, setInviteRole] = useState('team_member')
   const [isInviting, setIsInviting] = useState(false)
+  const [resendingId, setResendingId] = useState(null)
   const [copiedToken, setCopiedToken] = useState(null)
 
   const loadTeamData = useCallback(async () => {
@@ -372,7 +380,7 @@ function WorkspaceSection() {
     try {
       const [membersData, invitesData] = await Promise.all([
         listWorkspaceMembers(activeWorkspace.id).catch(() => []),
-        listWorkspaceInvitations(activeWorkspace.id).catch(() => []),
+        isManager ? listWorkspaceInvitations(activeWorkspace.id).catch(() => []) : Promise.resolve([]),
       ])
       setMembers(membersData || [])
       setInvitations(invitesData || [])
@@ -381,29 +389,88 @@ function WorkspaceSection() {
     } finally {
       setLoadingMembers(false)
     }
-  }, [activeWorkspace?.id, isPersonal])
+  }, [activeWorkspace?.id, isPersonal, isManager])
 
   useEffect(() => {
     loadTeamData()
   }, [loadTeamData])
 
+  // Debounced search for registered users (manager only)
+  useEffect(() => {
+    if (!isManager || !searchQuery.trim()) {
+      setSearchResults([])
+      setHasSearched(false)
+      setIsSearching(false)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const users = await searchUsersByEmail(searchQuery.trim())
+        setSearchResults(users || [])
+        setHasSearched(true)
+      } catch (err) {
+        setSearchResults([])
+        setHasSearched(true)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery, isManager])
+
+  const handleSelectUser = (user) => {
+    setSelectedUser(user)
+    setSearchQuery('')
+    setSearchResults([])
+    setHasSearched(false)
+  }
+
+  const handleClearSelectedUser = () => {
+    setSelectedUser(null)
+    setSearchQuery('')
+    setSearchResults([])
+    setHasSearched(false)
+  }
+
   const handleInvite = async (e) => {
     e.preventDefault()
-    if (!inviteEmail.trim()) return
+    if (!selectedUser?.email) {
+      showToast('Please search and select a registered user to invite.', 'warning')
+      return
+    }
     setIsInviting(true)
     try {
       const inv = await inviteUserByEmail(activeWorkspace.id, {
-        email: inviteEmail.trim(),
+        email: selectedUser.email,
         role: inviteRole,
       })
-      showToast(`Invitation created for ${inv.email}! Token: ${inv.token}`, 'success')
-      setInviteEmail('')
+      showToast(`Invitation sent to ${selectedUser.name || selectedUser.email}!`, 'success')
+      setSelectedUser(null)
+      setSearchQuery('')
+      setSearchResults([])
       loadTeamData()
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Failed to send invitation.'
       showToast(msg, 'error')
     } finally {
       setIsInviting(false)
+    }
+  }
+
+  const handleResendInvite = async (invId, invEmail) => {
+    setResendingId(invId)
+    try {
+      await resendWorkspaceInvitation(activeWorkspace.id, invId)
+      showToast(`Invitation resent to ${invEmail}!`, 'success')
+      loadTeamData()
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to resend invitation.'
+      showToast(msg, 'error')
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -438,8 +505,102 @@ function WorkspaceSection() {
     }
   }
 
+  // ── Team Member read-only view ─────────────────────────────────────────────
+  if (!isManager) {
+    const manager = members.find((m) => m.role === 'manager')
+    const teamMembers = members.filter((m) => m.role !== 'manager')
+    return (
+      <div className="space-y-6">
+        {/* Workspace Details */}
+        <SectionCard>
+          <SectionTitle title="Workspace details" description="Your current active workspace." />
+          <div className="rounded-card border border-line-default bg-surface-muted/50 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-base font-semibold text-ink-primary">{activeWorkspace?.name}</p>
+                <p className="mt-0.5 text-xs text-ink-muted">{activeWorkspace?.description || 'No description provided.'}</p>
+              </div>
+              <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-200">
+                Team Workspace
+              </span>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* Manager Card */}
+        {manager && (
+          <SectionCard>
+            <SectionTitle title="Workspace Manager" description="The person who manages this workspace." />
+            <div className="flex items-center gap-4 rounded-card border border-amber-200 bg-amber-50/60 p-4">
+              <span className="inline-grid size-12 place-items-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
+                {(manager.user_name || manager.user_email || 'M').slice(0, 2).toUpperCase()}
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-ink-primary">{manager.user_name || manager.user_email}</p>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-300">Workspace Manager</span>
+                </div>
+                <p className="mt-0.5 text-xs text-ink-muted">{manager.user_email}</p>
+              </div>
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Team Members Directory */}
+        <SectionCard>
+          <SectionTitle
+            title={`Team Members (${members.length})`}
+            description="All members in this workspace and their roles."
+          />
+          {loadingMembers ? (
+            <div className="py-4 text-center text-xs text-ink-muted">Loading members…</div>
+          ) : members.length === 0 ? (
+            <div className="py-4 text-center text-xs text-ink-muted">No members found.</div>
+          ) : (
+            <div className="space-y-2">
+              {members.map((m) => {
+                const isOwner = m.role === 'manager'
+                return (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-card border border-line-default p-3 bg-surface-default"
+                    key={m.id || m.user_id}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-grid size-8 place-items-center rounded-full text-xs font-bold ${isOwner ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {(m.user_name || m.user_email || 'U').slice(0, 2).toUpperCase()}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-ink-primary">{m.user_name || m.user_email}</p>
+                        <p className="text-xs text-ink-muted">{m.user_email}</p>
+                      </div>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ${isOwner ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                      {isOwner ? 'Manager' : 'Team Member'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Quick link to Team Hub */}
+        <div className="rounded-card border border-brand-200 bg-brand-50/50 p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-brand-700">Explore the full Team Hub</p>
+            <p className="mt-0.5 text-xs text-ink-muted">View today's tasks, important lead dates, and more in one place.</p>
+          </div>
+          <a href="/workspace/team" className="btn btn-primary btn-sm shrink-0">
+            Open Team Hub →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Manager full management view ───────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Workspace details card */}
       <SectionCard>
         <SectionTitle title="Workspace details" description="Current active workspace information." />
@@ -449,48 +610,136 @@ function WorkspaceSection() {
               <p className="text-base font-semibold text-ink-primary">{activeWorkspace?.name}</p>
               <p className="text-xs text-ink-muted">{activeWorkspace?.description || 'No description provided.'}</p>
             </div>
-            <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+            <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-200">
               Workspace ID: {activeWorkspace?.id?.slice(0, 8)}…
             </span>
           </div>
         </div>
       </SectionCard>
 
-      {/* Invite member form */}
+      {/* Add team member card */}
       <SectionCard>
-        <SectionTitle title="Invite team member" description="Send an invitation by email to add a new member to this workspace." />
-        <form onSubmit={handleInvite} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-ink-secondary">Email address</label>
-            <input
-              type="email"
-              className="input w-full"
-              placeholder="colleague@company.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              required
-            />
+        <SectionTitle
+          title="Add team member"
+          description="Search existing registered users by email to invite them to this workspace."
+        />
+
+        <form onSubmit={handleInvite} className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div className="relative flex-1">
+              <label className="mb-1 block text-xs font-medium text-ink-secondary">
+                Recipient (Search registered user)
+              </label>
+
+              {selectedUser ? (
+                /* Selected User Recipient Chip */
+                <div className="flex items-center justify-between rounded-control border border-brand-500 bg-brand-50/40 px-3 py-2 text-sm shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid size-7 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                      {(selectedUser.name || selectedUser.email).slice(0, 2).toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold text-ink-primary">{selectedUser.name}</p>
+                      <p className="text-[11px] text-ink-muted">{selectedUser.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    className="rounded-full p-1 text-ink-muted transition-colors hover:bg-brand-100 hover:text-ink-primary"
+                    onClick={handleClearSelectedUser}
+                    title="Remove selected recipient"
+                    type="button"
+                  >
+                    <Icon className="size-4" d="M6 18L18 6M6 6l12 12" />
+                  </button>
+                </div>
+              ) : (
+                /* Recipient Search Input */
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="input w-full"
+                    placeholder="Search by email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoComplete="off"
+                  />
+
+                  {isSearching && (
+                    <span className="absolute right-3 top-2.5 text-xs text-ink-muted">
+                      Searching…
+                    </span>
+                  )}
+
+                  {/* Search Results Dropdown */}
+                  {searchQuery.trim() && (
+                    <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-card border border-line-default bg-surface-default shadow-floating animate-in fade-in zoom-in-95 duration-100">
+                      {searchResults.length > 0 ? (
+                        <div className="py-1">
+                          {searchResults.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-muted"
+                              onClick={() => handleSelectUser(u)}
+                            >
+                              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+                                {(u.name || u.email).slice(0, 2).toUpperCase()}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-semibold text-ink-primary">
+                                  {u.name}
+                                </p>
+                                <p className="truncate text-[11px] text-ink-muted">
+                                  {u.email}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        hasSearched && !isSearching && (
+                          <div className="p-3 text-center text-xs text-ink-muted">
+                            No SalesGenie account exists with this email.
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="w-full sm:w-44">
+              <label className="mb-1 block text-xs font-medium text-ink-secondary">Role</label>
+              <select
+                className="input w-full"
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                <option value="team_member">Team Member</option>
+                <option value="manager">Manager</option>
+              </select>
+            </div>
+
+            <div className="sm:pt-6">
+              <Button
+                type="submit"
+                disabled={isInviting || !selectedUser}
+                className="w-full sm:w-auto"
+              >
+                {isInviting ? 'Sending…' : 'Send Invitation'}
+              </Button>
+            </div>
           </div>
-          <div className="w-40">
-            <label className="mb-1 block text-xs font-medium text-ink-secondary">Role</label>
-            <select
-              className="input w-full"
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-            >
-              <option value="team_member">Team Member</option>
-              <option value="manager">Manager</option>
-            </select>
-          </div>
-          <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>
-            {isInviting ? 'Inviting…' : 'Send Invite'}
-          </Button>
         </form>
       </SectionCard>
 
       {/* Team members list */}
       <SectionCard>
-        <SectionTitle title={`Workspace members (${members.length})`} description="Active members in this workspace." />
+        <SectionTitle
+          title={`Workspace members (${members.length})`}
+          description="Active members belonging to this workspace."
+        />
         {loadingMembers ? (
           <div className="py-4 text-center text-xs text-ink-muted">Loading members…</div>
         ) : members.length === 0 ? (
@@ -500,22 +749,32 @@ function WorkspaceSection() {
             {members.map((m) => {
               const isOwner = m.role === 'manager'
               return (
-                <div className="flex items-center justify-between gap-3 rounded-card border border-line-default p-3" key={m.id}>
+                <div
+                  className="flex items-center justify-between gap-3 rounded-card border border-line-default p-3 bg-surface-default"
+                  key={m.id}
+                >
                   <div className="flex items-center gap-3">
-                    <span className={`inline-grid size-8 place-items-center rounded-full text-xs font-bold ${
-                      isOwner ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
+                    <span
+                      className={`inline-grid size-8 place-items-center rounded-full text-xs font-bold ${
+                        isOwner ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
                       {(m.user_name || m.user_email || 'U').slice(0, 2).toUpperCase()}
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-ink-primary">{m.user_name || m.user_email}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-ink-primary">{m.user_name || m.user_email}</p>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                          Status: Active
+                        </span>
+                      </div>
                       <p className="text-xs text-ink-muted">{m.user_email}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <select
-                      className="rounded border border-line-default bg-surface-default px-2 py-1 text-xs font-medium"
+                      className="rounded border border-line-default bg-surface-default px-2 py-1 text-xs font-medium text-ink-primary"
                       value={m.role}
                       onChange={(e) => handleChangeRole(m.user_id, e.target.value)}
                     >
@@ -524,7 +783,7 @@ function WorkspaceSection() {
                     </select>
 
                     <button
-                      className="rounded p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600"
+                      className="rounded p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-colors"
                       onClick={() => handleRemoveMember(m.user_id, m.user_name)}
                       title="Remove member"
                       type="button"
@@ -539,40 +798,103 @@ function WorkspaceSection() {
         )}
       </SectionCard>
 
-      {/* Pending invitations */}
+      {/* Workspace Invitations List */}
       {invitations.length > 0 && (
         <SectionCard>
-          <SectionTitle title={`Pending invitations (${invitations.length})`} description="Invitations sent that have not yet been accepted." />
+          <SectionTitle
+            title={`Workspace invitations (${invitations.length})`}
+            description="Status of invitations sent for this workspace."
+          />
           <div className="space-y-2">
-            {invitations.map((inv) => (
-              <div className="flex items-center justify-between gap-3 rounded-card border border-amber-200 bg-amber-50/40 p-3" key={inv.id}>
-                <div>
-                  <p className="text-sm font-medium text-ink-primary">{inv.email}</p>
-                  <p className="text-xs text-ink-muted font-mono select-all">Token: {inv.token}</p>
+            {invitations.map((inv) => {
+              const statusLower = (inv.status || '').toLowerCase()
+              const isPending = statusLower === 'pending'
+              const isDeclined = statusLower === 'declined' || statusLower === 'rejected'
+              const isExpired = statusLower === 'expired'
+              const isAccepted = statusLower === 'accepted'
+
+              let badgeClass = 'bg-amber-50 text-amber-800 border-amber-300'
+              let statusLabel = 'Status: Invitation Pending'
+
+              if (isAccepted) {
+                badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                statusLabel = 'Status: Active'
+              } else if (isDeclined) {
+                badgeClass = 'bg-rose-50 text-rose-800 border-rose-300'
+                statusLabel = 'Status: Declined'
+              } else if (isExpired) {
+                badgeClass = 'bg-slate-100 text-slate-800 border-slate-300'
+                statusLabel = 'Status: Expired'
+              }
+
+              return (
+                <div
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-card border border-line-default bg-surface-default p-3 shadow-xs"
+                  key={inv.id}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-grid size-8 place-items-center rounded-full bg-amber-100 text-xs font-bold text-amber-800">
+                      {(inv.email || 'I').slice(0, 2).toUpperCase()}
+                    </span>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-ink-primary">{inv.email}</p>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${badgeClass}`}>
+                          {statusLabel}
+                        </span>
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-200">
+                          {inv.role === 'manager' ? 'Manager' : 'Team Member'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-ink-muted">
+                        Invited by {inv.invited_by_name || inv.invited_by_email || 'Manager'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    {/* Pending actions: Copy Token & Cancel */}
+                    {isPending && (
+                      <>
+                        <button
+                          className="rounded border border-line-default bg-white px-2 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-muted transition-colors"
+                          onClick={() => {
+                            navigator.clipboard.writeText(inv.token)
+                            setCopiedToken(inv.id)
+                            setTimeout(() => setCopiedToken(null), 2000)
+                          }}
+                          type="button"
+                        >
+                          {copiedToken === inv.id ? 'Copied!' : 'Copy Token'}
+                        </button>
+                        <button
+                          className="rounded p-1 text-rose-600 hover:bg-rose-100 transition-colors"
+                          onClick={() => handleCancelInvite(inv.id)}
+                          title="Cancel invitation"
+                          type="button"
+                        >
+                          <Icon className="size-4" d={ICONS.trash} />
+                        </button>
+                      </>
+                    )}
+
+                    {/* Resend button for declined or expired invitations */}
+                    {(isDeclined || isExpired) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs py-1"
+                        disabled={resendingId === inv.id}
+                        onClick={() => handleResendInvite(inv.id, inv.email)}
+                        type="button"
+                      >
+                        {resendingId === inv.id ? 'Resending…' : 'Resend Invitation'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="rounded border border-line-default bg-white px-2 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-muted"
-                    onClick={() => {
-                      navigator.clipboard.writeText(inv.token)
-                      setCopiedToken(inv.id)
-                      setTimeout(() => setCopiedToken(null), 2000)
-                    }}
-                    type="button"
-                  >
-                    {copiedToken === inv.id ? 'Copied!' : 'Copy Token'}
-                  </button>
-                  <button
-                    className="rounded p-1 text-rose-600 hover:bg-rose-100"
-                    onClick={() => handleCancelInvite(inv.id)}
-                    title="Cancel invitation"
-                    type="button"
-                  >
-                    <Icon className="size-4" d={ICONS.trash} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </SectionCard>
       )}
@@ -1799,7 +2121,7 @@ function SettingsPage() {
   const { section } = useParams()
   const { isManager, isPersonal } = useWorkspace()
 
-  const showWorkspaceManagement = isManager && !isPersonal
+  const showWorkspaceManagement = !isPersonal  // all workspace members see the workspace section
 
   const visibleSections = NAV_SECTIONS.filter((s) => {
     if (s.id === 'workspace') return showWorkspaceManagement
@@ -1830,7 +2152,7 @@ function SettingsPage() {
             ? 'Manage your personal account, security, and preferences.'
             : isManager
             ? 'Manage your account, team members, and workspace configuration.'
-            : 'Manage your personal preferences and account settings.'}
+            : 'Manage your personal preferences and workspace membership.'}
         </p>
       </header>
 

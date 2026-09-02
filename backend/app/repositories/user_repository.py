@@ -49,3 +49,19 @@ class UserRepository:
     async def list_all(self, offset: int = 0, limit: int = 20) -> list[User]:
         result = await self.db.execute(select(User).offset(offset).limit(limit))
         return list(result.scalars().all())
+
+    async def search_by_email(self, query: str, limit: int = 10) -> list[User]:
+        clean_query = query.strip().lower()
+        if not clean_query:
+            return []
+        stmt = (
+            select(User)
+            .where(
+                User.is_active == True,  # noqa: E712
+                User.email.ilike(f"%{clean_query}%"),
+            )
+            .order_by(User.email.asc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

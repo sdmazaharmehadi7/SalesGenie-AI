@@ -346,13 +346,18 @@ class WorkspaceService:
         current_user: User,
     ) -> WorkspaceInvitation:
         """
-        Manager generates an invitation for a user by email.
-
-        If the invited user does not yet have an account, the invitation is
-        safely stored as PENDING. They can register at any time and accept it.
+        Manager generates an invitation for a registered user by email.
+        Enforces:
+        - Manager permissions
+        - User exists in the database
+        - User is not already a member
+        - User does not already have an active pending invitation
+        - Creates invitation, in-app notification, and email.
         """
         await self._require_manager(workspace_id, current_user.id)
         workspace = await self.repo.get_by_id(workspace_id)
+        if workspace is None or not workspace.is_active:
+            raise NotFoundError("Workspace not found.", error_code="workspace_not_found")
 
         if workspace.type == WorkspaceType.PERSONAL:
             raise ValidationAppError(
@@ -367,42 +372,134 @@ class WorkspaceService:
                 error_code="cannot_invite_self",
             )
 
-        # Check if user already exists and is already an active member
+        # Requirement 1 & 2: User must exist in the database
         user_repo = UserRepository(self.db)
         existing_user = await user_repo.get_by_email(clean_email)
+        if not existing_user:
+            raise NotFoundError(
+                "No SalesGenie account exists with this email.",
+                error_code="user_not_found",
+            )
+
+        # Requirement 2: User is not already a member of this workspace
+        existing_member = await self.repo.get_membership(workspace_id, existing_user.id)
+        if existing_member and existing_member.status == MembershipStatus.ACTIVE.value:
+            raise ConflictError(
+                "This user is already a member of this workspace.",
+                error_code="already_a_member",
+            )
+
+        # Requirement 2: User does not already have a pending invitation
+        existing_pending = await self.repo.get_pending_invitation(workspace_id, clean_email)
+        if existing_pending is not None:
+            raise ConflictError(
+                "An invitation is already pending for this user.",
+                error_code="invitation_already_pending",
+            )
+
+        # Check if an old invitation exists (declined, cancelled, expired)
+        old_invite = await self.repo.get_any_invitation(workspace_id, clean_email)
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+        if old_invite is not None:
+            old_invite.token = token
+            old_invite.role = role
+            old_invite.invited_by_id = current_user.id
+            old_invite.status = InvitationStatus.PENDING.value
+            old_invite.expires_at = expires_at
+            old_invite.accepted_at = None
+            await self.db.commit()
+            await self.db.refresh(old_invite)
+            invitation = old_invite
+        else:
+            invitation = await self.repo.create_invitation(
+                workspace_id=workspace_id,
+                email=clean_email,
+                token=token,
+                role=role,
+                invited_by_id=current_user.id,
+                expires_at=expires_at,
+            )
+            await self.db.commit()
+
+        # Requirement 4 & 8: In-App Notification and Email Delivery
+        from app.services.notification_service import NotificationService
+
+        notif_service = NotificationService(self.db)
+        await notif_service.notify_workspace_invitation(
+            invitation_id=invitation.id,
+            workspace_id=workspace.id,
+            workspace_name=workspace.name,
+            manager_name=current_user.name or current_user.email,
+            invited_user=existing_user,
+            token=invitation.token,
+        )
+        await self.db.commit()
+
+        # Eagerly reload relationships
+        reloaded = await self.repo.get_invitation_by_id(invitation.id)
+        return reloaded or invitation
+
+    async def resend_invitation(
+        self,
+        workspace_id: uuid.UUID,
+        invitation_id: uuid.UUID,
+        current_user: User,
+    ) -> WorkspaceInvitation:
+        """
+        Manager resends an invitation (e.g. if expired or declined).
+        """
+        await self._require_manager(workspace_id, current_user.id)
+        workspace = await self.repo.get_by_id(workspace_id)
+        if workspace is None or not workspace.is_active:
+            raise NotFoundError("Workspace not found.", error_code="workspace_not_found")
+
+        invitation = await self.repo.get_invitation_by_id(invitation_id)
+        if invitation is None or invitation.workspace_id != workspace_id:
+            raise NotFoundError("Invitation not found.", error_code="invitation_not_found")
+
+        if invitation.status == InvitationStatus.ACCEPTED.value:
+            raise ConflictError(
+                "This invitation has already been accepted.",
+                error_code="invitation_already_accepted",
+            )
+
+        user_repo = UserRepository(self.db)
+        existing_user = await user_repo.get_by_email(invitation.email)
         if existing_user:
             existing_member = await self.repo.get_membership(workspace_id, existing_user.id)
             if existing_member and existing_member.status == MembershipStatus.ACTIVE.value:
                 raise ConflictError(
-                    "This user is already an active member of this workspace.",
+                    "This user is already a member of this workspace.",
                     error_code="already_a_member",
                 )
 
-        # Check for existing active pending invitation
-        existing_invite = await self.repo.get_pending_invitation(workspace_id, clean_email)
-        if existing_invite is not None:
-            # Re-issue with refreshed expiry and token
-            existing_invite.token = secrets.token_urlsafe(32)
-            existing_invite.role = role
-            existing_invite.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-            await self.db.commit()
-            await self.db.refresh(existing_invite)
-            return existing_invite
-
-        # Create brand new invitation
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
-        invitation = await self.repo.create_invitation(
-            workspace_id=workspace_id,
-            email=clean_email,
-            token=token,
-            role=role,
-            invited_by_id=current_user.id,
-            expires_at=expires_at,
-        )
+        invitation.token = token
+        invitation.status = InvitationStatus.PENDING.value
+        invitation.expires_at = expires_at
+        invitation.invited_by_id = current_user.id
+        invitation.accepted_at = None
         await self.db.commit()
-        # Eagerly reload relationships
+        await self.db.refresh(invitation)
+
+        if existing_user:
+            from app.services.notification_service import NotificationService
+
+            notif_service = NotificationService(self.db)
+            await notif_service.notify_workspace_invitation(
+                invitation_id=invitation.id,
+                workspace_id=workspace.id,
+                workspace_name=workspace.name,
+                manager_name=current_user.name or current_user.email,
+                invited_user=existing_user,
+                token=invitation.token,
+            )
+            await self.db.commit()
+
         reloaded = await self.repo.get_invitation_by_id(invitation.id)
         return reloaded or invitation
 
@@ -410,12 +507,13 @@ class WorkspaceService:
         self,
         workspace_id: uuid.UUID,
         current_user: User,
+        status: str | None = None,
     ) -> list[WorkspaceInvitation]:
-        """Manager views pending invitations for a workspace."""
+        """Manager views invitations for a workspace."""
         await self._require_manager(workspace_id, current_user.id)
         return await self.repo.get_workspace_invitations(
             workspace_id,
-            status=InvitationStatus.PENDING.value,
+            status=status,
         )
 
     async def cancel_invitation(
@@ -524,6 +622,16 @@ class WorkspaceService:
             InvitationStatus.ACCEPTED.value,
             accepted_at=datetime.now(timezone.utc),
         )
+
+        # Resolve pending invitation notification
+        from app.services.notification_service import NotificationService
+
+        notif_service = NotificationService(self.db)
+        await notif_service.resolve_invitation_notifications(
+            user_id=current_user.id,
+            invitation_id=invitation.id,
+        )
+
         await self.db.commit()
         await self.db.refresh(membership)
         await self.db.refresh(workspace)
@@ -554,6 +662,16 @@ class WorkspaceService:
 
         await self.repo.update_invitation_status(
             invitation,
-            InvitationStatus.REJECTED.value,
+            InvitationStatus.DECLINED.value,
         )
+
+        # Resolve pending invitation notification
+        from app.services.notification_service import NotificationService
+
+        notif_service = NotificationService(self.db)
+        await notif_service.resolve_invitation_notifications(
+            user_id=current_user.id,
+            invitation_id=invitation.id,
+        )
+
         await self.db.commit()

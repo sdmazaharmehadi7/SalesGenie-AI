@@ -44,6 +44,7 @@ class NotificationType(str, enum.Enum):
     WEEKLY_DIGEST = "weekly_digest"
     AI_INSIGHTS = "ai_insights"
     TEAM_MENTIONS = "team_mentions"
+    WORKSPACE_INVITATION = "workspace_invitation"
 
 
 class Notification(Base, UUIDPrimaryKeyMixin):

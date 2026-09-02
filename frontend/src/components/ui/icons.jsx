@@ -52,8 +52,12 @@ import {
   Trash2,
   TrendingUp,
   User,
+  UserCheck,
+  UserMinus,
+  UserPlus,
   Users,
   X,
+  Zap,
 } from 'lucide-react'
 
 export {
@@ -110,6 +114,10 @@ export {
   Trash2,
   TrendingUp,
   User,
+  UserCheck,
+  UserMinus,
+  UserPlus,
   Users,
   X,
+  Zap,
 }

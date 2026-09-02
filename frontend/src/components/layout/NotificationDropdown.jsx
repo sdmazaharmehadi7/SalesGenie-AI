@@ -64,6 +64,11 @@ const TYPE_CONFIG = {
     color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-950/50 dark:text-cyan-400',
     label: 'Mention',
   },
+  workspace_invitation: {
+    icon: Mail,
+    color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400',
+    label: 'Invitation',
+  },
 }
 
 function formatRelativeTime(dateStr) {
@@ -197,6 +202,8 @@ export default function NotificationDropdown() {
     const targetLink = notif.data?.link
     if (targetLink) {
       navigate(targetLink)
+    } else if (notif.type === 'workspace_invitation' || notif.entity_type === 'workspace_invitation') {
+      navigate('/workspace-hub')
     } else if (notif.entity_type === 'lead' && notif.entity_id) {
       navigate(`/leads/${notif.entity_id}`)
     } else if (notif.entity_type === 'opportunity' && notif.entity_id) {

@@ -35,6 +35,11 @@ export const managerNavigation = [
   { label: 'Workspace Management', icon: Building2, to: '/settings/general', badge: 'Manager' },
 ]
 
+// Visible to ALL workspace members (non-personal), both Team Members and Managers
+export const workspaceNavigation = [
+  { label: 'Workspace & Team', icon: Building2, to: '/workspace/team' },
+]
+
 export const secondaryNavigation = [
   { label: 'Settings', icon: Settings, to: '/settings' },
 ]

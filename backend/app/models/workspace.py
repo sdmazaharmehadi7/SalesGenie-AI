@@ -81,6 +81,7 @@ class InvitationStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    DECLINED = "declined"
     CANCELLED = "cancelled"
     EXPIRED = "expired"
 

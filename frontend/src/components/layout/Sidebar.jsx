@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 
 import { ChevronLeft, X } from '@/components/ui/icons'
-import { managerNavigation, primaryNavigation, secondaryNavigation } from '@/components/layout/navigation'
+import { managerNavigation, primaryNavigation, secondaryNavigation, workspaceNavigation } from '@/components/layout/navigation'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import WorkspaceContextSwitcher from '@/components/layout/WorkspaceContextSwitcher'
 
@@ -36,6 +36,7 @@ function NavigationItem({ isCollapsed, item, onClick }) {
 function SidebarContent({ isCollapsed, onClose }) {
   const { isManager, isPersonal } = useWorkspace()
   const showManagerNav = isManager && !isPersonal
+  const showWorkspaceNav = !isPersonal  // both Team Members AND Managers
 
   return (
     <>
@@ -65,6 +66,21 @@ function SidebarContent({ isCollapsed, onClose }) {
         {primaryNavigation.map((item) => (
           <NavigationItem isCollapsed={isCollapsed} item={item} key={item.label} onClick={onClose} />
         ))}
+
+        {/* Workspace & Team — visible to ALL non-personal workspace members */}
+        {showWorkspaceNav && (
+          <>
+            <div className="my-2 border-t border-line-default" />
+            <div className="px-3 py-1">
+              <span className={isCollapsed ? 'sr-only' : 'text-[10px] font-bold uppercase tracking-wider text-brand-600'}>
+                Workspace
+              </span>
+            </div>
+            {workspaceNavigation.map((item) => (
+              <NavigationItem isCollapsed={isCollapsed} item={item} key={item.label} onClick={onClose} />
+            ))}
+          </>
+        )}
 
         {/* Manager-only Team & Workspace Management */}
         {showManagerNav && (

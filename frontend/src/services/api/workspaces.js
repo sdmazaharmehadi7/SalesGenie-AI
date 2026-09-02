@@ -91,11 +91,20 @@ export const inviteUserByEmail = (workspaceId, payload) =>
   api.post(`/workspaces/${workspaceId}/invitations`, payload).then((r) => r.data)
 
 /**
- * List all pending invitations for a workspace (manager only).
+ * List invitations for a workspace (manager only).
  * @param {string} workspaceId
+ * @param {string} [status] - optional status filter ('pending', 'accepted', 'declined', etc.)
  */
-export const listWorkspaceInvitations = (workspaceId) =>
-  api.get(`/workspaces/${workspaceId}/invitations`).then((r) => r.data)
+export const listWorkspaceInvitations = (workspaceId, status) =>
+  api.get(`/workspaces/${workspaceId}/invitations`, { params: status ? { status } : {} }).then((r) => r.data)
+
+/**
+ * Resend an invitation (manager only).
+ * @param {string} workspaceId
+ * @param {string} invitationId
+ */
+export const resendWorkspaceInvitation = (workspaceId, invitationId) =>
+  api.post(`/workspaces/${workspaceId}/invitations/${invitationId}/resend`).then((r) => r.data)
 
 /**
  * Cancel a pending invitation (manager only).

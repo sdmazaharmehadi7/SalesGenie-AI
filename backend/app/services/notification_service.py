@@ -519,3 +519,92 @@ SalesGenie AI Platform
             },
         )
         return await self.notifications.create(notif_in)
+
+    async def notify_workspace_invitation(
+        self,
+        *,
+        invitation_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        workspace_name: str,
+        manager_name: str,
+        invited_user: User,
+        token: str,
+    ) -> Notification | None:
+        """
+        Triggered when a Manager invites a user to join a workspace.
+        Creates an in-app notification for ONLY the invited user
+        and sends an email via the configured SalesGenie SMTP/email provider.
+        """
+        title = "New Workspace Invitation"
+        message = f"{manager_name} invited you to join {workspace_name}."
+        idempotency_key = f"ws_invite:{workspace_id}:{invited_user.id}"
+
+        # 1. In-App Notification (user-level, workspace_id=None so user sees it anywhere)
+        notif_in = NotificationCreate(
+            user_id=invited_user.id,
+            workspace_id=None,
+            type=NotificationType.WORKSPACE_INVITATION.value,
+            title=title,
+            message=message,
+            entity_type="workspace_invitation",
+            entity_id=invitation_id,
+            data={
+                "workspace_id": str(workspace_id),
+                "workspace_name": workspace_name,
+                "manager_name": manager_name,
+                "token": token,
+                "link": "/workspace-hub",
+            },
+            idempotency_key=idempotency_key,
+        )
+        notification = await self.notifications.create(notif_in)
+
+        # 2. Email Notification
+        if invited_user.email:
+            email_subject = f"You're invited to join {workspace_name} on SalesGenie"
+            hub_url = "http://localhost:5173/workspace-hub"
+            user_name_display = invited_user.name or invited_user.email.split("@")[0]
+            email_body = f"""Hi {user_name_display},
+
+{manager_name} has invited you to join the "{workspace_name}" workspace on SalesGenie.
+
+Open SalesGenie to review and accept the invitation.
+
+View Invitation: {hub_url}
+
+Best regards,
+SalesGenie AI Team
+"""
+            try:
+                email_provider = get_email_provider()
+                await email_provider.send_email(
+                    to_address=invited_user.email,
+                    subject=email_subject,
+                    body=email_body,
+                )
+                logger.info(
+                    "Workspace invitation email sent to %s for workspace %s",
+                    invited_user.email,
+                    workspace_name,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to send workspace invitation email to %s: %s",
+                    invited_user.email,
+                    exc,
+                )
+
+        return notification
+
+    async def resolve_invitation_notifications(
+        self,
+        *,
+        user_id: uuid.UUID,
+        invitation_id: uuid.UUID,
+    ) -> int:
+        """Marks pending workspace invitation notifications as read for this user & invitation."""
+        return await self.notifications.mark_entity_notifications_read(
+            user_id=user_id,
+            entity_type="workspace_invitation",
+            entity_id=invitation_id,
+        )

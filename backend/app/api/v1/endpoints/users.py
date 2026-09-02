@@ -11,14 +11,29 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import DBSession, Pagination, require_roles
+from app.api.deps import CurrentActiveUser, DBSession, Pagination, require_roles
 from app.models.user import User, UserRole
-from app.schemas.user import UserRead, UserUpdate
+from app.schemas.user import UserRead, UserSearchItem, UserUpdate
 from app.services.user_service import UserService
 
 router = APIRouter()
 
 AdminUser = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
+
+
+@router.get("/search", response_model=list[UserSearchItem], summary="Search registered users by email")
+async def search_users(
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    email: str = "",
+) -> list[UserSearchItem]:
+    """
+    Search registered active users by email.
+    Available to any authenticated user for recipient auto-complete.
+    Returns only minimal non-sensitive user fields (id, name, email).
+    """
+    users = await UserService(db).search_users_by_email(email)
+    return [UserSearchItem.model_validate(user) for user in users]
 
 
 @router.get("", response_model=list[UserRead], summary="List all users (admin only)")

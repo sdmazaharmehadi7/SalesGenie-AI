@@ -622,62 +622,87 @@ export default function WorkspaceHubPage({ initialFlow = null }) {
                 </div>
               )}
 
-              {/* 4. PENDING INVITATIONS SECTION */}
-              {hasInvitations && (
-                <div>
-                  <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-amber-700">
-                    Pending Invitations ({pendingInvitations.length})
+              {/* 4. WORKSPACE INVITATIONS SECTION */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700">
+                    Workspace Invitations {hasInvitations ? `(${pendingInvitations.length})` : ''}
                   </h2>
-
-                  <div className="space-y-3">
-                    {pendingInvitations.map((inv) => (
-                      <div
-                        key={inv.id}
-                        className="flex flex-col items-start justify-between gap-3 rounded-card border border-amber-200 bg-amber-50/50 p-4 sm:flex-row sm:items-center"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="grid size-10 shrink-0 place-items-center rounded-control bg-amber-100 text-amber-800">
-                            <Mail className="size-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-semibold text-ink-primary">
-                                {inv.workspace_name}
-                              </h3>
-                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                                Role: {inv.role === 'manager' ? 'Manager' : 'Team Member'}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 text-xs text-ink-secondary">
-                              Invited by <span className="font-medium text-ink-primary">{inv.invited_by_name || inv.invited_by_email}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex w-full items-center gap-2 sm:w-auto">
-                          <Button
-                            className="flex-1 justify-center border-amber-300 bg-white text-ink-secondary hover:bg-amber-100/50 text-xs sm:flex-none"
-                            onClick={() => handleDeclineInvite(inv)}
-                            type="button"
-                            variant="outline"
-                          >
-                            <X className="mr-1 size-3.5" />
-                            <span>Decline</span>
-                          </Button>
-                          <Button
-                            className="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-xs sm:flex-none"
-                            onClick={() => handleAcceptInvite(inv)}
-                            type="button"
-                          >
-                            <Check className="mr-1 size-3.5" />
-                            <span>Accept & Join</span>
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
-              )}
+
+                {loadingInvitations ? (
+                  <div className="rounded-card border border-line-default bg-surface-default p-4 text-center text-xs text-ink-muted">
+                    Checking for workspace invitations…
+                  </div>
+                ) : hasInvitations ? (
+                  <div className="space-y-3">
+                    {pendingInvitations.map((inv) => {
+                      const formattedDate = inv.created_at
+                        ? new Date(inv.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Recent'
+
+                      return (
+                        <div
+                          key={inv.id}
+                          className="flex flex-col items-start justify-between gap-3 rounded-card border border-amber-200 bg-amber-50/50 p-4 shadow-card transition-all hover:border-amber-300 sm:flex-row sm:items-center"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="grid size-10 shrink-0 place-items-center rounded-control bg-amber-100 text-amber-800">
+                              <Mail className="size-5" />
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-sm font-semibold text-ink-primary">
+                                  {inv.workspace_name}
+                                </h3>
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-300">
+                                  Status: Pending
+                                </span>
+                                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-200">
+                                  Role: {inv.role === 'manager' ? 'Manager' : 'Team Member'}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-ink-secondary">
+                                Invited by <span className="font-semibold text-ink-primary">{inv.invited_by_name || inv.invited_by_email || 'Workspace Manager'}</span>
+                                <span className="mx-1.5 text-ink-muted">•</span>
+                                <span className="text-ink-muted">{formattedDate}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex w-full items-center gap-2 sm:w-auto">
+                            <Button
+                              className="flex-1 justify-center border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs sm:flex-none"
+                              onClick={() => handleDeclineInvite(inv)}
+                              type="button"
+                              variant="outline"
+                            >
+                              <X className="mr-1 size-3.5" />
+                              <span>Decline</span>
+                            </Button>
+                            <Button
+                              className="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-xs sm:flex-none text-white"
+                              onClick={() => handleAcceptInvite(inv)}
+                              type="button"
+                            >
+                              <Check className="mr-1 size-3.5" />
+                              <span>Accept</span>
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-card border border-dashed border-line-default bg-surface-default/60 p-4 text-center">
+                    <p className="text-xs text-ink-muted">No pending workspace invitations.</p>
+                  </div>
+                )}
+              </div>
 
               {/* 5. WORKSPACE ACTIONS: CREATE OR JOIN */}
               <div>

@@ -479,16 +479,39 @@ async def invite_user(
 @router.get(
     "/{workspace_id}/invitations",
     response_model=list[WorkspaceInvitationRead],
-    summary="List pending invitations for a workspace",
-    description="Returns all pending, active invitations for the workspace. Requires **manager** role.",
+    summary="List invitations for a workspace",
+    description="Returns invitations for the workspace (all or filtered by status). Requires **manager** role.",
 )
 async def list_workspace_invitations(
     workspace_id: uuid.UUID,
     db: DBSession,
     current_user: CurrentActiveUser,
+    status: str | None = None,
 ) -> list[WorkspaceInvitationRead]:
-    invitations = await WorkspaceService(db).list_workspace_invitations(workspace_id, current_user)
+    invitations = await WorkspaceService(db).list_workspace_invitations(
+        workspace_id, current_user, status=status
+    )
     return [_invitation_read(inv) for inv in invitations]
+
+
+@router.post(
+    "/{workspace_id}/invitations/{invitation_id}/resend",
+    response_model=WorkspaceInvitationRead,
+    summary="Resend an invitation",
+    description="Refreshes token and resends an invitation email/notification. Requires **manager** role.",
+)
+async def resend_invitation(
+    workspace_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+) -> WorkspaceInvitationRead:
+    invitation = await WorkspaceService(db).resend_invitation(
+        workspace_id=workspace_id,
+        invitation_id=invitation_id,
+        current_user=current_user,
+    )
+    return _invitation_read(invitation)
 
 
 @router.delete(
