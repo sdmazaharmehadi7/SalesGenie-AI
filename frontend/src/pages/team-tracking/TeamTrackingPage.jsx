@@ -762,7 +762,7 @@ export default function TeamTrackingPage() {
       )}
 
       {/* ─── 2. Summary KPI Cards ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5 sm:gap-4">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -816,7 +816,7 @@ export default function TeamTrackingPage() {
             return (
               <div
                 key={kpi.label}
-                className="rounded-2xl border border-line-default bg-surface-default p-4 sm:p-5 shadow-xs flex flex-col justify-between min-w-0 min-h-[128px] transition-shadow hover:shadow-xs"
+                className="rounded-2xl border border-line-default bg-surface-default p-4 sm:p-5 shadow-xs flex flex-col justify-between min-w-0 h-full min-h-[128px] transition-shadow hover:shadow-xs"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-ink-muted truncate">{kpi.label}</span>

@@ -11,6 +11,7 @@ column intact.
 
 import uuid
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -19,6 +20,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.pipeline_enums import LeadStatus
+
+if TYPE_CHECKING:
+    from app.models.account import Account
+    from app.models.company_insight import CompanyInsight
+    from app.models.contact import Contact
+    from app.models.crm_sync_log import CRMSyncLog
+    from app.models.lead_score import LeadScore
+    from app.models.opportunity import Opportunity
+    from app.models.outreach_campaign import OutreachCampaign
+    from app.models.sales_interaction import SalesInteraction
+    from app.models.task import Task
+    from app.models.user import User
+    from app.models.workspace import Workspace
 
 
 class Lead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -98,46 +112,46 @@ class Lead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # -----------------------------------------------------------------------
 
     # Legacy owner relationship (maps to owner_id)
-    owner: Mapped["User | None"] = relationship(  # noqa: F821
+    owner: Mapped["User | None"] = relationship(
         "User", foreign_keys=[owner_id], lazy="joined"
     )
     # Creator: the user who originally created the lead
-    creator: Mapped["User | None"] = relationship(  # noqa: F821
+    creator: Mapped["User | None"] = relationship(
         "User", foreign_keys=[created_by]
     )
     # Assignee: the user the lead is currently assigned to
-    assignee: Mapped["User | None"] = relationship(  # noqa: F821
+    assignee: Mapped["User | None"] = relationship(
         "User", foreign_keys=[assigned_to]
     )
 
-    workspace: Mapped["Workspace | None"] = relationship(  # noqa: F821
+    workspace: Mapped["Workspace | None"] = relationship(
         "Workspace", foreign_keys=[workspace_id]
     )
-    account: Mapped["Account | None"] = relationship(  # noqa: F821
+    account: Mapped["Account | None"] = relationship(
         "Account", back_populates="leads", foreign_keys=[account_id]
     )
-    company_insights: Mapped[list["CompanyInsight"]] = relationship(  # noqa: F821
-        back_populates="lead", cascade="all, delete-orphan"
+    company_insights: Mapped[list["CompanyInsight"]] = relationship(
+        "CompanyInsight", back_populates="lead", cascade="all, delete-orphan"
     )
-    lead_scores: Mapped[list["LeadScore"]] = relationship(  # noqa: F821
-        back_populates="lead", cascade="all, delete-orphan"
+    lead_scores: Mapped[list["LeadScore"]] = relationship(
+        "LeadScore", back_populates="lead", cascade="all, delete-orphan"
     )
-    outreach_campaigns: Mapped[list["OutreachCampaign"]] = relationship(  # noqa: F821
-        back_populates="lead", cascade="all, delete-orphan"
+    outreach_campaigns: Mapped[list["OutreachCampaign"]] = relationship(
+        "OutreachCampaign", back_populates="lead", cascade="all, delete-orphan"
     )
-    sales_interactions: Mapped[list["SalesInteraction"]] = relationship(  # noqa: F821
-        back_populates="lead", foreign_keys="SalesInteraction.lead_id"
+    sales_interactions: Mapped[list["SalesInteraction"]] = relationship(
+        "SalesInteraction", back_populates="lead", foreign_keys="SalesInteraction.lead_id"
     )
-    crm_sync_logs: Mapped[list["CRMSyncLog"]] = relationship(  # noqa: F821
-        back_populates="lead", cascade="all, delete-orphan"
+    crm_sync_logs: Mapped[list["CRMSyncLog"]] = relationship(
+        "CRMSyncLog", back_populates="lead", cascade="all, delete-orphan"
     )
-    contacts: Mapped[list["Contact"]] = relationship(  # noqa: F821
+    contacts: Mapped[list["Contact"]] = relationship(
         "Contact", back_populates="lead", foreign_keys="Contact.lead_id"
     )
-    opportunities: Mapped[list["Opportunity"]] = relationship(  # noqa: F821
+    opportunities: Mapped[list["Opportunity"]] = relationship(
         "Opportunity", back_populates="lead", foreign_keys="Opportunity.lead_id"
     )
-    tasks: Mapped[list["Task"]] = relationship(  # noqa: F821
+    tasks: Mapped[list["Task"]] = relationship(
         "Task", back_populates="lead", foreign_keys="Task.lead_id"
     )
 
