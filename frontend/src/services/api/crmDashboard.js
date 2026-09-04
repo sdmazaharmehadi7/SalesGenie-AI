@@ -13,3 +13,9 @@ export const getCRMForecast = async (params = {}) => {
   const response = await api.get('/crm/forecast', { params })
   return response.data
 }
+
+export const getCRMLeadRecommendations = async (params = {}) => {
+  const response = await api.get('/crm/lead-recommendations', { params })
+  return response.data
+}
+

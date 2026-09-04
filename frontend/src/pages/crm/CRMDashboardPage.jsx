@@ -20,6 +20,7 @@ import {
 import { getCRMSummary, getCRMForecast } from '@/services/api/crmDashboard'
 import { toggleTaskComplete } from '@/services/api/tasks'
 import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
+import AutomatedFollowUpsSection from './components/AutomatedFollowUpsSection'
 
 export default function CRMDashboardPage() {
   const { workspaceKey } = useWorkspaceKey()
@@ -198,6 +199,12 @@ export default function CRMDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Automated Follow-up Recommendations & Next Steps Section (Milestone 4) */}
+      <AutomatedFollowUpsSection
+        recommendations={summary?.lead_recommendations || []}
+        onRefresh={loadData}
+      />
 
       {/* AI Predictive Analytics & Forecast Section */}
       <div className="rounded-2xl border border-line-default bg-surface-default p-6 shadow-xs">

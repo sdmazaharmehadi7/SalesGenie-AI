@@ -17,6 +17,7 @@ import {
 
 import { getDashboardSummary } from '@/services/api/dashboard'
 import { getLeads, createLead } from '@/services/api/leads'
+import { getFollowUps } from '@/services/api/followUps'
 import { listWorkspaceMembers } from '@/services/api/workspaces'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/context/AuthContext'
@@ -232,6 +233,8 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [overdueFollowUps, setOverdueFollowUps] = useState([])
+  const [upcomingFollowUps, setUpcomingFollowUps] = useState([])
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   const greeting = (() => {
@@ -246,12 +249,16 @@ function DashboardPage() {
     setSummary(null)
     setLeads([])
     try {
-      const [summaryData, leadsData] = await Promise.all([
+      const [summaryData, leadsData, overdueData, upcomingData] = await Promise.all([
         getDashboardSummary(),
         getLeads({ page_size: 100 }),
+        getFollowUps({ status: 'overdue', page_size: 5 }).catch(() => ({ items: [] })),
+        getFollowUps({ status: 'upcoming', page_size: 5 }).catch(() => ({ items: [] })),
       ])
       setSummary(summaryData)
       setLeads(leadsData.items || [])
+      setOverdueFollowUps(overdueData.items || [])
+      setUpcomingFollowUps(upcomingData.items || [])
     } catch (err) {
       showToast('Failed to load dashboard data.', 'error')
       console.error(err)
@@ -477,6 +484,72 @@ function DashboardPage() {
           )}
         </article>
       </section>
+
+      {/* Follow-ups Row */}
+      {(overdueFollowUps.length > 0 || upcomingFollowUps.length > 0) && (
+        <section className="grid gap-6 xl:grid-cols-2">
+          {/* Overdue Follow-ups */}
+          {overdueFollowUps.length > 0 && (
+            <article className="card">
+              <SectionHeader
+                action={<a href="/tasks" className="text-sm font-medium text-brand-600 hover:text-brand-700">View tasks</a>}
+                description="Leads requiring immediate attention"
+              >
+                <span className="text-rose-600">⚠ Overdue Follow-ups</span>
+              </SectionHeader>
+              <div className="divide-y divide-line-default">
+                {overdueFollowUps.map((fu) => {
+                  const daysPast = fu.due_date
+                    ? Math.round((Date.now() - new Date(fu.due_date)) / (1000 * 60 * 60 * 24))
+                    : 0
+                  return (
+                    <div key={fu.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-ink-primary">
+                          {fu.entity_name || fu.title || 'Follow-up'}
+                        </p>
+                        <p className="mt-0.5 text-xs text-ink-muted">{fu.title}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 border border-rose-200">
+                        {daysPast === 0 ? 'Due today' : `${daysPast}d overdue`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </article>
+          )}
+
+          {/* Upcoming Follow-ups */}
+          {upcomingFollowUps.length > 0 && (
+            <article className="card">
+              <SectionHeader
+                action={<a href="/tasks" className="text-sm font-medium text-brand-600 hover:text-brand-700">View tasks</a>}
+                description="Scheduled follow-ups coming up"
+              >
+                Upcoming Follow-ups
+              </SectionHeader>
+              <div className="divide-y divide-line-default">
+                {upcomingFollowUps.map((fu) => {
+                  const d = fu.due_date ? new Date(fu.due_date) : null
+                  const dateLabel = d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'
+                  return (
+                    <div key={fu.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-ink-primary">
+                          {fu.entity_name || fu.title || 'Follow-up'}
+                        </p>
+                        <p className="mt-0.5 text-xs text-ink-muted">{fu.title}</p>
+                      </div>
+                      <time className="shrink-0 text-xs font-medium text-ink-secondary">{dateLabel}</time>
+                    </div>
+                  )
+                })}
+              </div>
+            </article>
+          )}
+        </section>
+      )}
 
       {/* Quick actions */}
       <section className="grid gap-6 xl:grid-cols-3">

@@ -35,6 +35,8 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    task_type: Mapped[str] = mapped_column(String(50), nullable=False, default="task", server_default="task", index=True)
+    rescheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     priority: Mapped[TaskPriority] = mapped_column(
         Enum(
@@ -99,5 +101,50 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     account: Mapped["Account | None"] = relationship("Account", back_populates="tasks", foreign_keys=[account_id])  # noqa: F821
     opportunity: Mapped["Opportunity | None"] = relationship("Opportunity", back_populates="tasks", foreign_keys=[opportunity_id])  # noqa: F821
 
+    @property
+    def dynamic_status(self) -> str:
+        return compute_follow_up_status(self.due_date, self.is_completed, self.rescheduled_at)
+
     def __repr__(self) -> str:
         return f"<Task id={self.id} title={self.title!r} priority={self.priority.value}>"
+
+
+def compute_follow_up_status(
+    due_date: datetime | None,
+    is_completed: bool,
+    rescheduled_at: datetime | None = None,
+    now: datetime | None = None,
+) -> str:
+    """
+    Computes follow-up status consistently across backend and schemas.
+    - COMPLETED if is_completed is True
+    - OVERDUE if due_date is in the past (before today, or before now)
+    - DUE if due today
+    - RESCHEDULED if rescheduled and scheduled for a future date
+    - UPCOMING if future date
+    """
+    from datetime import timezone
+
+    if is_completed:
+        return "COMPLETED"
+    if due_date is None:
+        return "UPCOMING"
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+
+    due = due_date if due_date.tzinfo is not None else due_date.replace(tzinfo=timezone.utc)
+
+    if due < now:
+        if due.date() < now.date():
+            return "OVERDUE"
+        return "DUE"
+    elif due.date() == now.date():
+        return "DUE"
+    else:
+        if rescheduled_at is not None:
+            return "RESCHEDULED"
+        return "UPCOMING"
+

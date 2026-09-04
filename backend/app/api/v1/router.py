@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     crm_dashboard,
     dashboard,
     email,
+    follow_ups,
     health,
     lead_scores,
     leads,
@@ -47,6 +48,7 @@ api_router.include_router(accounts.router, prefix="/accounts", tags=["Accounts"]
 api_router.include_router(contacts.router, prefix="/contacts", tags=["Contacts"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["Opportunities & Deals"])
 api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
+api_router.include_router(follow_ups.router, prefix="/follow-ups", tags=["Follow-Ups"])
 api_router.include_router(activities.router, prefix="/activities", tags=["Activities & Timeline"])
 api_router.include_router(email.router, prefix="/email", tags=["Email"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

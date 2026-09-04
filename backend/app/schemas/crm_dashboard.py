@@ -10,6 +10,30 @@ from app.schemas.sales_interaction import ActivityListItem
 from app.schemas.task import TaskListItem
 
 
+import uuid
+from datetime import datetime
+
+class LeadFollowUpRecommendation(BaseModel):
+    id: str
+    lead_id: uuid.UUID
+    lead_name: str
+    company_name: str
+    lead_status: str
+    deal_value: Decimal | None = None
+    urgency: str  # "urgent", "high", "medium", "normal"
+    trigger_type: str  # "overdue_followup", "status_change", "stale_lead", "missing_followup", "new_uncontacted"
+    title: str
+    reason: str
+    suggested_action: str  # "schedule_followup", "log_call", "schedule_meeting", "create_opportunity", "send_email"
+    action_label: str
+    days_in_current_state: int
+    last_interaction_date: datetime | None = None
+    last_interaction_type: str | None = None
+    existing_follow_up_id: uuid.UUID | None = None
+    due_date: datetime | None = None
+    assigned_to: uuid.UUID | None = None
+
+
 class CRMDashboardSummary(BaseModel):
     total_leads: int
     total_accounts: int
@@ -21,6 +45,7 @@ class CRMDashboardSummary(BaseModel):
     win_rate: float
     upcoming_tasks: list[TaskListItem]
     recent_activities: list[ActivityListItem]
+    lead_recommendations: list[LeadFollowUpRecommendation] = []
 
 
 class OpportunityRiskAnalysis(BaseModel):

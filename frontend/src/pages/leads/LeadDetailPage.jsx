@@ -21,6 +21,7 @@ import { getLatestLeadScore, generateLeadScore } from '@/services/api/leadScores
 import { getLatestCompanyInsight, generateCompanyInsight } from '@/services/api/companyInsights'
 import { createOpportunity } from '@/services/api/opportunities'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
+import FollowUpCard from '@/components/common/FollowUpCard'
 import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 import { listWorkspaceMembers } from '@/services/api/workspaces'
 import { useToast } from '@/context/ToastContext'
@@ -49,6 +50,7 @@ export default function LeadDetailPage() {
   const [analyzingAi, setAnalyzingAi] = useState(false)
   const [creatingOpp, setCreatingOpp] = useState(false)
   const [reassigning, setReassigning] = useState(false)
+  const [timelineKey, setTimelineKey] = useState(0)
 
   const loadLeadData = async () => {
     setLoading(true)
@@ -455,7 +457,15 @@ export default function LeadDetailPage() {
             )}
           </dl>
 
-          <div className="mt-6 border-t border-line-default pt-4">
+          {/* Follow-up Card */}
+          <div className="mt-4">
+            <FollowUpCard
+              leadId={lead.id}
+              onActivityLogged={() => setTimelineKey((k) => k + 1)}
+            />
+          </div>
+
+          <div className="mt-4 border-t border-line-default pt-4">
             <Link
               to="/outreach-generator"
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-line-default bg-surface-subtle py-2 text-xs font-semibold text-ink-primary hover:bg-surface-muted"
@@ -468,7 +478,7 @@ export default function LeadDetailPage() {
 
         {/* Timeline Column */}
         <div className="lg:col-span-2">
-          <ActivityTimeline leadId={lead.id} />
+          <ActivityTimeline key={timelineKey} leadId={lead.id} />
         </div>
       </div>
     </div>

@@ -134,10 +134,13 @@ function LeadIntelligencePage() {
     }
   }
 
-  // Add note handler (local-only UI note; lead notes aren't part of the
-  // Lead Intelligence API surface)
-  const handleAddNoteSave = () => {
-    showToast('Note added successfully!')
+  // Saved callback — show a toast from the intelligence page
+  const handleMeetingSaved = () => {
+    showToast('Meeting logged to activity timeline.')
+  }
+
+  const handleNoteSaved = () => {
+    showToast('Note saved to activity timeline.')
   }
 
   const hasActiveFilters =
@@ -389,6 +392,7 @@ function LeadIntelligencePage() {
         <MeetingModal
           lead={meetingModalLead}
           onClose={() => setMeetingModalLead(null)}
+          onSaved={handleMeetingSaved}
         />
       )}
 
@@ -396,7 +400,7 @@ function LeadIntelligencePage() {
         <NoteModal
           lead={noteModalLead}
           onClose={() => setNoteModalLead(null)}
-          onAddNote={handleAddNoteSave}
+          onSaved={handleNoteSaved}
         />
       )}
     </div>

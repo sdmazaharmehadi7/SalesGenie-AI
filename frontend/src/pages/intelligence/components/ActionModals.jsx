@@ -1,4 +1,5 @@
 import { generateCampaign } from '@/services/api/outreach'
+import { logActivity } from '@/services/api/activities'
 import { useState } from 'react'
 import {
   X,
@@ -19,6 +20,7 @@ import {
   DollarSign,
   TrendingUp,
   MessageSquare,
+  Loader2,
 } from 'lucide-react'
 
 // ── Profile Modal ────────────────────────────────────────────────────────────
@@ -276,20 +278,40 @@ export function EmailModal({ lead, onClose }) {
 }
 
 // ── Meeting Scheduler Modal ──────────────────────────────────────────────────
-export function MeetingModal({ lead, onClose }) {
+export function MeetingModal({ lead, onClose, onSaved }) {
+  const today = new Date().toISOString().split('T')[0]
   const [booked, setBooked] = useState(false)
-  const [date, setDate] = useState('2026-07-28')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [date, setDate] = useState(today)
   const [time, setTime] = useState('10:30 AM')
   const [duration, setDuration] = useState('30 min')
+  const [title, setTitle] = useState(
+    `Discovery Call — ${lead?.company || 'Lead'}`
+  )
+  const [notes, setNotes] = useState('')
 
   if (!lead) return null
 
-  const handleSchedule = (e) => {
+  const handleSchedule = async (e) => {
     e.preventDefault()
-    setBooked(true)
-    setTimeout(() => {
-      onClose()
-    }, 1500)
+    setSaving(true)
+    setError(null)
+    try {
+      await logActivity({
+        interaction_type: 'meeting',
+        lead_id: lead.id,
+        summary: `Meeting scheduled: ${title} on ${date} at ${time} (${duration})${notes ? `\n\nNotes: ${notes}` : ''}`,
+        action_items: notes ? [notes] : [],
+      })
+      setBooked(true)
+      if (onSaved) onSaved()
+      setTimeout(() => onClose(), 1800)
+    } catch (err) {
+      setError(err?.response?.data?.error?.message || 'Failed to schedule meeting. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -313,7 +335,8 @@ export function MeetingModal({ lead, onClose }) {
             </div>
             <h4 className="text-lg font-bold text-ink-primary">Meeting Scheduled!</h4>
             <p className="text-sm text-ink-muted">
-              Calendar invite sent to <span className="font-medium text-ink-primary">{lead.email}</span>.
+              Saved to the activity timeline for{' '}
+              <span className="font-medium text-ink-primary">{lead.name}</span>.
             </p>
           </div>
         ) : (
@@ -329,10 +352,21 @@ export function MeetingModal({ lead, onClose }) {
 
             <div className="space-y-3 text-sm">
               <div>
+                <label className="block text-xs font-medium text-ink-muted mb-1">Meeting Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="input"
+                  required
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-ink-muted mb-1">Date</label>
                 <input
                   type="date"
                   value={date}
+                  min={today}
                   onChange={(e) => setDate(e.target.value)}
                   className="input"
                   required
@@ -344,7 +378,9 @@ export function MeetingModal({ lead, onClose }) {
                   <select value={time} onChange={(e) => setTime(e.target.value)} className="input cursor-pointer">
                     <option>09:00 AM</option>
                     <option>10:30 AM</option>
+                    <option>12:00 PM</option>
                     <option>02:00 PM</option>
+                    <option>03:30 PM</option>
                     <option>04:00 PM</option>
                   </select>
                 </div>
@@ -359,21 +395,27 @@ export function MeetingModal({ lead, onClose }) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-ink-muted mb-1">Meeting Title</label>
-                <input
-                  type="text"
-                  defaultValue={`Discovery Call — Sales Forecasting Platform & ${lead.company}`}
-                  className="input"
+                <label className="block text-xs font-medium text-ink-muted mb-1">Agenda / Notes <span className="text-ink-muted font-normal">(optional)</span></label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Demo the pipeline analytics module, discuss Q4 budget..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="input h-auto text-sm py-2.5"
                 />
               </div>
             </div>
 
+            {error && (
+              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-card px-3 py-2">{error}</p>
+            )}
+
             <div className="border-t border-line-default pt-4 flex justify-end gap-2">
-              <button type="button" onClick={onClose} className="btn btn-secondary btn-sm">
+              <button type="button" onClick={onClose} className="btn btn-secondary btn-sm" disabled={saving}>
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary btn-sm">
-                Confirm & Send Invite
+              <button type="submit" className="btn btn-primary btn-sm gap-1.5" disabled={saving}>
+                {saving ? <><Loader2 className="size-3.5 animate-spin" /> Saving…</> : <><Calendar className="size-3.5" /> Confirm & Save</>}
               </button>
             </div>
           </form>
@@ -384,18 +426,33 @@ export function MeetingModal({ lead, onClose }) {
 }
 
 // ── Add Note Modal ────────────────────────────────────────────────────────────
-export function NoteModal({ lead, onClose, onAddNote }) {
+export function NoteModal({ lead, onClose, onSaved }) {
   const [noteText, setNoteText] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
 
   if (!lead) return null
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!noteText.trim()) return
-    if (onAddNote) {
-      onAddNote(lead.id, noteText)
+    setSaving(true)
+    setError(null)
+    try {
+      await logActivity({
+        interaction_type: 'note',
+        lead_id: lead.id,
+        summary: noteText.trim(),
+      })
+      setSaved(true)
+      if (onSaved) onSaved()
+      setTimeout(() => onClose(), 1500)
+    } catch (err) {
+      setError(err?.response?.data?.error?.message || 'Failed to save note. Please try again.')
+    } finally {
+      setSaving(false)
     }
-    onClose()
   }
 
   return (
@@ -412,28 +469,50 @@ export function NoteModal({ lead, onClose, onAddNote }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-muted mb-1">Note Content</label>
-            <textarea
-              rows={4}
-              placeholder="e.g. Discussed budget constraints. Follow up with updated ROI sheet next Tuesday..."
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              className="input h-auto text-sm py-2.5"
-              required
-            />
+        {saved ? (
+          <div className="p-8 text-center space-y-3">
+            <div className="mx-auto grid size-12 place-items-center rounded-full bg-emerald-100 text-emerald-600">
+              <Check className="size-6" />
+            </div>
+            <h4 className="text-lg font-bold text-ink-primary">Note Saved!</h4>
+            <p className="text-sm text-ink-muted">Added to the activity timeline for this lead.</p>
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div className="rounded-card bg-surface-muted p-3 text-xs">
+              <p className="font-medium text-ink-primary">{lead.name} — {lead.company}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-ink-muted mb-1">Note Content</label>
+              <textarea
+                rows={5}
+                placeholder="e.g. Discussed budget constraints. Follow up with updated ROI sheet next Tuesday..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                className="input h-auto text-sm py-2.5"
+                required
+                autoFocus
+              />
+            </div>
 
-          <div className="border-t border-line-default pt-4 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="btn btn-secondary btn-sm">
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary btn-sm">
-              Save Note
-            </button>
-          </div>
-        </form>
+            {error && (
+              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-card px-3 py-2">{error}</p>
+            )}
+
+            <div className="border-t border-line-default pt-4 flex justify-end gap-2">
+              <button type="button" onClick={onClose} className="btn btn-secondary btn-sm" disabled={saving}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm gap-1.5"
+                disabled={saving || !noteText.trim()}
+              >
+                {saving ? <><Loader2 className="size-3.5 animate-spin" /> Saving…</> : <><FileText className="size-3.5" /> Save Note</>}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )

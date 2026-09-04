@@ -63,3 +63,7 @@ async def test_crm_summary_requires_authentication() -> None:
 
         res = await client.get("/api/v1/crm/forecast")
         assert res.status_code == 401
+
+        res = await client.get("/api/v1/crm/lead-recommendations")
+        assert res.status_code == 401
+

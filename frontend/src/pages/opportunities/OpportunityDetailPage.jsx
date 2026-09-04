@@ -23,6 +23,7 @@ import {
   deleteOpportunity,
 } from '@/services/api/opportunities'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
+import FollowUpCard from '@/components/common/FollowUpCard'
 import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 
 const STAGES = [
@@ -44,6 +45,7 @@ export default function OpportunityDetailPage() {
   const [loading, setLoading] = useState(true)
   const [analyzingAi, setAnalyzingAi] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState(null)
+  const [timelineKey, setTimelineKey] = useState(0)
 
   const loadOpportunity = async () => {
     setLoading(true)
@@ -343,11 +345,19 @@ export default function OpportunityDetailPage() {
               </div>
             )}
           </dl>
+
+          {/* Follow-up Card */}
+          <div className="mt-4">
+            <FollowUpCard
+              opportunityId={opp.id}
+              onActivityLogged={() => setTimelineKey((k) => k + 1)}
+            />
+          </div>
         </div>
 
         {/* Timeline Column */}
         <div className="lg:col-span-2">
-          <ActivityTimeline opportunityId={opp.id} />
+          <ActivityTimeline key={timelineKey} opportunityId={opp.id} />
         </div>
       </div>
     </div>
