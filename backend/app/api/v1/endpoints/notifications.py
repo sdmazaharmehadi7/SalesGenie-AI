@@ -7,8 +7,10 @@ and notification preferences. Strictly enforces user and workspace isolation.
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Query, status
+
 
 from app.api.deps import CurrentActiveUser, DBSession, Pagination, WorkspaceContextDep
 from app.schemas.notification import (
@@ -96,6 +98,22 @@ async def mark_all_read(
         ws_ctx=ws_ctx,
     )
     return {"marked_count": count}
+
+
+@router.post(
+    "/run-scheduler",
+    status_code=status.HTTP_200_OK,
+    summary="Trigger notification reminder scheduler tick on-demand",
+)
+async def trigger_scheduler_tick(
+    db: DBSession,
+    current_user: CurrentActiveUser,
+) -> dict[str, Any]:
+    """Manually triggers a reminder scheduler tick to evaluate overdue tasks, follow-ups, and meeting reminders."""
+    from app.services.notification_scheduler_service import NotificationSchedulerService
+    counts = await NotificationSchedulerService(db).run_tick()
+    return {"status": "success", "counts": counts}
+
 
 
 @router.get(

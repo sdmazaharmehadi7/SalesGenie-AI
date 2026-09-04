@@ -20,15 +20,15 @@ class NotificationRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create(self, notif_in: NotificationCreate) -> Notification | None:
+    async def create(self, notif_in: NotificationCreate, *, return_existing: bool = False) -> Notification | None:
         """
         Creates a notification. If an idempotency_key is provided and already exists,
-        returns the existing notification to prevent duplicate notifications.
+        returns None (or existing notification if return_existing=True) to prevent duplicate notifications.
         """
         if notif_in.idempotency_key:
             existing = await self.get_by_idempotency_key(notif_in.idempotency_key)
             if existing is not None:
-                return existing
+                return existing if return_existing else None
 
         notification = Notification(
             user_id=notif_in.user_id,

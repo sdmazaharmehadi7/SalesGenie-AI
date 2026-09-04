@@ -105,9 +105,21 @@ class TaskService:
         ws_ctx: WorkspaceContext | None = None,
     ) -> Task:
         task = await self.get_task(task_id, current_user, ws_ctx=ws_ctx)
+        old_due = task.due_date
         updated = await self.tasks.update(task, task_in)
+
+        if task_in.due_date is not None and task_in.due_date != old_due:
+            from app.services.notification_service import NotificationService
+            await NotificationService(self.db).notify_task_rescheduled(
+                task=updated,
+                old_due=old_due,
+                new_due=task_in.due_date,
+                changed_by_name=current_user.name,
+            )
+
         await self.db.commit()
         return updated
+
 
     async def toggle_complete(
         self,

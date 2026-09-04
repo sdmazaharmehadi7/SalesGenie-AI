@@ -112,8 +112,35 @@ class ActivityService:
                             workspace_id=target_workspace_id,
                         )
 
+        # 2. Meeting Scheduled Notification & Activity Timeline Log
+        itype = activity_in.interaction_type.value if hasattr(activity_in.interaction_type, "value") else str(activity_in.interaction_type)
+        if itype.lower() == "meeting":
+            lead_obj = await self.db.get(Lead, activity_in.lead_id) if activity_in.lead_id else None
+            lead_name = lead_obj.company_name or lead_obj.contact_name if lead_obj else None
+            m_title = activity_in.summary or "Sales Meeting"
+            await notif_service.notify_meeting_scheduled(
+                interaction_id=interaction.id,
+                user_id=current_user.id,
+                workspace_id=target_workspace_id,
+                meeting_title=m_title,
+                meeting_time=interaction.interaction_date,
+                lead_id=activity_in.lead_id,
+                lead_name=lead_name,
+            )
+            if lead_obj and lead_obj.assigned_to and lead_obj.assigned_to != current_user.id:
+                await notif_service.notify_meeting_scheduled(
+                    interaction_id=interaction.id,
+                    user_id=lead_obj.assigned_to,
+                    workspace_id=target_workspace_id,
+                    meeting_title=m_title,
+                    meeting_time=interaction.interaction_date,
+                    lead_id=activity_in.lead_id,
+                    lead_name=lead_name,
+                )
+
         await self.db.commit()
         return interaction
+
 
     async def get_timeline(
         self,

@@ -85,8 +85,13 @@ export default function AutomatedFollowUpsSection({
     notes: '',
   })
 
+  // Deduplicate by lead_id (client-side safety net)
+  const deduped = recommendations.filter((rec, idx, arr) =>
+    arr.findIndex((r) => r.lead_id === rec.lead_id) === idx
+  )
+
   // Filter recommendations
-  const filteredRecs = recommendations.filter((rec) => {
+  const filteredRecs = deduped.filter((rec) => {
     if (filter === 'urgent') return rec.urgency === 'urgent' || rec.urgency === 'high'
     if (filter === 'status_change') return rec.trigger_type === 'status_change'
     if (filter === 'overdue') return rec.trigger_type === 'overdue_followup'
@@ -94,11 +99,11 @@ export default function AutomatedFollowUpsSection({
     return true
   })
 
-  // Counters
-  const urgentCount = recommendations.filter((r) => r.urgency === 'urgent').length
-  const highCount = recommendations.filter((r) => r.urgency === 'high').length
-  const statusChangeCount = recommendations.filter((r) => r.trigger_type === 'status_change').length
-  const staleCount = recommendations.filter(
+  // Counters (from deduplicated list)
+  const urgentCount = deduped.filter((r) => r.urgency === 'urgent').length
+  const highCount = deduped.filter((r) => r.urgency === 'high').length
+  const statusChangeCount = deduped.filter((r) => r.trigger_type === 'status_change').length
+  const staleCount = deduped.filter(
     (r) => r.trigger_type === 'stale_lead' || r.trigger_type === 'new_uncontacted'
   ).length
 

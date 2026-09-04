@@ -22,6 +22,11 @@ class SalesInteractionRepository:
         workspace_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
     ) -> SalesInteraction:
+        kwargs = {}
+        if interaction_in.interaction_date is not None:
+            kwargs["interaction_date"] = interaction_in.interaction_date
+
+
         interaction = SalesInteraction(
             lead_id=interaction_in.lead_id or lead_id,
             contact_id=interaction_in.contact_id,
@@ -32,7 +37,9 @@ class SalesInteractionRepository:
             action_items=interaction_in.action_items,
             workspace_id=interaction_in.workspace_id if interaction_in.workspace_id is not None else workspace_id,
             user_id=interaction_in.user_id if interaction_in.user_id is not None else user_id,
+            **kwargs,
         )
+
         self.db.add(interaction)
         await self.db.flush()
         await self.db.refresh(interaction)

@@ -62,7 +62,7 @@ class CRMDashboardService:
         is_personal, is_manager, workspace_id = self._resolve_context(ws_ctx, current_user)
 
         if is_personal:
-            effective_owner = owner_id if current_user.role in UNRESTRICTED_ROLES else current_user.id
+            effective_owner = current_user.id
             ws_filter_lead = Lead.workspace_id.is_(None)
             ws_filter_acc = Account.workspace_id.is_(None)
             ws_filter_con = Contact.workspace_id.is_(None)
@@ -181,22 +181,30 @@ class CRMDashboardService:
         driven by real CRM data, lead status changes, activity recency, and overdue follow-up tasks.
         """
         is_personal, is_manager, workspace_id = self._resolve_context(ws_ctx, current_user)
-        effective_owner = owner_id if (is_manager or current_user.role in UNRESTRICTED_ROLES) else current_user.id
 
         if is_personal:
+            effective_owner = current_user.id
             ws_filter_lead = Lead.workspace_id.is_(None)
-        else:
-            ws_filter_lead = (Lead.workspace_id == workspace_id)
-
-        lead_stmt = select(Lead).where(ws_filter_lead)
-        if effective_owner and not is_manager and current_user.role not in UNRESTRICTED_ROLES:
-            lead_stmt = lead_stmt.where(
+            lead_stmt = select(Lead).where(
+                ws_filter_lead,
                 or_(
                     Lead.assigned_to == effective_owner,
                     Lead.owner_id == effective_owner,
                     Lead.created_by == effective_owner,
-                )
+                ),
             )
+        else:
+            effective_owner = owner_id if is_manager else current_user.id
+            ws_filter_lead = (Lead.workspace_id == workspace_id)
+            lead_stmt = select(Lead).where(ws_filter_lead)
+            if effective_owner and not is_manager:
+                lead_stmt = lead_stmt.where(
+                    or_(
+                        Lead.assigned_to == effective_owner,
+                        Lead.owner_id == effective_owner,
+                        Lead.created_by == effective_owner,
+                    )
+                )
 
         lead_stmt = lead_stmt.order_by(Lead.updated_at.desc()).limit(100)
         leads_res = await self.db.execute(lead_stmt)
@@ -240,8 +248,11 @@ class CRMDashboardService:
                 lead_last_act_map[act.lead_id] = act
 
         recommendations: list[LeadFollowUpRecommendation] = []
+        seen_lead_ids: set[uuid.UUID] = set()
 
         for lead in leads:
+            if lead.id in seen_lead_ids:
+                continue
             lead_status_str = lead.lead_status.value if hasattr(lead.lead_status, "value") else str(lead.lead_status)
             lead_name = lead.contact_name or lead.company_name or "Prospect"
             company_name = lead.company_name or "Company"
@@ -462,10 +473,14 @@ class CRMDashboardService:
         owner_id: uuid.UUID | None = None,
     ) -> PredictiveAnalytics:
         is_personal, is_manager, workspace_id = self._resolve_context(ws_ctx, current_user)
-        effective_owner = owner_id if (is_manager or current_user.role in UNRESTRICTED_ROLES) else current_user.id
+        if is_personal:
+            effective_owner = current_user.id
+            workspace_id = None
+        else:
+            effective_owner = owner_id if is_manager else current_user.id
 
         all_deals = await self.opportunities.get_pipeline_deals(
-            owner_id=effective_owner,
+            owner_id=effective_owner if (is_personal or not is_manager) else None,
             workspace_id=workspace_id,
             is_personal=is_personal,
         )
@@ -480,7 +495,7 @@ class CRMDashboardService:
             )
 
         metrics = await self.opportunities.get_metrics(
-            owner_id=effective_owner,
+            owner_id=effective_owner if (is_personal or not is_manager) else None,
             workspace_id=workspace_id,
             is_personal=is_personal,
         )

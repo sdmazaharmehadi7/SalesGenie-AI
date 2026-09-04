@@ -492,18 +492,39 @@ class TeamTrackingService:
 
         # 2. Activity over time (last 7 days)
         now = datetime.now(timezone.utc)
+        seven_days_ago = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        act_stmt = (
+            select(SalesInteraction)
+            .where(
+                SalesInteraction.workspace_id == workspace_id,
+                SalesInteraction.interaction_date >= seven_days_ago,
+            )
+        )
+        act_res = await self.db.execute(act_stmt)
+        recent_acts = list(act_res.scalars().all())
+
         activity_points: list[ActivityTimePoint] = []
         for i in range(6, -1, -1):
-            day = now - timedelta(days=i)
-            day_str = day.strftime("%b %d")
-            # Calculate mock daily aggregation or actual interactions
+            day_dt = (now - timedelta(days=i)).date()
+            day_str = day_dt.strftime("%b %d")
+
+            day_acts = [
+                a for a in recent_acts
+                if a.interaction_date and a.interaction_date.date() == day_dt
+            ]
+            calls = sum(1 for a in day_acts if a.interaction_type == InteractionType.CALL)
+            emails = sum(1 for a in day_acts if a.interaction_type == InteractionType.EMAIL)
+            meetings = sum(1 for a in day_acts if a.interaction_type == InteractionType.MEETING)
+            total = len(day_acts)
+
             activity_points.append(
                 ActivityTimePoint(
                     date=day_str,
-                    calls=max(1, (i * 2 + 1) % 7),
-                    emails=max(3, (i * 4 + 3) % 15),
-                    meetings=max(0, (i + 1) % 4),
-                    total=max(4, (i * 2 + 1) % 7 + (i * 4 + 3) % 15 + (i + 1) % 4),
+                    calls=calls,
+                    emails=emails,
+                    meetings=meetings,
+                    total=total,
                 )
             )
 

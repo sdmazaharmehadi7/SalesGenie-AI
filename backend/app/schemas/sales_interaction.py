@@ -19,6 +19,7 @@ class SalesInteractionCreate(BaseModel):
     opportunity_id: uuid.UUID | None = None
     workspace_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
+    interaction_date: datetime | None = None
 
 
 class SalesInteractionRead(ORMBaseModel):

@@ -298,15 +298,32 @@ export function MeetingModal({ lead, onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
+      let meetingDate = null
+      try {
+        const parts = time.split(' ')
+        const hourMin = parts[0]
+        const meridiem = parts[1] || ''
+        let [hours, minutes] = hourMin.split(':').map(Number)
+        if (meridiem.toUpperCase() === 'PM' && hours < 12) hours += 12
+        if (meridiem.toUpperCase() === 'AM' && hours === 12) hours = 0
+        const d = new Date(date)
+        d.setHours(hours || 10, minutes || 0, 0, 0)
+        meetingDate = d.toISOString()
+      } catch {
+        meetingDate = new Date(date).toISOString()
+      }
+
       await logActivity({
         interaction_type: 'meeting',
         lead_id: lead.id,
         summary: `Meeting scheduled: ${title} on ${date} at ${time} (${duration})${notes ? `\n\nNotes: ${notes}` : ''}`,
         action_items: notes ? [notes] : [],
+        interaction_date: meetingDate,
       })
       setBooked(true)
       if (onSaved) onSaved()
       setTimeout(() => onClose(), 1800)
+
     } catch (err) {
       setError(err?.response?.data?.error?.message || 'Failed to schedule meeting. Please try again.')
     } finally {

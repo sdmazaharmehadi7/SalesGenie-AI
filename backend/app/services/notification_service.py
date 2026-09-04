@@ -277,7 +277,7 @@ SalesGenie AI Platform
         notif_in = NotificationCreate(
             user_id=recipient_user_id,
             workspace_id=workspace_id,
-            type=NotificationType.LEAD_STATUS_CHANGED.value,
+            type=NotificationType.LEAD_STATE_CHANGED.value,
             title=title,
             message=message,
             entity_type="lead",
@@ -290,6 +290,7 @@ SalesGenie AI Platform
                 "changed_by": changed_by_name,
                 "link": f"/leads/{lead_id}",
             },
+            idempotency_key=f"lead_state_{lead_id}_{old_status}_{new_status}_{int(datetime.now(timezone.utc).timestamp())}",
         )
         return await self.notifications.create(notif_in)
 
@@ -319,7 +320,7 @@ SalesGenie AI Platform
         notif_in = NotificationCreate(
             user_id=recipient_user_id,
             workspace_id=workspace_id,
-            type=NotificationType.LEAD_STATUS_CHANGED.value,
+            type=NotificationType.DEAL_STATE_CHANGED.value,
             title=title,
             message=message,
             entity_type="opportunity",
@@ -331,8 +332,163 @@ SalesGenie AI Platform
                 "changed_by": changed_by_name,
                 "link": f"/opportunities/{opp_id}",
             },
+            idempotency_key=f"deal_state_{opp_id}_{old_stage}_{new_stage}_{int(datetime.now(timezone.utc).timestamp())}",
         )
         return await self.notifications.create(notif_in)
+
+    async def notify_task_overdue(self, task: Any) -> Notification | None:
+        """Triggered when an incomplete task passes its due time."""
+        recipient_id = task.assigned_to or task.created_by
+        if not recipient_id or not task.due_date:
+            return None
+
+        due_date_str = task.due_date.strftime("%b %d at %I:%M %p")
+        idempotency_key = f"task_overdue_{task.id}_{task.due_date.isoformat()}"
+
+        notif_in = NotificationCreate(
+            user_id=recipient_id,
+            workspace_id=task.workspace_id,
+            type=NotificationType.TASK_OVERDUE.value,
+            title=f"Task Overdue: {task.title}",
+            message=f"Task '{task.title}' was due on {due_date_str} and is now overdue.",
+            entity_type="task",
+            entity_id=task.id,
+            data={
+                "task_title": task.title,
+                "due_date": task.due_date.isoformat(),
+                "priority": task.priority.value if hasattr(task.priority, "value") else str(task.priority),
+                "link": "/tasks",
+            },
+            idempotency_key=idempotency_key,
+        )
+        return await self.notifications.create(notif_in)
+
+    async def notify_task_rescheduled(
+        self,
+        task: Any,
+        old_due: datetime | None,
+        new_due: datetime,
+        changed_by_name: str | None = None,
+    ) -> Notification | None:
+        """Triggered when a task or follow-up date/time is changed."""
+        recipient_id = task.assigned_to or task.created_by
+        if not recipient_id:
+            return None
+
+        new_due_str = new_due.strftime("%b %d, %Y at %I:%M %p")
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        idempotency_key = f"task_rescheduled_{task.id}_{new_due.isoformat()}_{now_ts}"
+
+        actor_str = f" by {changed_by_name}" if changed_by_name else ""
+        notif_in = NotificationCreate(
+            user_id=recipient_id,
+            workspace_id=task.workspace_id,
+            type=NotificationType.TASK_RESCHEDULED.value,
+            title=f"Task Rescheduled: {task.title}",
+            message=f"Task '{task.title}' was rescheduled{actor_str} to {new_due_str}.",
+            entity_type="task",
+            entity_id=task.id,
+            data={
+                "task_title": task.title,
+                "old_due": old_due.isoformat() if old_due else None,
+                "new_due": new_due.isoformat(),
+                "link": f"/leads/{task.lead_id}" if task.lead_id else "/tasks",
+            },
+            idempotency_key=idempotency_key,
+        )
+        return await self.notifications.create(notif_in)
+
+    async def notify_followup_approaching(self, task: Any) -> Notification | None:
+        """Triggered 15 minutes before a scheduled follow-up."""
+        recipient_id = task.assigned_to or task.created_by
+        if not recipient_id or not task.due_date:
+            return None
+
+        due_time_str = task.due_date.strftime("%I:%M %p")
+        idempotency_key = f"followup_approaching_{task.id}_{task.due_date.isoformat()}"
+
+        notif_in = NotificationCreate(
+            user_id=recipient_id,
+            workspace_id=task.workspace_id,
+            type=NotificationType.FOLLOWUP_APPROACHING.value,
+            title=f"Follow-up in 15 Minutes: {task.title}",
+            message=f"Scheduled follow-up '{task.title}' is starting at {due_time_str} (in 15 minutes).",
+            entity_type="follow_up",
+            entity_id=task.id,
+            data={
+                "task_title": task.title,
+                "due_date": task.due_date.isoformat(),
+                "lead_id": str(task.lead_id) if task.lead_id else None,
+                "link": f"/leads/{task.lead_id}" if task.lead_id else "/crm",
+            },
+            idempotency_key=idempotency_key,
+        )
+        return await self.notifications.create(notif_in)
+
+    async def notify_followup_overdue(self, task: Any) -> Notification | None:
+        """Triggered when an incomplete follow-up passes its scheduled time."""
+        recipient_id = task.assigned_to or task.created_by
+        if not recipient_id or not task.due_date:
+            return None
+
+        due_str = task.due_date.strftime("%b %d at %I:%M %p")
+        idempotency_key = f"followup_overdue_{task.id}_{task.due_date.isoformat()}"
+
+        notif_in = NotificationCreate(
+            user_id=recipient_id,
+            workspace_id=task.workspace_id,
+            type=NotificationType.FOLLOWUP_OVERDUE.value,
+            title=f"Follow-up Overdue: {task.title}",
+            message=f"Scheduled follow-up '{task.title}' was due on {due_str} and is now overdue.",
+            entity_type="follow_up",
+            entity_id=task.id,
+            data={
+                "task_title": task.title,
+                "due_date": task.due_date.isoformat(),
+                "lead_id": str(task.lead_id) if task.lead_id else None,
+                "link": f"/leads/{task.lead_id}" if task.lead_id else "/crm",
+            },
+            idempotency_key=idempotency_key,
+        )
+        return await self.notifications.create(notif_in)
+
+    async def notify_meeting_scheduled(
+        self,
+        *,
+        interaction_id: uuid.UUID,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID | None,
+        meeting_title: str,
+        meeting_time: datetime | None,
+        lead_id: uuid.UUID | None = None,
+        lead_name: str | None = None,
+    ) -> Notification | None:
+        """Triggered when a meeting is scheduled (along with activity log entry)."""
+        time_str = meeting_time.strftime("%b %d at %I:%M %p") if meeting_time else "upcoming schedule"
+        context_str = f" with {lead_name}" if lead_name else ""
+        title = f"Meeting Scheduled: {meeting_title}"
+        message = f"Meeting '{meeting_title}'{context_str} scheduled for {time_str}."
+        idempotency_key = f"meeting_scheduled_{interaction_id}"
+
+        notif_in = NotificationCreate(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            type=NotificationType.MEETING_SCHEDULED.value,
+            title=title,
+            message=message,
+            entity_type="meeting",
+            entity_id=interaction_id,
+            data={
+                "meeting_title": meeting_title,
+                "meeting_time": meeting_time.isoformat() if meeting_time else None,
+                "lead_id": str(lead_id) if lead_id else None,
+                "lead_name": lead_name,
+                "link": f"/leads/{lead_id}" if lead_id else "/crm",
+            },
+            idempotency_key=idempotency_key,
+        )
+        return await self.notifications.create(notif_in)
+
 
     async def notify_email_activity(
         self,
@@ -392,6 +548,8 @@ SalesGenie AI Platform
         time_str = meeting_time.strftime("%I:%M %p")
         title = f"Meeting in 15 Minutes: {meeting_title}"
         message = f"Your meeting '{meeting_title}' is scheduled for {time_str}."
+        time_iso = meeting_time.isoformat()
+        idempotency_key = f"meeting_reminder_{entity_id or lead_id}_{time_iso}"
 
         notif_in = NotificationCreate(
             user_id=user_id,
@@ -404,10 +562,12 @@ SalesGenie AI Platform
             data={
                 "meeting_title": meeting_title,
                 "meeting_time": time_str,
-                "link": f"/leads/{lead_id}" if lead_id else "/crm/tasks",
+                "link": f"/leads/{lead_id}" if lead_id else "/crm",
             },
+            idempotency_key=idempotency_key,
         )
         return await self.notifications.create(notif_in)
+
 
     async def notify_weekly_digest(
         self,

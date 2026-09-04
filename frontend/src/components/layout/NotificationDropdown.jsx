@@ -13,6 +13,10 @@ import {
   User,
   Users,
   X,
+  AlertTriangle,
+  AlertCircle,
+  Briefcase,
+  Calendar,
 } from '@/components/ui/icons'
 import { useAuth } from '@/context/AuthContext'
 import { useWorkspace } from '@/context/WorkspaceContext'
@@ -24,6 +28,54 @@ import {
 } from '@/services/api/notifications'
 
 const TYPE_CONFIG = {
+  // 9 Core Required Types
+  TASK_OVERDUE: {
+    icon: AlertTriangle,
+    color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/50 dark:text-rose-400',
+    label: 'Task Overdue',
+  },
+  TASK_RESCHEDULED: {
+    icon: Clock,
+    color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400',
+    label: 'Task Rescheduled',
+  },
+  LEAD_STATE_CHANGED: {
+    icon: Flame,
+    color: 'text-brand-600 bg-brand-50 dark:bg-brand-950/50 dark:text-brand-400',
+    label: 'Lead State Changed',
+  },
+  DEAL_STATE_CHANGED: {
+    icon: Briefcase,
+    color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/50 dark:text-purple-400',
+    label: 'Deal State Changed',
+  },
+  LEAD_ASSIGNED: {
+    icon: User,
+    color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-400',
+    label: 'Lead Assigned',
+  },
+  FOLLOWUP_APPROACHING: {
+    icon: Clock,
+    color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/50 dark:text-blue-400',
+    label: 'Follow-up in 15m',
+  },
+  FOLLOWUP_OVERDUE: {
+    icon: AlertCircle,
+    color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/50 dark:text-rose-400',
+    label: 'Follow-up Overdue',
+  },
+  MEETING_SCHEDULED: {
+    icon: Calendar,
+    color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400',
+    label: 'Meeting Scheduled',
+  },
+  MEETING_REMINDER: {
+    icon: Clock,
+    color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/50 dark:text-purple-400',
+    label: 'Meeting in 15m',
+  },
+
+  // Legacy mappings
   lead_assigned: {
     icon: User,
     color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-400',
@@ -70,6 +122,7 @@ const TYPE_CONFIG = {
     label: 'Invitation',
   },
 }
+
 
 function formatRelativeTime(dateStr) {
   if (!dateStr) return ''
@@ -204,11 +257,18 @@ export default function NotificationDropdown() {
       navigate(targetLink)
     } else if (notif.type === 'workspace_invitation' || notif.entity_type === 'workspace_invitation') {
       navigate('/workspace-hub')
-    } else if (notif.entity_type === 'lead' && notif.entity_id) {
-      navigate(`/leads/${notif.entity_id}`)
-    } else if (notif.entity_type === 'opportunity' && notif.entity_id) {
-      navigate(`/opportunities`)
+    } else if (notif.type === 'TASK_OVERDUE' || notif.type === 'TASK_RESCHEDULED' || notif.entity_type === 'task') {
+      navigate('/tasks')
+    } else if (notif.entity_type === 'lead' || notif.type === 'LEAD_STATE_CHANGED' || notif.type === 'LEAD_ASSIGNED') {
+      navigate(notif.entity_id ? `/leads/${notif.entity_id}` : '/leads')
+    } else if (notif.entity_type === 'opportunity' || notif.type === 'DEAL_STATE_CHANGED') {
+      navigate(notif.entity_id ? `/opportunities/${notif.entity_id}` : '/opportunities')
+    } else if (notif.data?.lead_id) {
+      navigate(`/leads/${notif.data.lead_id}`)
+    } else {
+      navigate('/crm')
     }
+
   }
 
   return (

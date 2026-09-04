@@ -275,7 +275,7 @@ export default function CRMDashboardPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(deal.amount)}</p>
-                        <p className="text-[11px] font-semibold text-ink-secondary">{deal.probability || 60}% Prob.</p>
+                        <p className="text-[11px] font-semibold text-ink-secondary">{deal.probability ?? 0}% Prob.</p>
                       </div>
                     </Link>
                   ))
@@ -308,7 +308,7 @@ export default function CRMDashboardPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-bold text-ink-primary">{formatCurrency(deal.amount)}</p>
-                        <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">{deal.probability || 20}% Prob.</p>
+                        <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">{deal.probability ?? 0}% Prob.</p>
                       </div>
                     </Link>
                   ))

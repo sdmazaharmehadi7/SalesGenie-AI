@@ -36,15 +36,26 @@ if TYPE_CHECKING:
 
 
 class NotificationType(str, enum.Enum):
-    LEAD_ASSIGNED = "lead_assigned"
+    # 9 Core Required Notification Types
+    TASK_OVERDUE = "TASK_OVERDUE"
+    TASK_RESCHEDULED = "TASK_RESCHEDULED"
+    LEAD_STATE_CHANGED = "LEAD_STATE_CHANGED"
+    DEAL_STATE_CHANGED = "DEAL_STATE_CHANGED"
+    LEAD_ASSIGNED = "LEAD_ASSIGNED"
+    FOLLOWUP_APPROACHING = "FOLLOWUP_APPROACHING"
+    FOLLOWUP_OVERDUE = "FOLLOWUP_OVERDUE"
+    MEETING_SCHEDULED = "MEETING_SCHEDULED"
+    MEETING_REMINDER = "MEETING_REMINDER"
+
+    # Legacy types (for backwards compatibility)
     LEAD_STATUS_CHANGED = "lead_status_changed"
     EMAIL_OPENED = "email_opened"
     EMAIL_REPLIED = "email_replied"
-    MEETING_REMINDER = "meeting_reminder"
     WEEKLY_DIGEST = "weekly_digest"
     AI_INSIGHTS = "ai_insights"
     TEAM_MENTIONS = "team_mentions"
     WORKSPACE_INVITATION = "workspace_invitation"
+
 
 
 class Notification(Base, UUIDPrimaryKeyMixin):

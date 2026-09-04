@@ -236,16 +236,26 @@ class FollowUpService:
 
         task = await self._get_task_model(follow_up_id, current_user, ws_ctx)
 
+        old_due = task.due_date
         task.due_date = reschedule_in.due_date
         task.rescheduled_at = datetime.now(timezone.utc)
         if reschedule_in.notes:
             existing = task.description or ""
             task.description = f"{existing}\n[Rescheduled]: {reschedule_in.notes}".strip()
 
+        from app.services.notification_service import NotificationService
+        await NotificationService(self.db).notify_task_rescheduled(
+            task=task,
+            old_due=old_due,
+            new_due=reschedule_in.due_date,
+            changed_by_name=current_user.name,
+        )
+
         await self.db.flush()
         await self.db.commit()
 
         return await self.get_follow_up(follow_up_id, current_user, ws_ctx)
+
 
     async def complete_follow_up(
         self,

@@ -10,6 +10,7 @@ Running locally:
     uvicorn app.main:app --reload --port 8000
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -24,6 +25,7 @@ from app.core.error_handlers import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.db.session import engine
 from app.middleware.logging_middleware import RequestLoggingMiddleware
+from app.services.notification_scheduler_service import run_notification_scheduler_loop
 
 logger = get_logger(__name__)
 
@@ -33,8 +35,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application startup/shutdown hook.
 
-    Startup: configure logging before anything else runs.
-    Shutdown: dispose of the database connection pool cleanly.
+    Startup: configure logging and launch periodic notification reminder scheduler.
+    Shutdown: cancel background scheduler cleanly and dispose database pool.
     """
     configure_logging()
     logger.info(
@@ -43,9 +45,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.ENVIRONMENT,
         __version__,
     )
-    yield
-    logger.info("Shutting down %s", settings.PROJECT_NAME)
-    await engine.dispose()
+    scheduler_task = asyncio.create_task(run_notification_scheduler_loop(interval_seconds=60))
+    try:
+        yield
+    finally:
+        logger.info("Shutting down %s", settings.PROJECT_NAME)
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
+        await engine.dispose()
+
 
 
 def create_app() -> FastAPI:
