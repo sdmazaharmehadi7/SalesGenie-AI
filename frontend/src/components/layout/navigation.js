@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  Bell,
   Briefcase,
   Building2,
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   User,
   Users,
 } from '@/components/ui/icons'
+
 
 export const primaryNavigation = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
@@ -41,5 +43,7 @@ export const workspaceNavigation = [
 ]
 
 export const secondaryNavigation = [
+  { label: 'Notifications', icon: Bell, to: '/notifications' },
   { label: 'Settings', icon: Settings, to: '/settings' },
 ]
+

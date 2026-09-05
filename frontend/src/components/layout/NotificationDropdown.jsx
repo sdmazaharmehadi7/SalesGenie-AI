@@ -222,6 +222,7 @@ export default function NotificationDropdown() {
         prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       )
       setUnreadCount((c) => Math.max(0, c - 1))
+      window.dispatchEvent(new Event('sg:notifications_updated'))
     } catch {
       // Handle error
     }
@@ -232,6 +233,7 @@ export default function NotificationDropdown() {
       await markAllNotificationsAsRead()
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
       setUnreadCount(0)
+      window.dispatchEvent(new Event('sg:notifications_updated'))
     } catch {
       // Handle error
     }
@@ -245,6 +247,7 @@ export default function NotificationDropdown() {
           prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
         )
         setUnreadCount((c) => Math.max(0, c - 1))
+        window.dispatchEvent(new Event('sg:notifications_updated'))
       } catch {
         // Continue navigation even if read call fails
       }
@@ -266,7 +269,7 @@ export default function NotificationDropdown() {
     } else if (notif.data?.lead_id) {
       navigate(`/leads/${notif.data.lead_id}`)
     } else {
-      navigate('/crm')
+      navigate('/notifications')
     }
 
   }
@@ -303,15 +306,27 @@ export default function NotificationDropdown() {
                 </span>
               )}
             </div>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  className="text-xs font-medium text-brand-600 hover:text-brand-700 transition-colors"
+                  onClick={handleMarkAllRead}
+                  type="button"
+                >
+                  Mark read
+                </button>
+              )}
               <button
-                className="text-xs font-medium text-brand-600 hover:text-brand-700 transition-colors"
-                onClick={handleMarkAllRead}
+                className="text-xs font-medium text-ink-secondary hover:text-ink-primary transition-colors"
+                onClick={() => {
+                  setIsOpen(false)
+                  navigate('/notifications')
+                }}
                 type="button"
               >
-                Mark all as read
+                View all
               </button>
-            )}
+            </div>
           </div>
 
           {/* List of Notifications */}
@@ -385,22 +400,36 @@ export default function NotificationDropdown() {
             )}
           </div>
 
-          {/* Footer link to Settings -> Notifications */}
-          <div className="border-t border-line-default px-4 py-2.5 bg-surface-muted/20 flex items-center justify-between text-xs text-ink-muted">
-            <span>Workspace alerts</span>
+          {/* Footer with prominent View All Notifications button & Preferences */}
+          <div className="border-t border-line-default p-2 bg-surface-muted/20 flex flex-col gap-1">
             <button
-              className="text-brand-600 hover:text-brand-700 font-medium transition-colors"
+              className="w-full rounded-xl py-2 px-3 text-center text-xs font-semibold text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-950/50 transition-colors flex items-center justify-center gap-1.5"
               onClick={() => {
                 setIsOpen(false)
-                navigate('/settings/notifications')
+                navigate('/notifications')
               }}
               type="button"
             >
-              Preferences →
+              <span>View all notifications</span>
+              <span aria-hidden="true">→</span>
             </button>
+            <div className="flex items-center justify-between px-2 pt-1 border-t border-line-default/40 text-[11px] text-ink-muted">
+              <span>Workspace alerts</span>
+              <button
+                className="text-ink-secondary hover:text-ink-primary transition-colors font-medium"
+                onClick={() => {
+                  setIsOpen(false)
+                  navigate('/settings/notifications')
+                }}
+                type="button"
+              >
+                Preferences
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   )
+
 }

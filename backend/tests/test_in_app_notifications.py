@@ -274,3 +274,25 @@ async def test_all_in_app_notifications_and_reminders() -> None:
 
         unread_res3 = await client.get("/api/v1/notifications/unread-count", headers=headers1, params={"workspace_id": workspace_id})
         assert unread_res3.json()["unread_count"] == 0
+
+        # -------------------------------------------------------------
+        # 8. DELETE NOTIFICATION & CLEAR READ
+        # -------------------------------------------------------------
+        # Delete single notification
+        del_res = await client.delete(f"/api/v1/notifications/{first_notif['id']}", headers=headers1)
+        assert del_res.status_code == 204
+
+        # Verify it's gone
+        notifs_after_del = await client.get("/api/v1/notifications", headers=headers1, params={"workspace_id": workspace_id})
+        item_ids = [n["id"] for n in notifs_after_del.json()["items"]]
+        assert first_notif["id"] not in item_ids
+
+        # Clear all read notifications
+        clear_res = await client.delete("/api/v1/notifications/clear-read", headers=headers1, params={"workspace_id": workspace_id})
+        assert clear_res.status_code == 200
+        assert clear_res.json()["cleared_count"] >= 1
+
+        # Verify all remaining notifications are empty or unread
+        notifs_after_clear = await client.get("/api/v1/notifications", headers=headers1, params={"workspace_id": workspace_id})
+        assert len(notifs_after_clear.json()["items"]) == 0
+

@@ -35,6 +35,24 @@ export const markAllNotificationsAsRead = async () => {
 }
 
 /**
+ * Delete a single notification.
+ * @param {string} notificationId
+ */
+export const deleteNotification = async (notificationId) => {
+  const response = await api.delete(`/notifications/${notificationId}`)
+  return response.data
+}
+
+/**
+ * Delete all read notifications for current user in active workspace.
+ */
+export const clearAllReadNotifications = async () => {
+  const response = await api.delete('/notifications/clear-read')
+  return response.data
+}
+
+
+/**
  * Get user's notification preferences.
  */
 export const getNotificationPreferences = async () => {

@@ -127,6 +127,37 @@ class NotificationService:
         await self.db.commit()
         return count
 
+    async def delete_notification(
+        self,
+        notification_id: uuid.UUID,
+        current_user: User,
+    ) -> None:
+        notif = await self.notifications.get_by_id(notification_id)
+        if notif is None:
+            raise NotFoundError("Notification not found.", error_code="notification_not_found")
+        if notif.user_id != current_user.id:
+            raise ForbiddenError(
+                "You do not have permission to delete this notification.",
+                error_code="notification_access_denied",
+            )
+        await self.notifications.delete(notif)
+        await self.db.commit()
+
+    async def clear_read_notifications(
+        self,
+        current_user: User,
+        ws_ctx: WorkspaceContext | None = None,
+    ) -> int:
+        is_personal, workspace_id = self._resolve_context(ws_ctx)
+        count = await self.notifications.clear_read_notifications(
+            user_id=current_user.id,
+            workspace_id=workspace_id,
+            is_personal=is_personal,
+        )
+        await self.db.commit()
+        return count
+
+
     # ------------------------------------------------------------------
     # Preferences
     # ------------------------------------------------------------------

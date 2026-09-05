@@ -8,7 +8,7 @@ strict isolation by user_id and workspace_id.
 import uuid
 from typing import Sequence
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -190,3 +190,32 @@ class NotificationRepository:
         await self.db.flush()
         await self.db.refresh(pref)
         return pref
+
+    async def delete(self, notification: Notification) -> None:
+        await self.db.delete(notification)
+        await self.db.flush()
+
+    async def clear_read_notifications(
+        self,
+        *,
+        user_id: uuid.UUID,
+        workspace_id: uuid.UUID | None = None,
+        is_personal: bool = False,
+    ) -> int:
+        stmt = delete(Notification).where(
+            Notification.user_id == user_id,
+            Notification.is_read == True,  # noqa: E712
+        )
+        if is_personal or workspace_id is None:
+            stmt = stmt.where(Notification.workspace_id.is_(None))
+        else:
+            stmt = stmt.where(
+                (Notification.workspace_id == workspace_id)
+                | (
+                    Notification.workspace_id.is_(None)
+                    & (Notification.type == "workspace_invitation")
+                )
+            )
+        result = await self.db.execute(stmt)
+        return result.rowcount
+

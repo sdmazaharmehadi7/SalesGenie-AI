@@ -33,6 +33,7 @@ import SignupPage from '@/pages/auth/SignupPage'
 import TeamTrackingPage from '@/pages/team-tracking/TeamTrackingPage'
 import WorkspaceTeamHubPage from '@/pages/workspaces/WorkspaceTeamHubPage'
 import GmailOAuthCallback from '@/pages/settings/components/GmailOAuthCallback'
+import NotificationsPage from '@/pages/notifications/NotificationsPage'
 
 export const router = createBrowserRouter([
   {
@@ -120,6 +121,7 @@ export const router = createBrowserRouter([
           { path: '/manage/team', element: <TeamTrackingPage /> },
           { path: '/team-tracking', element: <TeamTrackingPage /> },
           { path: '/workspace/team', element: <WorkspaceTeamHubPage /> },
+          { path: '/notifications', element: <NotificationsPage /> },
           { path: '/settings/email/callback', element: <GmailOAuthCallback /> },
           { path: '/settings', element: <SettingsPage /> },
           { path: '/settings/:section', element: <SettingsPage /> },

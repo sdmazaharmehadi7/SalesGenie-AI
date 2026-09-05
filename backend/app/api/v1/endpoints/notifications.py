@@ -100,6 +100,42 @@ async def mark_all_read(
     return {"marked_count": count}
 
 
+@router.delete(
+    "/clear-read",
+    status_code=status.HTTP_200_OK,
+    summary="Clear all read notifications",
+)
+async def clear_read_notifications(
+    db: DBSession,
+    current_user: CurrentActiveUser,
+    ws_ctx: WorkspaceContextDep,
+) -> dict[str, int]:
+    """Deletes all read notifications for current user in current workspace context."""
+    count = await NotificationService(db).clear_read_notifications(
+        current_user=current_user,
+        ws_ctx=ws_ctx,
+    )
+    return {"cleared_count": count}
+
+
+@router.delete(
+    "/{notification_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a single notification",
+)
+async def delete_notification(
+    notification_id: uuid.UUID,
+    db: DBSession,
+    current_user: CurrentActiveUser,
+) -> None:
+    """Deletes a single notification by ID with user ownership check."""
+    await NotificationService(db).delete_notification(
+        notification_id=notification_id,
+        current_user=current_user,
+    )
+
+
+
 @router.post(
     "/run-scheduler",
     status_code=status.HTTP_200_OK,
