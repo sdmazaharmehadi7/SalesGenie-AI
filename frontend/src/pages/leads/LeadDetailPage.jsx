@@ -22,6 +22,7 @@ import { getLatestCompanyInsight, generateCompanyInsight } from '@/services/api/
 import { createOpportunity } from '@/services/api/opportunities'
 import ActivityTimeline from '@/components/common/ActivityTimeline'
 import FollowUpCard from '@/components/common/FollowUpCard'
+import SendEmailModal from '@/components/common/SendEmailModal'
 import { useWorkspaceKey } from '@/hooks/useWorkspaceKey'
 import { listWorkspaceMembers } from '@/services/api/workspaces'
 import { useToast } from '@/context/ToastContext'
@@ -51,6 +52,7 @@ export default function LeadDetailPage() {
   const [creatingOpp, setCreatingOpp] = useState(false)
   const [reassigning, setReassigning] = useState(false)
   const [timelineKey, setTimelineKey] = useState(0)
+  const [showEmailModal, setShowEmailModal] = useState(false)
 
   const loadLeadData = async () => {
     setLoading(true)
@@ -244,6 +246,14 @@ export default function LeadDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShowEmailModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-2xs hover:bg-brand-100 transition-colors"
+            >
+              <Mail className="size-3.5" />
+              Send Email
+            </button>
             <button
               type="button"
               onClick={handleConvertToDeal}
@@ -481,6 +491,14 @@ export default function LeadDetailPage() {
           <ActivityTimeline key={timelineKey} leadId={lead.id} />
         </div>
       </div>
+
+      {/* Send Email Modal */}
+      <SendEmailModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        lead={lead}
+        onSuccess={() => setTimelineKey((k) => k + 1)}
+      />
     </div>
   )
 }

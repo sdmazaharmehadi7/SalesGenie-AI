@@ -50,6 +50,12 @@ from app.models.notification import (  # noqa: F401
     NotificationType,
 )
 
+from app.models.email_integration import (  # noqa: F401
+    EmailIntegration,
+    EmailProviderType,
+    IntegrationStatus,
+)
+
 __all__ = [
     "Base",
     "User",
@@ -83,4 +89,7 @@ __all__ = [
     "Notification",
     "NotificationPreference",
     "NotificationType",
+    "EmailIntegration",
+    "EmailProviderType",
+    "IntegrationStatus",
 ]

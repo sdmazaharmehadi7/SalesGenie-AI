@@ -105,6 +105,7 @@ class Settings(BaseSettings):
     # CORS
     # ------------------------------------------------------------------
     BACKEND_CORS_ORIGINS: CorsOrigins = []
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # ------------------------------------------------------------------
     # AI integration (Lead Intelligence, Scoring, Outreach, Conversation
@@ -133,7 +134,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
-    GOOGLE_REDIRECT_URI: str | None = "http://localhost:5173/auth/google/callback"
+    GOOGLE_REDIRECT_URI: str | None = "http://localhost:8000/api/v1/integrations/gmail/callback"
 
     CALENDAR_PROVIDER: str = "mock"  # mock | google
     GOOGLE_CALENDAR_ACCESS_TOKEN: str | None = None

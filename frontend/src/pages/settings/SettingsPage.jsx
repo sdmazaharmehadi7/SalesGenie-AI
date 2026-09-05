@@ -1726,6 +1726,15 @@ function AccountSection() {
 function EmailSection() {
   const { showToast } = useToast()
 
+  // ── Google OAuth State ─────────────────────────────────────────────────────
+  const [oauthLoading, setOauthLoading] = useState(true)
+  const [oauthConnecting, setOauthConnecting] = useState(false)
+  const [oauthStatus, setOauthStatus] = useState({ is_connected: false, provider_email: null, last_synced_at: null })
+  const [oauthSyncing, setOauthSyncing] = useState(false)
+  const [oauthTesting, setOauthTesting] = useState(false)
+  const [oauthTestResult, setOauthTestResult] = useState(null)
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false)
+
   // ── SMTP Config state ──────────────────────────────────────────────────────
   const [configLoading, setConfigLoading]   = useState(true)
   const [configSaving,  setConfigSaving]    = useState(false)
@@ -1741,17 +1750,33 @@ function EmailSection() {
   const [smtpFromName,  setSmtpFromName]    = useState('SalesGenie')
   const [testAddress,   setTestAddress]     = useState('')
   const [showPassword,  setShowPassword]    = useState(false)
+  const [showAdvancedSmtp, setShowAdvancedSmtp] = useState(false)
 
-  // ── Tracking / Signature (UI-only for now) ─────────────────────────────────
-  const [saved,       setSaved]     = useState(false)
-  const [tracking, setTracking]     = useState({ opens: true, clicks: true, unsubscribes: true })
-  const [signature, setSignature]   = useState('')
-  const [delay, setDelay]           = useState('5')
+  // ── Tracking / Signature / Delay state ─────────────────────────────────────
+  const [saved, setSaved] = useState(false)
+  const [tracking, setTracking] = useState({ opens: true, clicks: true, unsubscribes: true })
+  const [signature, setSignature] = useState('')
+  const [delay, setDelay] = useState('5')
 
-  // ── Load config on mount ───────────────────────────────────────────────────
+  // ── Load configs on mount ──────────────────────────────────────────────────
+  const loadOAuthStatus = async () => {
+    setOauthLoading(true)
+    try {
+      const { getGmailStatus } = await import('@/services/api/gmail')
+      const data = await getGmailStatus()
+      setOauthStatus(data || { is_connected: false })
+    } catch (err) {
+      console.error('Failed to load Gmail OAuth status:', err)
+      setOauthStatus({ is_connected: false })
+    } finally {
+      setOauthLoading(false)
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
     async function load() {
+      loadOAuthStatus()
       try {
         const { getEmailConfig } = await import('@/services/api/email')
         const { data } = await getEmailConfig()
@@ -1773,7 +1798,94 @@ function EmailSection() {
     return () => { cancelled = true }
   }, [])
 
-  // ── Save config ────────────────────────────────────────────────────────────
+  // ── Handle OAuth return query params ────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const statusParam = params.get('status')
+    const messageParam = params.get('message')
+
+    if (statusParam === 'connected') {
+      showToast('Gmail account connected successfully!', 'success')
+      loadOAuthStatus()
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (statusParam === 'error') {
+      showToast(messageParam || 'Failed to connect Gmail account.', 'error')
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
+
+  // ── Google OAuth Connect ───────────────────────────────────────────────────
+  async function handleConnectGmail() {
+    setOauthConnecting(true)
+    try {
+      const { getGmailAuthUrl } = await import('@/services/api/gmail')
+      // Let backend use its configured canonical GOOGLE_REDIRECT_URI
+      const { auth_url } = await getGmailAuthUrl()
+      if (auth_url) {
+        window.location.href = auth_url
+      } else {
+        showToast('Could not initiate Google OAuth. Check server configuration.', 'error')
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.detail || 'Failed to start Google OAuth.'
+      showToast(msg, 'error')
+    } finally {
+      setOauthConnecting(false)
+    }
+  }
+
+  // ── Google OAuth Disconnect ────────────────────────────────────────────────
+  async function handleDisconnectGmail() {
+    try {
+      const { disconnectGmail } = await import('@/services/api/gmail')
+      await disconnectGmail()
+      showToast('Gmail account disconnected. Existing CRM history was preserved.', 'success')
+      setShowDisconnectModal(false)
+      await loadOAuthStatus()
+    } catch (err) {
+      showToast('Failed to disconnect Gmail.', 'error')
+    }
+  }
+
+  // ── Google OAuth Test Connection ───────────────────────────────────────────
+  async function handleTestOAuth() {
+    setOauthTesting(true)
+    setOauthTestResult(null)
+    try {
+      const { testGmailConnection } = await import('@/services/api/gmail')
+      const res = await testGmailConnection()
+      setOauthTestResult(res)
+      if (res.success) {
+        showToast(res.message, 'success')
+      } else {
+        showToast(res.message, 'error')
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Connection test failed.'
+      setOauthTestResult({ success: false, message: msg })
+      showToast(msg, 'error')
+    } finally {
+      setOauthTesting(false)
+    }
+  }
+
+  // ── Google OAuth Manual Sync ───────────────────────────────────────────────
+  async function handleSyncNow() {
+    setOauthSyncing(true)
+    try {
+      const { syncGmailEmails } = await import('@/services/api/gmail')
+      const res = await syncGmailEmails()
+      showToast(res.message || 'Gmail sync completed successfully.', 'success')
+      await loadOAuthStatus()
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Sync failed.'
+      showToast(msg, 'error')
+    } finally {
+      setOauthSyncing(false)
+    }
+  }
+
+  // ── Save SMTP config ───────────────────────────────────────────────────────
   async function handleSaveConfig() {
     setConfigSaving(true)
     setTestResult(null)
@@ -1787,12 +1899,11 @@ function EmailSection() {
         smtp_from_email: smtpFromEmail || smtpUsername || null,
         smtp_from_name:  smtpFromName,
       }
-      // Only send password if user actually typed something
       if (smtpPassword.trim()) payload.smtp_password = smtpPassword
       const { data } = await saveEmailConfig(payload)
       setIsConfigured(data.is_configured)
-      setSmtpPassword('')   // clear after save — never persist in state
-      showToast('Gmail SMTP configuration saved successfully.', 'success')
+      setSmtpPassword('')
+      showToast('SMTP configuration saved successfully.', 'success')
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Failed to save configuration.'
       showToast(msg, 'error')
@@ -1801,7 +1912,7 @@ function EmailSection() {
     }
   }
 
-  // ── Send test email ────────────────────────────────────────────────────────
+  // ── Send test email via SMTP ───────────────────────────────────────────────
   async function handleTestEmail() {
     setTestLoading(true)
     setTestResult(null)
@@ -1818,15 +1929,237 @@ function EmailSection() {
     }
   }
 
-  return (
-    <div className="space-y-4">
+  const formatLastSync = (timestamp) => {
+    if (!timestamp) return 'Never'
+    try {
+      return new Date(timestamp).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    } catch {
+      return timestamp
+    }
+  }
 
-      {/* ── Gmail SMTP Configuration ── */}
+  return (
+    <div className="space-y-6">
+
+      {/* ── 1. PRIMARY: Google OAuth 2.0 Gmail Integration ── */}
       <SectionCard>
-        <SectionTitle
-          title="Gmail SMTP Configuration"
-          description="Connect your Gmail account to send real outreach emails. Use a Gmail App Password (not your regular password)."
-        />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-line-default pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📫</span>
+              <h2 className="text-base font-bold text-ink-primary">Gmail Integration</h2>
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700 uppercase tracking-wide">
+                Google OAuth 2.0
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-ink-secondary">
+              Connect your Gmail account to send personalized outreach and detect customer replies automatically.
+            </p>
+          </div>
+
+          {oauthStatus?.is_connected ? (
+            <span className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              Gmail Connected
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+              <span className="size-2 rounded-full bg-slate-400" />
+              Not Connected
+            </span>
+          )}
+        </div>
+
+        {oauthLoading ? (
+          <div className="py-8 text-center text-xs text-ink-muted">
+            Checking connection status...
+          </div>
+        ) : oauthStatus?.is_connected ? (
+          /* ── Connected State View ── */
+          <div className="mt-5 space-y-5">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-white shadow-xs border border-emerald-200">
+                    <svg className="size-5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Connected Gmail Account</span>
+                    <p className="text-sm font-bold text-ink-primary">{oauthStatus.provider_email}</p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-ink-muted">
+                  <span className="font-semibold">Last Synchronized: </span>
+                  <span className="font-medium text-ink-secondary">{formatLastSync(oauthStatus.last_synced_at)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Test connection result banner */}
+            {oauthTestResult && (
+              <div
+                className={[
+                  'rounded-lg border p-3 text-xs flex items-center gap-2',
+                  oauthTestResult.success
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-rose-200 bg-rose-50 text-rose-800',
+                ].join(' ')}
+              >
+                <span>{oauthTestResult.success ? '✅' : '❌'}</span>
+                <span>{oauthTestResult.message}</span>
+              </div>
+            )}
+
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                disabled={oauthSyncing}
+                className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-brand-700 disabled:opacity-50 transition-colors"
+              >
+                <Icon className={`size-3.5 ${oauthSyncing ? 'animate-spin' : ''}`} d={ICONS.refresh} />
+                {oauthSyncing ? 'Syncing Relevant Emails...' : 'Sync Now'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleTestOAuth}
+                disabled={oauthTesting}
+                className="inline-flex items-center gap-2 rounded-lg border border-line-default bg-surface-default px-3.5 py-2 text-xs font-semibold text-ink-primary hover:bg-surface-subtle disabled:opacity-50 transition-colors"
+              >
+                <Icon className="size-3.5" d={ICONS.check} />
+                {oauthTesting ? 'Testing...' : 'Test Connection'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDisconnectModal(true)}
+                className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+              >
+                <Icon className="size-3.5" d={ICONS.trash} />
+                Disconnect Gmail
+              </button>
+            </div>
+
+            {/* Privacy & Permissions explanation */}
+            <div className="rounded-xl border border-line-default bg-surface-subtle p-4 text-xs space-y-2">
+              <div className="flex items-center gap-2 font-bold text-ink-secondary">
+                <Icon className="size-4 text-brand-600" d={ICONS.security} />
+                <span>Security & Permissions Guarantee</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-ink-muted">
+                <li><strong className="text-ink-secondary">Zero Mailbox Scraping:</strong> SalesGenie only checks messages from or to contacts and leads in your CRM.</li>
+                <li><strong className="text-ink-secondary">Token Encryption at Rest:</strong> Access and refresh tokens are symmetrically encrypted with Fernet. Passwords are never stored.</li>
+                <li><strong className="text-ink-secondary">User Isolation:</strong> Only you have access to send from your connected Gmail.</li>
+                <li><strong className="text-ink-secondary">History Preservation:</strong> Disconnecting removes stored tokens immediately while preserving your CRM timeline history.</li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          /* ── Disconnected State View ── */
+          <div className="mt-5 space-y-5">
+            <div className="rounded-xl border border-line-default bg-surface-subtle p-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-ink-primary">Connect Your Gmail Account</h3>
+                <p className="text-xs text-ink-muted max-w-lg leading-relaxed">
+                  Authorize SalesGenie to send emails on your behalf and detect replies from your leads. Uses Google OAuth 2.0 with minimal scopes. No Gmail passwords required.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConnectGmail}
+                disabled={oauthConnecting}
+                className="inline-flex shrink-0 items-center gap-2.5 rounded-xl border border-line-default bg-white px-5 py-2.5 text-xs font-bold text-ink-primary shadow-xs hover:bg-slate-50 transition-all active:scale-[0.98]"
+              >
+                <svg className="size-4" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                {oauthConnecting ? 'Redirecting to Google...' : 'Connect Gmail with Google'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-line-default bg-surface-default p-3.5">
+                <span className="text-base">🚀</span>
+                <p className="mt-1 text-xs font-bold text-ink-primary">Direct Delivery</p>
+                <p className="mt-0.5 text-[11px] text-ink-muted">Emails arrive from your actual name and Gmail address, maximizing deliverability.</p>
+              </div>
+              <div className="rounded-xl border border-line-default bg-surface-default p-3.5">
+                <span className="text-base">↩️</span>
+                <p className="mt-1 text-xs font-bold text-ink-primary">Automatic Reply Detection</p>
+                <p className="mt-0.5 text-[11px] text-ink-muted">Customer responses are matched to leads, summarized by AI, and trigger instant alerts.</p>
+              </div>
+              <div className="rounded-xl border border-line-default bg-surface-default p-3.5">
+                <span className="text-base">🔒</span>
+                <p className="mt-1 text-xs font-bold text-ink-primary">OAuth 2.0 Security</p>
+                <p className="mt-0.5 text-[11px] text-ink-muted">Google tokens are encrypted at rest with Fernet. You can revoke access at any time.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Disconnect Confirmation Modal */}
+        {showDisconnectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-line-default bg-surface-default p-6 shadow-xl space-y-4">
+              <h3 className="text-sm font-bold text-ink-primary">Disconnect Gmail Account?</h3>
+              <p className="text-xs text-ink-secondary leading-relaxed">
+                This will revoke Google OAuth tokens and stop automatic email synchronization. Your existing emails and CRM timeline logs will remain preserved.
+              </p>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDisconnectModal(false)}
+                  className="rounded-lg border border-line-default px-3 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-surface-subtle"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisconnectGmail}
+                  className="rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+                >
+                  Confirm Disconnect
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── 2. Advanced Settings / Custom SMTP (Secondary) ── */}
+      <SectionCard>
+        <div
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setShowAdvancedSmtp((v) => !v)}
+        >
+          <SectionTitle
+            title="Custom SMTP / Non-OAuth Settings"
+            description="Optional manual configuration for custom mail servers or non-Google providers."
+          />
+          <button type="button" className="text-xs font-bold text-brand-600 hover:underline">
+            {showAdvancedSmtp ? 'Hide Options ▲' : 'Show Options ▼'}
+          </button>
+        </div>
+
+        {showAdvancedSmtp && (
+          <div className="mt-5 space-y-5 border-t border-line-default pt-4">
 
         {configLoading ? (
           <div className="space-y-3 animate-pulse">
@@ -1962,6 +2295,8 @@ function EmailSection() {
             </div>
           </div>
         )}
+        </div>
+      )}
       </SectionCard>
 
       {/* ── Send Test Email ── */}

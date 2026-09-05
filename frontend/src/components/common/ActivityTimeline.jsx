@@ -226,8 +226,40 @@ export default function ActivityTimeline({ leadId, contactId, accountId, opportu
         <div className="relative pl-6 before:absolute before:bottom-2 before:left-2.5 before:top-2 before:w-0.5 before:bg-line-default">
           <div className="space-y-6">
             {activities.map((item) => {
-              const Icon = INTERACTION_ICONS[item.interaction_type] || MessageSquare
-              const colorClass = INTERACTION_COLORS[item.interaction_type] || 'bg-slate-50 text-slate-600 border-slate-200'
+              const isEmailReply =
+                item.summary?.includes('Customer Replied') ||
+                item.summary?.includes('Customer replied') ||
+                item.action_items?.some((a) => a?.type === 'gmail_customer_reply')
+
+              const isEmailSent =
+                item.summary?.includes('Email Sent') ||
+                item.summary?.includes('Outreach email sent') ||
+                item.action_items?.some((a) => a?.type === 'gmail_email_sent')
+
+              let badgeLabel = item.interaction_type.replace('_', ' ')
+              let badgeColor = 'bg-slate-100 text-slate-700'
+              let colorClass = INTERACTION_COLORS[item.interaction_type] || 'bg-slate-50 text-slate-600 border-slate-200'
+              let Icon = INTERACTION_ICONS[item.interaction_type] || MessageSquare
+
+              if (isEmailReply) {
+                badgeLabel = '↩️ Customer Replied'
+                badgeColor = 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-300'
+                Icon = Mail
+              } else if (isEmailSent) {
+                badgeLabel = '✉️ Email Sent'
+                badgeColor = 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                colorClass = 'bg-blue-50 text-blue-600 border-blue-300'
+                Icon = Mail
+              }
+
+              // Extract text action items (filtering out internal metadata dicts)
+              const displayActionItems = (item.action_items || [])
+                .map((a) => (typeof a === 'string' ? a : (a?.text || null)))
+                .filter(Boolean)
+
+              // Check if opened
+              const openMeta = (item.action_items || []).find((a) => a?.type === 'gmail_email_sent' && a?.opened_at)
 
               return (
                 <div key={item.id} className="relative group">
@@ -236,23 +268,32 @@ export default function ActivityTimeline({ leadId, contactId, accountId, opportu
                   >
                     <Icon className="size-3" />
                   </div>
-                  <div className="rounded-lg border border-line-default bg-surface-subtle p-3.5 transition-all hover:bg-surface-default hover:shadow-xs">
+                  <div className={`rounded-lg border border-line-default p-3.5 transition-all hover:bg-surface-default hover:shadow-xs ${
+                    isEmailReply ? 'bg-emerald-50/20 border-emerald-100' : 'bg-surface-subtle'
+                  }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
-                        {item.interaction_type.replace('_', ' ')}
+                      <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${badgeColor}`}>
+                        {badgeLabel}
                       </span>
-                      <span className="text-[11px] text-ink-muted">
-                        {formatDate(item.interaction_date)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {openMeta && (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded ring-1 ring-emerald-100">
+                            ✓ Opened
+                          </span>
+                        )}
+                        <span className="text-[11px] text-ink-muted">
+                          {formatDate(item.interaction_date)}
+                        </span>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm font-medium text-ink-primary">
+                    <p className="mt-2 text-sm font-medium text-ink-primary">
                       {item.summary || 'No summary provided.'}
                     </p>
-                    {item.action_items && item.action_items.length > 0 && (
+                    {displayActionItems.length > 0 && (
                       <div className="mt-2.5 rounded-md bg-surface-default p-2 border border-line-subtle">
                         <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">Action Items:</span>
                         <ul className="mt-1 space-y-1">
-                          {item.action_items.map((action, idx) => (
+                          {displayActionItems.map((action, idx) => (
                             <li key={idx} className="flex items-center gap-2 text-xs text-ink-secondary">
                               <span className="size-1.5 rounded-full bg-brand-500" />
                               {action}

@@ -20,9 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.db.session import AsyncSessionLocal
+from app.models.email_integration import EmailIntegration, IntegrationStatus
 from app.models.pipeline_enums import InteractionType
 from app.models.sales_interaction import SalesInteraction
 from app.models.task import Task
+from app.models.user import User
+from app.services.gmail_integration_service import GmailIntegrationService
 from app.services.notification_service import NotificationService
 
 logger = get_logger(__name__)
@@ -162,6 +165,33 @@ class NotificationSchedulerService:
                 except Exception as e:
                     logger.error("Error generating MEETING_REMINDER for task meeting %s: %s", mt.id, e)
 
+
+        # --------------------------------------------------------------
+        # 5. PERIODIC GMAIL SYNC: Auto-sync active Gmail accounts every 5 minutes
+        # --------------------------------------------------------------
+        try:
+            sync_threshold = now - timedelta(minutes=5)
+            active_integrations_stmt = select(EmailIntegration).where(
+                EmailIntegration.status == IntegrationStatus.CONNECTED,
+                or_(
+                    EmailIntegration.last_synced_at.is_(None),
+                    EmailIntegration.last_synced_at <= sync_threshold,
+                ),
+            ).limit(5)
+            active_res = await self.db.execute(active_integrations_stmt)
+            integrations_to_sync = active_res.scalars().all()
+
+            for integ in integrations_to_sync:
+                user_res = await self.db.execute(select(User).where(User.id == integ.user_id))
+                user = user_res.scalar_one_or_none()
+                if user:
+                    try:
+                        gmail_svc = GmailIntegrationService(self.db)
+                        await gmail_svc.sync_relevant_emails(user)
+                    except Exception as g_err:
+                        logger.warning("Background Gmail sync for user %s failed: %s", user.id, g_err)
+        except Exception as sync_loop_err:
+            logger.warning("Background Gmail sync check encountered error: %s", sync_loop_err)
 
         await self.db.commit()
         return stats
