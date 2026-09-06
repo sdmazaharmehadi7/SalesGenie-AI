@@ -385,8 +385,17 @@ function MemberDetailDrawer({ member, onClose, workspaceKey }) {
 }
 
 // ─── Member Comparison Modal Component ─────────────────────────────────────────
-function MemberComparisonModal({ selectedMembers, members, onClose }) {
-  if (!selectedMembers || selectedMembers.length < 2) return null
+function MemberComparisonModal({ isOpen, selectedMembers, members, onClose }) {
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !selectedMembers || selectedMembers.length < 2) return null
 
   const comparedList = members.filter((m) => selectedMembers.includes(m.user_id))
 
@@ -416,8 +425,14 @@ function MemberComparisonModal({ selectedMembers, members, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-4xl rounded-2xl bg-surface-default shadow-2xl border border-line-default flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-xs"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-4xl rounded-2xl bg-surface-default shadow-2xl border border-line-default flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-line-default p-5 bg-surface-subtle/50">
           <div className="flex items-center gap-2.5">
             <BarChart3 className="size-5 text-brand-600" />
@@ -1414,6 +1429,7 @@ export default function TeamTrackingPage() {
       />
 
       <MemberComparisonModal
+        isOpen={showCompareModal}
         selectedMembers={compareIds}
         members={members}
         onClose={() => setShowCompareModal(false)}

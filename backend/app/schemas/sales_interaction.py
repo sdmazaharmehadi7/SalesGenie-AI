@@ -3,6 +3,8 @@
 import uuid
 from datetime import datetime
 
+from typing import Any
+
 from pydantic import BaseModel
 
 from app.models.pipeline_enums import InteractionType
@@ -12,7 +14,7 @@ from app.schemas.common import ORMBaseModel
 class SalesInteractionCreate(BaseModel):
     interaction_type: InteractionType = InteractionType.OTHER
     summary: str | None = None
-    action_items: list[str] | None = None
+    action_items: list[Any] | None = None
     lead_id: uuid.UUID | None = None
     contact_id: uuid.UUID | None = None
     account_id: uuid.UUID | None = None
@@ -32,7 +34,7 @@ class SalesInteractionRead(ORMBaseModel):
     user_id: uuid.UUID | None = None
     interaction_type: InteractionType
     summary: str | None
-    action_items: list[str] | None
+    action_items: list[Any] | None = None
     interaction_date: datetime
 
 
@@ -46,5 +48,6 @@ class ActivityListItem(ORMBaseModel):
     user_id: uuid.UUID | None = None
     interaction_type: InteractionType
     summary: str | None
-    action_items: list[str] | None
+    action_items: list[Any] | None = None
     interaction_date: datetime
+

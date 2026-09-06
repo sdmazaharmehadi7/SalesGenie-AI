@@ -18,7 +18,7 @@ import {
   Target,
   Check,
 } from '@/components/ui/icons'
-import { completeFollowUp, createFollowUp } from '@/services/api/followUps'
+import { completeFollowUp, createFollowUp, deleteFollowUp } from '@/services/api/followUps'
 import { logActivity } from '@/services/api/activities'
 import { useToast } from '@/context/ToastContext'
 
@@ -65,6 +65,14 @@ export default function AutomatedFollowUpsSection({
   const { showToast } = useToast()
   const [filter, setFilter] = useState('all') // 'all', 'urgent', 'status_change', 'overdue', 'stale'
   const [completingId, setCompletingId] = useState(null)
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem('crm_dismissed_recommendations')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
 
   // Follow-up scheduling modal state
   const [scheduleModalLead, setScheduleModalLead] = useState(null)
@@ -85,8 +93,13 @@ export default function AutomatedFollowUpsSection({
     notes: '',
   })
 
+  // Filter out any dismissed recommendations
+  const activeRecs = (recommendations || []).filter(
+    (rec) => !dismissedIds.includes(rec.id) && !dismissedIds.includes(rec.lead_id)
+  )
+
   // Deduplicate by lead_id (client-side safety net)
-  const deduped = recommendations.filter((rec, idx, arr) =>
+  const deduped = activeRecs.filter((rec, idx, arr) =>
     arr.findIndex((r) => r.lead_id === rec.lead_id) === idx
   )
 
@@ -99,13 +112,38 @@ export default function AutomatedFollowUpsSection({
     return true
   })
 
-  // Counters (from deduplicated list)
+  // Counters (from deduplicated active list)
   const urgentCount = deduped.filter((r) => r.urgency === 'urgent').length
   const highCount = deduped.filter((r) => r.urgency === 'high').length
   const statusChangeCount = deduped.filter((r) => r.trigger_type === 'status_change').length
   const staleCount = deduped.filter(
     (r) => r.trigger_type === 'stale_lead' || r.trigger_type === 'new_uncontacted'
   ).length
+
+  // Handle cancel & remove recommendation
+  const handleDismissRecommendation = async (rec) => {
+    // If it has an existing follow up task in DB, delete it
+    if (rec.existing_follow_up_id) {
+      try {
+        await deleteFollowUp(rec.existing_follow_up_id)
+      } catch (err) {
+        console.warn('Could not delete underlying follow-up from DB:', err)
+      }
+    }
+
+    const updated = [...new Set([...dismissedIds, rec.id, rec.lead_id])]
+    setDismissedIds(updated)
+    try {
+      localStorage.setItem('crm_dismissed_recommendations', JSON.stringify(updated))
+    } catch {
+      // ignore
+    }
+
+    showToast(`Recommendation for ${rec.company_name} cancelled and removed.`, 'success')
+    if (onRefresh && rec.existing_follow_up_id) {
+      onRefresh()
+    }
+  }
 
   // Handle one-click completion of an overdue follow-up
   const handleCompleteFollowUp = async (rec) => {
@@ -215,6 +253,27 @@ export default function AutomatedFollowUpsSection({
           <p className="mt-0.5 text-xs text-ink-secondary">
             Triggered automatically by lead state transitions, overdue follow-up dates, and CRM activity velocity.
           </p>
+          {dismissedIds.length > 0 && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-[11px] text-ink-muted">
+                {dismissedIds.length} recommendation{dismissedIds.length > 1 ? 's' : ''} removed
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedIds([])
+                  try {
+                    localStorage.removeItem('crm_dismissed_recommendations')
+                  } catch {}
+                  showToast('Removed recommendations restored.', 'info')
+                  if (onRefresh) onRefresh()
+                }}
+                className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 underline transition-colors"
+              >
+                Restore all
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Filter Tabs */}
@@ -228,7 +287,7 @@ export default function AutomatedFollowUpsSection({
                 : 'text-ink-secondary hover:text-ink-primary'
             }`}
           >
-            All ({recommendations.length})
+            All ({deduped.length})
           </button>
           <button
             type="button"
@@ -317,11 +376,21 @@ export default function AutomatedFollowUpsSection({
                       </span>
                     </div>
 
-                    {rec.deal_value && (
-                      <span className="text-xs font-bold text-ink-primary">
-                        ${Number(rec.deal_value).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {rec.deal_value && (
+                        <span className="text-xs font-bold text-ink-primary">
+                          ${Number(rec.deal_value).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDismissRecommendation(rec)}
+                        title="Cancel & remove recommendation"
+                        className="rounded-md p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 transition-colors"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Lead & Company Name */}
@@ -413,6 +482,15 @@ export default function AutomatedFollowUpsSection({
                   >
                     <ArrowUpRight className="size-3.5" />
                   </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDismissRecommendation(rec)}
+                    title="Cancel & remove recommendation"
+                    className="grid size-8 place-items-center rounded-lg border border-line-default bg-surface-default text-ink-secondary hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-500/10 transition-colors shadow-2xs"
+                  >
+                    <X className="size-3.5" />
+                  </button>
                 </div>
               </div>
             )
