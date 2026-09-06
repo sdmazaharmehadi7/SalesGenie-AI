@@ -203,6 +203,12 @@ async def run_notification_scheduler_loop(interval_seconds: int = 60) -> None:
     Sleeps interval_seconds between ticks and cleanly catches cancellation.
     """
     logger.info("Notification scheduler background loop started (interval=%ds).", interval_seconds)
+    # Allow application startup to settle before running first database check
+    try:
+        await asyncio.sleep(5)
+    except asyncio.CancelledError:
+        return
+
     while True:
         try:
             async with AsyncSessionLocal() as session:
@@ -214,8 +220,14 @@ async def run_notification_scheduler_loop(interval_seconds: int = 60) -> None:
         except asyncio.CancelledError:
             logger.info("Notification scheduler loop cancelled.")
             break
+        except (OSError, ConnectionRefusedError) as conn_err:
+            logger.warning("Database unavailable for notification scheduler: %s. Retrying in %ds...", conn_err, interval_seconds)
         except Exception as exc:
-            logger.error("Error in notification scheduler loop: %s", exc, exc_info=True)
+            err_str = str(exc).lower()
+            if "connection refused" in err_str or "cannot connect" in err_str or "server closed the connection" in err_str:
+                logger.warning("Database connection error during notification scheduler tick: %s. Retrying in %ds...", exc, interval_seconds)
+            else:
+                logger.error("Error in notification scheduler loop: %s", exc, exc_info=True)
 
         try:
             await asyncio.sleep(interval_seconds)

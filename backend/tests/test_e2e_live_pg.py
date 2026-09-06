@@ -15,7 +15,21 @@ async def test_live_data_flow():
             "role": "sales_rep",
         })
         if reg_res.status_code == 201:
-            token = reg_res.json()["access_token"]
+            from sqlalchemy import select
+            from app.db.session import AsyncSessionLocal
+            from app.models.email_otp import EmailOTP
+            from app.models.user import User
+
+            async with AsyncSessionLocal() as db:
+                user = (await db.execute(select(User).where(User.email == "live_test_pg_verification@example.com"))).scalar_one()
+                otp_record = (await db.execute(select(EmailOTP).where(EmailOTP.user_id == user.id, EmailOTP.is_used == False))).scalars().first()
+                otp_code = otp_record.otp_code
+
+            verify_res = await client.post("/api/v1/auth/verify-otp", json={
+                "email": "live_test_pg_verification@example.com",
+                "otp": otp_code,
+            })
+            token = verify_res.json()["access_token"]
         else:
             login_res = await client.post("/api/v1/auth/login", data={
                 "username": "live_test_pg_verification@example.com",

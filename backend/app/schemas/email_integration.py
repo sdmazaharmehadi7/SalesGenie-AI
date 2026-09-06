@@ -39,6 +39,7 @@ class GmailTestResponse(BaseModel):
 
 class GmailSendRequest(BaseModel):
     lead_id: uuid.UUID | None = None
+    contact_id: uuid.UUID | None = None
     to_email: str = Field(min_length=3)
     subject: str = Field(min_length=1, max_length=500)
     body: str = Field(min_length=1)

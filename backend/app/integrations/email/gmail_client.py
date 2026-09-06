@@ -391,6 +391,10 @@ class GmailClient:
         date_header = headers_map.get("date", "")
         message_id_header = headers_map.get("message-id", "")
         in_reply_to_header = headers_map.get("in-reply-to", "")
+        references_header = headers_map.get("references", "")
+
+        clean_from = email.utils.parseaddr(from_header)[1].lower() if from_header else ""
+        clean_to = email.utils.parseaddr(to_header)[1].lower() if to_header else ""
 
         # Extract plain body text
         body_text = self._extract_body(payload) or snippet
@@ -402,11 +406,14 @@ class GmailClient:
             "internal_date": internal_date,
             "label_ids": label_ids,
             "from_address": from_header,
+            "clean_from": clean_from,
             "to_address": to_header,
+            "clean_to": clean_to,
             "subject": subject_header,
             "date": date_header,
             "rfc_message_id": message_id_header,
             "in_reply_to": in_reply_to_header,
+            "references": references_header,
             "body_text": body_text[:4000] if body_text else "",  # Cap at reasonable length
         }
 

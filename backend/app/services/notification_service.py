@@ -531,6 +531,7 @@ SalesGenie AI Platform
         contact_name: str | None = None,
         company_name: str | None = None,
         subject: str | None = None,
+        gmail_message_id: str | None = None,
     ) -> Notification | None:
         """Triggered when prospect opens or replies to an email."""
         pref = await self.notifications.get_or_create_preferences(recipient_user_id)
@@ -552,10 +553,12 @@ SalesGenie AI Platform
             message=message,
             entity_type="lead" if lead_id else "contact",
             entity_id=lead_id,
+            idempotency_key=f"email_{activity_type}_{gmail_message_id}" if gmail_message_id else None,
             data={
                 "contact_name": contact_name,
                 "company_name": company_name,
                 "subject": subject,
+                "gmail_message_id": gmail_message_id,
                 "link": f"/leads/{lead_id}" if lead_id else "/crm/activities",
             },
         )

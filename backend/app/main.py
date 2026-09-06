@@ -45,6 +45,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.ENVIRONMENT,
         __version__,
     )
+    # Verify database connectivity
+    try:
+        from app.db.session import check_database_connection
+        if await check_database_connection():
+            logger.info("PostgreSQL database connection verified.")
+        else:
+            logger.warning(
+                "PostgreSQL connection check failed. Ensure PostgreSQL (Postgres.app) is running on %s:%s.",
+                settings.POSTGRES_SERVER,
+                settings.POSTGRES_PORT,
+            )
+    except Exception as db_err:
+        logger.warning(
+            "PostgreSQL is not reachable on %s:%s (%s). Please ensure PostgreSQL is running.",
+            settings.POSTGRES_SERVER,
+            settings.POSTGRES_PORT,
+            db_err,
+        )
+
     scheduler_task = asyncio.create_task(run_notification_scheduler_loop(interval_seconds=60))
     try:
         yield

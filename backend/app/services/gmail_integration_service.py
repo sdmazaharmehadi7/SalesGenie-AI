@@ -14,6 +14,7 @@ Production-grade business logic for:
 
 import base64
 from datetime import datetime, timedelta, timezone
+import email.utils
 import json
 import uuid
 from typing import Any
@@ -432,7 +433,8 @@ class GmailIntegrationService:
     ) -> GmailSendResponse:
         """
         Send email from the authenticated user's connected Gmail account.
-        Logs a SalesInteraction with interaction_type=InteractionType.EMAIL.
+        Stores Gmail message ID, thread ID, lead ID, and contact ID in SalesInteraction
+        and EmailIntegration.metadata_json["outreach_threads"] for future reply tracking.
         """
         integration = await self.get_integration(current_user.id)
         if not integration or integration.status != IntegrationStatus.CONNECTED:
@@ -441,16 +443,52 @@ class GmailIntegrationService:
                 error_code="gmail_not_connected",
             )
 
-        # Context resolution
+        # Context & entity resolution
+        is_personal = ws_ctx.is_personal if ws_ctx else True
         workspace_id = ws_ctx.workspace_id if ws_ctx and not ws_ctx.is_personal else None
+        lead_id = payload.lead_id
+        contact_id = getattr(payload, "contact_id", None)
+        target_email = payload.to_email.strip().lower()
+
         lead = None
-        if payload.lead_id:
+        if lead_id:
             lead_result = await self.db.execute(
-                select(Lead).where(Lead.id == payload.lead_id)
+                select(Lead).where(Lead.id == lead_id)
             )
             lead = lead_result.scalar_one_or_none()
             if lead and lead.workspace_id:
                 workspace_id = lead.workspace_id
+        else:
+            lead_query = select(Lead).where(Lead.email.ilike(target_email))
+            if is_personal:
+                lead_query = lead_query.where(
+                    or_(Lead.owner_id == current_user.id, Lead.assigned_to == current_user.id),
+                    Lead.workspace_id.is_(None),
+                )
+            elif workspace_id:
+                lead_query = lead_query.where(Lead.workspace_id == workspace_id)
+
+            lead_res = await self.db.execute(lead_query)
+            lead = lead_res.scalars().first()
+            if lead:
+                lead_id = lead.id
+                if lead.workspace_id:
+                    workspace_id = lead.workspace_id
+
+        if not contact_id:
+            contact_query = select(Contact).where(Contact.email.ilike(target_email))
+            if is_personal:
+                contact_query = contact_query.where(
+                    Contact.owner_id == current_user.id,
+                    Contact.workspace_id.is_(None),
+                )
+            elif workspace_id:
+                contact_query = contact_query.where(Contact.workspace_id == workspace_id)
+
+            contact_res = await self.db.execute(contact_query)
+            contact = contact_res.scalars().first()
+            if contact:
+                contact_id = contact.id
 
         # Generate tracking pixel if tracking is enabled
         tracking_html = ""
@@ -474,6 +512,7 @@ class GmailIntegrationService:
                 body_html=body_html,
                 from_name=current_user.name or current_user.email,
                 in_reply_to=payload.in_reply_to,
+                references=getattr(payload, "references", None),
                 thread_id=payload.thread_id,
             ),
         )
@@ -486,14 +525,18 @@ class GmailIntegrationService:
             "type": "gmail_email_sent",
             "gmail_message_id": gmail_message_id,
             "gmail_thread_id": gmail_thread_id,
+            "lead_id": str(lead_id) if lead_id else None,
+            "contact_id": str(contact_id) if contact_id else None,
             "to": payload.to_email,
             "from": integration.provider_email,
+            "subject": payload.subject,
             "tracking_id": tracking_id,
             "sent_at": datetime.now(timezone.utc).isoformat(),
         }
 
         interaction = SalesInteraction(
-            lead_id=payload.lead_id,
+            lead_id=lead_id,
+            contact_id=contact_id,
             workspace_id=workspace_id,
             user_id=current_user.id,
             interaction_type=InteractionType.EMAIL,
@@ -501,13 +544,31 @@ class GmailIntegrationService:
             action_items=[action_item_metadata],
         )
         self.db.add(interaction)
+
+        # Store outreach thread in integration metadata for matching future replies
+        meta = dict(integration.metadata_json or {})
+        outreach_threads = dict(meta.get("outreach_threads") or {})
+        if gmail_thread_id:
+            outreach_threads[gmail_thread_id] = {
+                "lead_id": str(lead_id) if lead_id else None,
+                "contact_id": str(contact_id) if contact_id else None,
+                "lead_email": target_email,
+                "initial_message_id": gmail_message_id,
+                "subject": payload.subject,
+                "sent_at": datetime.now(timezone.utc).isoformat(),
+            }
+            meta["outreach_threads"] = outreach_threads
+            integration.metadata_json = meta
+
         await self.db.commit()
         await self.db.refresh(interaction)
 
         logger.info(
-            "Email sent via Gmail API: message_id=%s lead_id=%s user_id=%s",
+            "Email sent via Gmail API: message_id=%s thread_id=%s lead_id=%s contact_id=%s user_id=%s",
             gmail_message_id,
-            payload.lead_id,
+            gmail_thread_id,
+            lead_id,
+            contact_id,
             current_user.id,
         )
 
@@ -520,7 +581,108 @@ class GmailIntegrationService:
         )
 
     # -------------------------------------------------------------------------
-    # 5. Relevant Email Synchronization & Customer Reply Detection
+    # 5. Helper: System, Auth, OTP, and Invitation Email Filtering
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def is_system_or_auth_email(detail: dict[str, Any], user_email: str | None = None) -> bool:
+        """
+        Detect OTP, verification, invitation, system, transactional, or self-sent emails.
+        Such emails MUST NEVER create notifications or CRM activities.
+        """
+        clean_from = (detail.get("clean_from") or "").lower().strip()
+        from_raw = (detail.get("from_address") or "").lower().strip()
+        subject = (detail.get("subject") or "").lower().strip()
+        snippet = (detail.get("snippet") or "").lower().strip()
+
+        # 1. Ignore emails sent by the user themselves
+        if user_email and clean_from == user_email.lower().strip():
+            return True
+
+        # 2. Automated & system senders
+        system_sender_patterns = (
+            "noreply@",
+            "no-reply@",
+            "donotreply@",
+            "do-not-reply@",
+            "notifications@",
+            "mailer-daemon@",
+            "postmaster@",
+            "system@",
+            "security@",
+            "auth@",
+            "verify@",
+            "accounts.google.com",
+            "google.com",
+            "firebase",
+            "auth0.com",
+            "supabase.co",
+            "github.com",
+            "support@",
+            "billing@",
+            "alert@",
+            "alerts@",
+        )
+        if any(pat in clean_from or pat in from_raw for pat in system_sender_patterns):
+            return True
+
+        # 3. OTP, Verification, and Authentication subjects/snippets
+        auth_keywords = (
+            "otp",
+            "one-time password",
+            "onetime password",
+            "verification code",
+            "verify your email",
+            "email verification",
+            "confirm your email",
+            "confirm email",
+            "security code",
+            "password reset",
+            "reset your password",
+            "magic link",
+            "login code",
+            "security alert",
+            "sign-in code",
+            "two-factor",
+            "2fa",
+            "mfa code",
+            "authorization code",
+            "temporary access code",
+            "confirm your account",
+        )
+        if any(kw in subject for kw in auth_keywords) or any(kw in snippet for kw in auth_keywords):
+            return True
+
+        # 4. SalesGenie / Workspace invitation keywords
+        invitation_keywords = (
+            "invitation to join",
+            "invited you to join",
+            "workspace invitation",
+            "join your team",
+            "you've been invited",
+            "you have been invited",
+            "team invitation",
+            "welcome to salesgenie",
+            "invited to workspace",
+        )
+        if any(kw in subject for kw in invitation_keywords) or any(kw in snippet for kw in invitation_keywords):
+            return True
+
+        # 5. Billing / Transactional notifications
+        billing_keywords = (
+            "invoice payment",
+            "payment receipt",
+            "subscription confirmed",
+            "billing receipt",
+            "statement available",
+        )
+        if any(kw in subject for kw in billing_keywords):
+            return True
+
+        return False
+
+    # -------------------------------------------------------------------------
+    # 6. Relevant Email Synchronization & Customer Reply Detection
     # -------------------------------------------------------------------------
 
     async def sync_relevant_emails(
@@ -529,33 +691,102 @@ class GmailIntegrationService:
         ws_ctx: WorkspaceContext | None = None,
     ) -> GmailSyncResponse:
         """
-        Controlled sync: strictly queries Gmail for emails from or to CRM Leads/Contacts.
-        DOES NOT sync the entire mailbox.
-        Detects customer replies, invokes AI conversation analysis for action items,
-        logs CRM SalesInteraction, and dispatches in-app notification.
+        Controlled sync: strictly queries Gmail for emails related to CRM lead outreach.
+        Only processes:
+        - Outreach threads initiated by SalesGenie
+        - Replies from corresponding leads
+        - Relevant conversation messages for those leads
+
+        Strictly ignores system, auth, OTP, invitation, or unrelated emails.
+        Guarantees idempotency and prevents duplicate notifications/activities.
         """
         integration = await self.get_integration(current_user.id)
         if not integration or integration.status != IntegrationStatus.CONNECTED:
             raise ConflictError("Gmail is not connected.", error_code="gmail_not_connected")
 
-        # 1. Gather email addresses of leads accessible by this user/workspace
+        # 1. Gather CRM leads and contacts accessible in this context
         is_personal = ws_ctx.is_personal if ws_ctx else True
         workspace_id = ws_ctx.workspace_id if ws_ctx and not ws_ctx.is_personal else None
 
         lead_query = select(Lead).where(Lead.email.isnot(None))
+        contact_query = select(Contact).where(Contact.email.isnot(None))
         if is_personal:
             lead_query = lead_query.where(
                 or_(Lead.owner_id == current_user.id, Lead.assigned_to == current_user.id),
                 Lead.workspace_id.is_(None),
             )
+            contact_query = contact_query.where(
+                Contact.owner_id == current_user.id,
+                Contact.workspace_id.is_(None),
+            )
         elif workspace_id:
             lead_query = lead_query.where(Lead.workspace_id == workspace_id)
+            contact_query = contact_query.where(Contact.workspace_id == workspace_id)
 
         leads_result = await self.db.execute(lead_query)
         leads = leads_result.scalars().all()
         lead_emails_map = {lead.email.lower().strip(): lead for lead in leads if lead.email}
 
-        if not lead_emails_map:
+        contacts_result = await self.db.execute(contact_query)
+        contacts = contacts_result.scalars().all()
+        contact_emails_map = {c.email.lower().strip(): c for c in contacts if c.email}
+
+        # 2. Gather outreach thread IDs, message IDs, and previously logged message IDs
+        existing_interactions = await self.db.execute(
+            select(SalesInteraction).where(
+                SalesInteraction.interaction_type == InteractionType.EMAIL,
+                SalesInteraction.user_id == current_user.id,
+            )
+        )
+        interactions = existing_interactions.scalars().all()
+
+        logged_gmail_message_ids: set[str] = set()
+        known_outreach_threads: dict[str, dict[str, Any]] = {}
+        known_outreach_message_ids: set[str] = set()
+        leads_with_outreach: set[str] = set()
+        outreach_subjects_by_lead: dict[str, list[str]] = {}
+
+        # Load from integration.metadata_json["outreach_threads"]
+        stored_threads = (integration.metadata_json or {}).get("outreach_threads") or {}
+        for th_id, th_meta in stored_threads.items():
+            if isinstance(th_meta, dict):
+                known_outreach_threads[th_id] = th_meta
+                if th_meta.get("initial_message_id"):
+                    known_outreach_message_ids.add(th_meta["initial_message_id"])
+                if th_meta.get("lead_email"):
+                    em = th_meta["lead_email"].lower().strip()
+                    leads_with_outreach.add(em)
+                    if th_meta.get("subject"):
+                        outreach_subjects_by_lead.setdefault(em, []).append(th_meta["subject"].lower().strip())
+
+        for si in interactions:
+            if not si.action_items:
+                continue
+            for item in si.action_items:
+                if not isinstance(item, dict):
+                    continue
+                m_id = item.get("gmail_message_id")
+                if m_id:
+                    logged_gmail_message_ids.add(m_id)
+                if item.get("type") == "gmail_email_sent":
+                    th_id = item.get("gmail_thread_id")
+                    to_addr = (item.get("to") or "").lower().strip()
+                    subj = (item.get("subject") or "").lower().strip()
+                    if m_id:
+                        known_outreach_message_ids.add(m_id)
+                    if th_id:
+                        known_outreach_threads[th_id] = {
+                            "lead_id": str(si.lead_id) if si.lead_id else item.get("lead_id"),
+                            "contact_id": str(si.contact_id) if si.contact_id else item.get("contact_id"),
+                            "lead_email": to_addr,
+                            "subject": subj,
+                        }
+                    if to_addr:
+                        leads_with_outreach.add(to_addr)
+                        if subj:
+                            outreach_subjects_by_lead.setdefault(to_addr, []).append(subj)
+
+        if not lead_emails_map and not contact_emails_map and not known_outreach_threads:
             now = datetime.now(timezone.utc)
             integration.last_synced_at = now
             await self.db.commit()
@@ -564,16 +795,34 @@ class GmailIntegrationService:
                 synced_count=0,
                 new_replies_count=0,
                 last_synced_at=now,
-                message="No CRM leads with email addresses found to synchronize.",
+                message="No CRM leads or outreach conversations found to synchronize.",
             )
 
-        # 2. Build targeted Gmail search query for these specific lead emails
-        # Format: from:(lead1@domain.com OR lead2@domain.com)
-        email_list = list(lead_emails_map.keys())[:20]  # Chunk in batches of 20
-        email_or_terms = " OR ".join(email_list)
-        search_query = f"from:({email_or_terms})"
+        # 3. Build targeted Gmail search query for outreach threads & outreach leads
+        query_parts = []
+        if known_outreach_threads:
+            thread_ids = list(known_outreach_threads.keys())[-20:]
+            query_parts.append(f"({' OR '.join([f'thread:{tid}' for tid in thread_ids])})")
 
-        # If previously synced, add date constraint (last 14 days or since last_sync)
+        active_target_emails = list(leads_with_outreach)
+        for em in lead_emails_map.keys():
+            if em not in active_target_emails:
+                active_target_emails.append(em)
+        for em in contact_emails_map.keys():
+            if em not in active_target_emails:
+                active_target_emails.append(em)
+
+        if active_target_emails:
+            query_parts.append(f"({' OR '.join([f'from:{em}' for em in active_target_emails[:20]])})")
+
+        search_query = f"({' OR '.join(query_parts)})"
+
+        # Exclude self-sent emails and automated system emails
+        if integration.provider_email:
+            search_query += f" -from:{integration.provider_email}"
+        search_query += " -from:noreply -from:no-reply -from:notifications"
+
+        # Date constraint
         if integration.last_synced_at:
             since_date = (integration.last_synced_at - timedelta(hours=1)).strftime("%Y/%m/%d")
             search_query += f" after:{since_date}"
@@ -592,27 +841,11 @@ class GmailIntegrationService:
         synced_count = 0
         new_replies_count = 0
 
-        # Fetch previously logged gmail_message_ids to guarantee strict idempotency
-        # Check sales_interactions for existing gmail_message_ids
-        existing_interactions = await self.db.execute(
-            select(SalesInteraction).where(
-                SalesInteraction.interaction_type == InteractionType.EMAIL,
-                SalesInteraction.user_id == current_user.id,
-            )
-        )
-        logged_ids = set()
-        for si in existing_interactions.scalars().all():
-            if si.action_items:
-                for item in si.action_items:
-                    if isinstance(item, dict) and "gmail_message_id" in item:
-                        logged_ids.add(item["gmail_message_id"])
-
         for msg_summary in messages_list:
             msg_id = msg_summary.get("id")
-            if not msg_id or msg_id in logged_ids:
+            if not msg_id or msg_id in logged_gmail_message_ids:
                 continue
 
-            # Fetch full parsed detail with automatic retry on token expiry
             detail = await self.execute_with_token_retry(
                 integration,
                 lambda tok: self.client.get_message_detail(access_token=tok, message_id=msg_id),
@@ -620,69 +853,152 @@ class GmailIntegrationService:
             if not detail:
                 continue
 
-            synced_count += 1
-            from_addr = detail.get("from_address", "").lower()
+            # 4. Strict Filtering: Reject system, auth, OTP, invitation emails
+            if self.is_system_or_auth_email(detail, user_email=integration.provider_email):
+                logger.debug("Skipping system/auth/OTP/invitation email id=%s subject=%s", msg_id, detail.get("subject"))
+                continue
 
-            # Find matching lead
+            clean_from = (detail.get("clean_from") or "").lower().strip()
+            msg_thread_id = detail.get("gmail_thread_id")
+            in_reply_to = (detail.get("in_reply_to") or "").strip()
+            references = (detail.get("references") or "").strip()
+            subject = (detail.get("subject") or "Reply from prospect").strip()
+            subject_lower = subject.lower()
+
+            # 5. Strict Relevance Matching:
+            # Must belong to an outreach thread initiated by SalesGenie OR be a reply from the corresponding lead
+            is_relevant = False
             matched_lead = None
-            for lead_email, lead_obj in lead_emails_map.items():
-                if lead_email in from_addr:
-                    matched_lead = lead_obj
-                    break
+            matched_contact = None
+            thread_meta = None
 
-            if matched_lead:
-                new_replies_count += 1
-                subject = detail.get("subject", "Reply from prospect")
-                body_text = detail.get("body_text", "")
+            # Condition A: Belongs to a known outreach thread initiated by SalesGenie
+            if msg_thread_id and msg_thread_id in known_outreach_threads:
+                thread_meta = known_outreach_threads[msg_thread_id]
+                thread_lead_email = (thread_meta.get("lead_email") or "").lower().strip()
+                if clean_from == thread_lead_email or clean_from in lead_emails_map or clean_from in contact_emails_map:
+                    is_relevant = True
 
-                # 3. AI Analysis on Reply using existing AI Provider
-                ai_summary = f"Customer replied: {subject}"
-                action_items = []
-                if self.ai_provider and body_text:
-                    try:
-                        ai_res = await self.ai_provider.summarize_conversation(transcript=body_text[:1500])
-                        if ai_res.get("summary"):
-                            ai_summary = f"↩️ Customer Replied: {ai_res['summary']}"
-                        if ai_res.get("action_items"):
-                            action_items = ai_res["action_items"]
-                    except Exception as ai_err:
-                        logger.warning("AI summarization on email reply failed: %s", ai_err)
+            # Condition B: Direct RFC in-reply-to or references header matching a SalesGenie outreach message
+            if not is_relevant and (in_reply_to or references):
+                for sent_msg_id in known_outreach_message_ids:
+                    if (in_reply_to and sent_msg_id in in_reply_to) or (references and sent_msg_id in references):
+                        is_relevant = True
+                        break
 
-                # Append metadata to action_items
-                action_items.append({
-                    "type": "gmail_customer_reply",
-                    "gmail_message_id": msg_id,
-                    "gmail_thread_id": detail.get("gmail_thread_id"),
-                    "from": detail.get("from_address"),
-                    "received_at": detail.get("date"),
-                    "snippet": detail.get("snippet"),
-                })
+            # Condition C: Lead has prior outreach and message indicates a reply
+            if not is_relevant and clean_from in leads_with_outreach:
+                is_reply_subject = subject_lower.startswith(("re:", "re :", "fwd:", "aw:", "sv:"))
+                known_subjs = outreach_subjects_by_lead.get(clean_from, [])
+                matches_prior_subj = any(s in subject_lower for s in known_subjs if len(s) > 3)
+                if is_reply_subject or matches_prior_subj:
+                    is_relevant = True
 
-                # 4. Insert SalesInteraction (Activity Timeline)
-                interaction = SalesInteraction(
-                    lead_id=matched_lead.id,
-                    workspace_id=matched_lead.workspace_id,
-                    user_id=current_user.id,
-                    interaction_type=InteractionType.EMAIL,
-                    summary=ai_summary,
-                    action_items=action_items,
-                )
-                self.db.add(interaction)
-                logged_ids.add(msg_id)
+            if not is_relevant:
+                logger.debug("Skipping email id=%s from=%s subject=%s: Unrelated to SalesGenie outreach", msg_id, clean_from, subject)
+                continue
 
-                # 5. In-App Notification (type=email_replied)
+            # Resolve CRM entities
+            if thread_meta:
+                t_lead_id = thread_meta.get("lead_id")
+                t_contact_id = thread_meta.get("contact_id")
+                if t_lead_id:
+                    for l in leads:
+                        if str(l.id) == str(t_lead_id):
+                            matched_lead = l
+                            break
+                if t_contact_id:
+                    for c in contacts:
+                        if str(c.id) == str(t_contact_id):
+                            matched_contact = c
+                            break
+
+            if not matched_lead and clean_from in lead_emails_map:
+                matched_lead = lead_emails_map[clean_from]
+
+            if not matched_contact and clean_from in contact_emails_map:
+                matched_contact = contact_emails_map[clean_from]
+
+            if not matched_lead and matched_contact and matched_contact.lead_id:
+                for l in leads:
+                    if l.id == matched_contact.lead_id:
+                        matched_lead = l
+                        break
+
+            if not matched_lead and not matched_contact:
+                logger.debug("Skipping message id=%s: No matching CRM lead or contact found", msg_id)
+                continue
+
+            # 6. Process Customer Reply
+            synced_count += 1
+            new_replies_count += 1
+            body_text = detail.get("body_text", "")
+
+            # AI analysis on reply using existing AI Provider
+            ai_summary = f"Customer replied: {subject}"
+            action_items = []
+            if self.ai_provider and body_text:
                 try:
-                    await self.notification_service.notify_email_activity(
-                        recipient_user_id=current_user.id,
-                        workspace_id=matched_lead.workspace_id,
-                        activity_type=NotificationType.EMAIL_REPLIED.value,
-                        lead_id=matched_lead.id,
-                        contact_name=matched_lead.contact_name,
-                        company_name=matched_lead.company_name,
-                        subject=subject,
-                    )
-                except Exception as notif_err:
-                    logger.warning("Failed to create email reply notification: %s", notif_err)
+                    ai_res = await self.ai_provider.summarize_conversation(transcript=body_text[:1500])
+                    if ai_res.get("summary"):
+                        ai_summary = f"↩️ Customer Replied: {ai_res['summary']}"
+                    if ai_res.get("action_items"):
+                        action_items = ai_res["action_items"]
+                except Exception as ai_err:
+                    logger.warning("AI summarization on email reply failed: %s", ai_err)
+
+            action_items.append({
+                "type": "gmail_customer_reply",
+                "gmail_message_id": msg_id,
+                "gmail_thread_id": msg_thread_id,
+                "from": detail.get("from_address"),
+                "clean_from": clean_from,
+                "received_at": detail.get("date"),
+                "snippet": detail.get("snippet"),
+            })
+
+            resolved_lead_id = matched_lead.id if matched_lead else None
+            resolved_contact_id = matched_contact.id if matched_contact else None
+            resolved_workspace_id = (
+                matched_lead.workspace_id if matched_lead
+                else (matched_contact.workspace_id if matched_contact else workspace_id)
+            )
+
+            # Insert SalesInteraction in CRM Activity timeline
+            interaction = SalesInteraction(
+                lead_id=resolved_lead_id,
+                contact_id=resolved_contact_id,
+                workspace_id=resolved_workspace_id,
+                user_id=current_user.id,
+                interaction_type=InteractionType.EMAIL,
+                summary=ai_summary,
+                action_items=action_items,
+            )
+            self.db.add(interaction)
+            logged_gmail_message_ids.add(msg_id)
+
+            # In-App Notification (strictly idempotent by gmail_message_id)
+            contact_display_name = None
+            company_display_name = None
+            if matched_lead:
+                contact_display_name = matched_lead.contact_name
+                company_display_name = matched_lead.company_name
+            elif matched_contact:
+                contact_display_name = f"{matched_contact.first_name} {matched_contact.last_name or ''}".strip()
+
+            try:
+                await self.notification_service.notify_email_activity(
+                    recipient_user_id=current_user.id,
+                    workspace_id=resolved_workspace_id,
+                    activity_type=NotificationType.EMAIL_REPLIED.value,
+                    lead_id=resolved_lead_id,
+                    contact_name=contact_display_name,
+                    company_name=company_display_name,
+                    subject=subject,
+                    gmail_message_id=msg_id,
+                )
+            except Exception as notif_err:
+                logger.warning("Failed to create email reply notification: %s", notif_err)
 
         now = datetime.now(timezone.utc)
         integration.last_synced_at = now
