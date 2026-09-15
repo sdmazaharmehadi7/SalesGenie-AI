@@ -150,5 +150,13 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-
 .env
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+
+# Package files
+package.json
+package-lock.json
