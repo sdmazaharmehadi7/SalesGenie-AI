@@ -49,6 +49,7 @@ class SMTPEmailClient(EmailProvider):
         self.password = settings.SMTP_PASSWORD
         # SMTP_USE_TLS=true means STARTTLS on port 587 (not SSL wrapping on 465)
         self.start_tls = settings.SMTP_USE_TLS
+        self.use_tls = settings.SMTP_USE_SSL
         self.from_address = settings.EMAIL_FROM_ADDRESS
         self.from_name = settings.EMAIL_FROM_NAME
 
@@ -87,6 +88,7 @@ class SMTPEmailClient(EmailProvider):
                 username=self.username,
                 password=self.password,
                 start_tls=self.start_tls,
+                use_tls=self.use_tls,
                 timeout=20,
             )
 

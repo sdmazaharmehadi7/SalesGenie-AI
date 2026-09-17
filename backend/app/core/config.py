@@ -128,6 +128,7 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
     SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
 
     # ------------------------------------------------------------------
     # Calendar & Google OAuth integration
