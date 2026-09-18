@@ -102,58 +102,53 @@ SalesGenie AI Team
     async def register(self, user_in: UserCreate) -> tuple[User, SignupResponse]:
         """
         Register a new user with email and password.
-        Creates the user with is_email_verified=False and sends a 6-digit OTP to their email.
+        Account is created directly with is_email_verified=True.
+        (SMTP OTP email verification is disabled/commented out).
         """
         clean_email = user_in.email.strip().lower()
         existing = await self.users.get_by_email(clean_email)
 
-        now = datetime.now(timezone.utc)
-        otp_code = _generate_otp_code()
-        expires_at = now + timedelta(minutes=10)
-
         if existing is not None:
-            if existing.is_email_verified:
-                raise ConflictError(
-                    "A user with this email already exists.",
-                    error_code="email_already_registered",
-                )
-            # If account exists but was never verified, update details and re-issue OTP
-            existing.name = user_in.name
-            existing.hashed_password = hash_password(user_in.password)
-            user = existing
-        else:
-            hashed = hash_password(user_in.password)
-            user = await self.users.create(user_in, hashed_password=hashed)
-            user.is_email_verified = False
+            raise ConflictError(
+                "A user with this email already exists.",
+                error_code="email_already_registered",
+            )
 
-        # Invalidate any previous unused OTPs for this user
-        prev_otps_stmt = (
-            select(EmailOTP)
-            .where(EmailOTP.user_id == user.id, EmailOTP.is_used == False)
-        )
-        prev_result = await self.db.execute(prev_otps_stmt)
-        for prev_otp in prev_result.scalars().all():
-            prev_otp.is_used = True
-
-        # Create new single-use OTP record
-        email_otp = EmailOTP(
-            user_id=user.id,
-            email=clean_email,
-            otp_code=otp_code,
-            expires_at=expires_at,
-            last_sent_at=now,
-            is_used=False,
-        )
-        self.db.add(email_otp)
+        hashed = hash_password(user_in.password)
+        user = await self.users.create(user_in, hashed_password=hashed)
+        user.is_email_verified = True
         await self.db.commit()
 
-        # Send email OTP
-        await self._send_otp_email(clean_email, otp_code, user.name)
+        # --- SMTP OTP verification disabled for registration ---
+        # now = datetime.now(timezone.utc)
+        # otp_code = _generate_otp_code()
+        # expires_at = now + timedelta(minutes=10)
+        #
+        # prev_otps_stmt = (
+        #     select(EmailOTP)
+        #     .where(EmailOTP.user_id == user.id, EmailOTP.is_used == False)
+        # )
+        # prev_result = await self.db.execute(prev_otps_stmt)
+        # for prev_otp in prev_result.scalars().all():
+        #     prev_otp.is_used = True
+        #
+        # email_otp = EmailOTP(
+        #     user_id=user.id,
+        #     email=clean_email,
+        #     otp_code=otp_code,
+        #     expires_at=expires_at,
+        #     last_sent_at=now,
+        #     is_used=False,
+        # )
+        # self.db.add(email_otp)
+        # await self.db.commit()
+        #
+        # await self._send_otp_email(clean_email, otp_code, user.name)
 
         return user, SignupResponse(
-            message="Verification OTP sent to your email.",
+            message="Account created successfully.",
             email=clean_email,
-            requires_verification=True,
+            requires_verification=False,
         )
 
     async def verify_otp(self, email: str, otp_code: str) -> Token:

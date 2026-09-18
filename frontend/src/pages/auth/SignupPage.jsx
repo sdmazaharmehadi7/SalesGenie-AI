@@ -74,7 +74,7 @@ function SignupPage() {
     setLoading(true)
 
     try {
-      // Register the user -> triggers backend OTP email
+      // Register the user directly
       await api.post('/auth/register', {
         name,
         email,
@@ -82,10 +82,25 @@ function SignupPage() {
         role: 'sales_rep',
       })
 
-      showToast('Verification code sent to your email!', 'info')
-      setStep('otp')
-      setCooldown(60)
-      setOtp('')
+      // --- SMTP OTP verification disabled for registration ---
+      // showToast('Verification code sent to your email!', 'info')
+      // setStep('otp')
+      // setCooldown(60)
+      // setOtp('')
+
+      // Automatically sign in the new user and establish session
+      const formData = new URLSearchParams()
+      formData.append('username', email)
+      formData.append('password', password)
+
+      const { data } = await api.post('/auth/login', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+
+      const authResult = await login(data.access_token)
+      showToast('Account created successfully! Welcome to SalesGenie.', 'success')
+      const target = await getPostAuthRedirectUrl(authResult?.user)
+      navigate(target, { replace: true })
     } catch (err) {
       const msg = extractErrorMessage(err, 'Registration failed. Please try again.')
       setError(msg)
@@ -137,7 +152,8 @@ function SignupPage() {
     }
   }
 
-  // ─── STEP 2: OTP Verification Screen ─────────────────────────────────────────
+  // ─── STEP 2: OTP Verification Screen (Disabled: SMTP OTP verification bypassed) ─────
+  /*
   if (step === 'otp') {
     return (
       <AuthLayout
@@ -216,6 +232,7 @@ function SignupPage() {
       </AuthLayout>
     )
   }
+  */
 
   // ─── STEP 1: Registration Form Screen ────────────────────────────────────────
   return (
@@ -283,7 +300,7 @@ function SignupPage() {
         )}
 
         <Button className="w-full" disabled={loading} type="submit">
-          {loading ? 'Sending code…' : 'Create account & Send Verification Code'}
+          {loading ? 'Creating account…' : 'Create Account'}
         </Button>
       </form>
       <p className="mt-8 text-center text-sm text-ink-muted">

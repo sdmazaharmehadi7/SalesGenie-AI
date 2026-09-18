@@ -84,3 +84,50 @@ async def test_google_auth_rejects_empty_payload() -> None:
         )
     assert response.status_code == 401
 
+
+@pytest.mark.asyncio
+async def test_direct_register_and_login_flow() -> None:
+    import uuid
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        unique = uuid.uuid4().hex[:8]
+        email = f"direct_{unique}@example.com"
+        password = "SecurePassword123!"
+
+        # 1. Register user directly without OTP requirement
+        reg_res = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Direct User",
+                "email": email,
+                "password": password,
+            },
+        )
+        assert reg_res.status_code == 201, reg_res.text
+        reg_data = reg_res.json()
+        assert reg_data["requires_verification"] is False
+        assert reg_data["email"] == email
+
+        # 2. Duplicate email check
+        dup_res = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Duplicate User",
+                "email": email,
+                "password": password,
+            },
+        )
+        assert dup_res.status_code == 409
+
+        # 3. Direct login succeeds without OTP verification step
+        login_res = await client.post(
+            "/api/v1/auth/login",
+            data={"username": email, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert login_res.status_code == 200, login_res.text
+        tokens = login_res.json()
+        assert "access_token" in tokens
+
+
